@@ -1,0 +1,15 @@
+# Compiled class files
+bin/
+
+# Log files
+*.log
+
+# VS Code settings
+.vscode/
+
+# Temporary files
+*.tmp
+*.bak
+
+# JDBC Driver (optional to ignore, but usually kept if small or specific)
+# lib/mysql-connector-j-9.4.0.jar

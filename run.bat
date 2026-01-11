@@ -1,0 +1,3 @@
+@echo off
+echo Starting Pharma IMS Application...
+java -cp "bin;lib/*" pharma.App
