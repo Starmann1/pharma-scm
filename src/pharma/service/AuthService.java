@@ -1,10 +1,13 @@
 package pharma.service;
 
+import pharma.model.Role;
 import pharma.model.User;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashSet;
+import java.util.Set;
 
 public class AuthService {
 
@@ -22,32 +25,57 @@ public class AuthService {
      * @return User object if successful, null otherwise.
      */
     public User authenticate(String username, String password) {
-        String sql = "SELECT user_id, username, role FROM User_Master WHERE username = ? AND password_hash = ?";
+        String authSql = "SELECT u.user_id, u.username, u.role_id, r.role_name, r.description FROM User_Master u " +
+                "JOIN Role_Master r ON u.role_id = r.role_id " +
+                "WHERE u.username = ? AND u.password_hash = ?";
 
-        // NOTE: In a real application, password hashing (like bcrypt) should be used.
-        // For this basic JDBC demo, we assume the database stores passwords in
-        // plaintext
-        // or a simple hash/function that matches the input password directly.
-        // For security, never store passwords in plaintext!
+        String permSql = "SELECT p.permission_name FROM Role_Permission rp " +
+                "JOIN Permission_Master p ON rp.permission_id = p.permission_id " +
+                "WHERE rp.role_id = ?";
 
         try (Connection conn = dbService.getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement authStmt = conn.prepareStatement(authSql)) {
 
-            pstmt.setString(1, username);
-            pstmt.setString(2, password); // Assuming password is checked directly/via a simple hash match
+            authStmt.setString(1, username);
+            authStmt.setString(2, password);
 
-            try (ResultSet rs = pstmt.executeQuery()) {
+            try (ResultSet rs = authStmt.executeQuery()) {
                 if (rs.next()) {
-                    // Successful authentication - fetch user details
-                    return new User(
-                            rs.getInt("user_id"),
-                            rs.getString("username"),
-                            rs.getString("role"));
+                    int userId = rs.getInt("user_id");
+                    String dbUsername = rs.getString("username");
+                    int roleId = rs.getInt("role_id");
+                    String roleName = rs.getString("role_name");
+                    String roleDesc = rs.getString("description");
+
+                    Role role = new Role(roleId, roleName, roleDesc);
+                    Set<String> permissions = new HashSet<>();
+
+                    // Fetch permissions for this role
+                    try (PreparedStatement permStmt = conn.prepareStatement(permSql)) {
+                        permStmt.setInt(1, roleId);
+                        try (ResultSet permRs = permStmt.executeQuery()) {
+                            while (permRs.next()) {
+                                permissions.add(permRs.getString("permission_name"));
+                            }
+                        }
+                    }
+
+                    try {
+                        dbService.logAuditTrail(userId, "LOGIN_ATTEMPT", "User_Master", String.valueOf(userId), null,
+                                "Login Success");
+                    } catch (Exception e) {
+                    }
+
+                    return new User(userId, dbUsername, role, permissions);
+                } else {
+                    try {
+                        dbService.logAuditTrail(0, "LOGIN_ATTEMPT", "User_Master", username, null,
+                                "Invalid credentials for username: " + username);
+                    } catch (Exception e) {
+                    }
                 }
             }
-        }
-
-        catch (SQLException | ClassNotFoundException e) {
+        } catch (SQLException | ClassNotFoundException e) {
             System.err.println("Authentication Error: " + e.getMessage());
             e.printStackTrace();
         }
@@ -56,53 +84,26 @@ public class AuthService {
 
     /**
      * Checks if a user has permission to perform a specific action.
-     * Used for role-based access control in manufacturing workflows.
      * 
      * @param user   The user to check permissions for
-     * @param action The action to check (e.g., "UPDATE_QC_STATUS",
-     *               "CREATE_PRODUCTION_ORDER")
+     * @param action The action to check (e.g., "UPDATE_QC_STATUS")
      * @return true if user has permission, false otherwise
      */
     public boolean hasPermission(User user, String action) {
-        if (user == null || user.getRole() == null) {
+        if (user == null || action == null) {
             return false;
         }
+        boolean granted = user.hasPermission(action);
 
-        String role = user.getRole();
-
-        switch (action) {
-            case "UPDATE_QC_STATUS":
-                // Only QA Analysts can update QC status
-                return role.equals(User.ROLE_QA_ANALYST) || role.equals(User.ROLE_ADMIN);
-
-            case "CREATE_PRODUCTION_ORDER":
-                // Production Managers and Admins can create production orders
-                return role.equals(User.ROLE_PRODUCTION_MANAGER) || role.equals(User.ROLE_ADMIN);
-
-            case "EXECUTE_PRODUCTION_RUN":
-                // Production Managers and Admins can execute production runs
-                return role.equals(User.ROLE_PRODUCTION_MANAGER) || role.equals(User.ROLE_ADMIN);
-
-            case "MANAGE_INVENTORY":
-                // Inventory Heads and Admins can manage inventory
-                return role.equals(User.ROLE_INVENTORY_HEAD) || role.equals(User.ROLE_ADMIN);
-
-            case "MANAGE_BOM":
-                // Production Managers and Admins can manage BOMs
-                return role.equals(User.ROLE_PRODUCTION_MANAGER) || role.equals(User.ROLE_ADMIN);
-
-            case "VIEW_AUDIT_TRAIL":
-                // Admins and QA Analysts can view audit trails
-                return role.equals(User.ROLE_ADMIN) || role.equals(User.ROLE_QA_ANALYST);
-
-            case "MANAGE_USERS":
-                // Only Admins can manage users
-                return role.equals(User.ROLE_ADMIN);
-
-            default:
-                // Unknown action - deny by default
-                return false;
+        if (!granted) {
+            try {
+                dbService.logAuditTrail(user.getUserId(), "UNAUTHORIZED_ACCESS", "System", action, null,
+                        "Access Denied");
+            } catch (Exception e) {
+            }
         }
+
+        return granted;
     }
 
     /**
@@ -113,12 +114,12 @@ public class AuthService {
      * @return true if user has any of the specified roles
      */
     public boolean hasAnyRole(User user, String... roles) {
-        if (user == null || user.getRole() == null) {
+        if (user == null || user.getRole() == null || user.getRole().getRoleName() == null) {
             return false;
         }
 
         for (String role : roles) {
-            if (user.getRole().equals(role)) {
+            if (user.getRole().getRoleName().equalsIgnoreCase(role)) {
                 return true;
             }
         }

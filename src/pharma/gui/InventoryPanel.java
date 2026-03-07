@@ -91,6 +91,7 @@ package pharma.gui;
 
 import javax.swing.*;
 import pharma.model.Drug;
+import pharma.model.Stock;
 import pharma.service.DatabaseService;
 import pharma.gui.components.DrugSearchField;
 import javax.swing.table.AbstractTableModel;
@@ -164,17 +165,11 @@ public class InventoryPanel extends JPanel {
      */
     public void loadInventoryData() {
         try {
-            // The method is now correctly implemented in DatabaseService to return a
-            // List<Drug>
-            List<Drug> drugs = dbService.getFullInventoryReport();
+            List<Stock> stocks = dbService.getDetailedInventoryReport();
+            tableModel.setStocks(stocks);
+            searchField.setDrugList(dbService.getFullInventoryReport());
 
-            // Update the table model with the fetched list
-            tableModel.setDrugs(drugs);
-
-            // Update search field with latest drug list
-            searchField.setDrugList(drugs);
-
-            System.out.println("Inventory data successfully loaded: " + drugs.size() + " records.");
+            System.out.println("Inventory data successfully loaded: " + stocks.size() + " records.");
 
         } catch (Exception e) {
             // This catches any unexpected errors (though DatabaseService handles SQL
@@ -206,22 +201,22 @@ public class InventoryPanel extends JPanel {
     // Private Inner Class for the Table Model
     // ======================================================
     private class InventoryTableModel extends AbstractTableModel {
-        private List<Drug> drugs;
-        private final String[] COLUMN_NAMES = { "Code", "Brand Name", "Generic Name", "Manufacturer", "Reorder Level" };
+        private List<Stock> stocks;
+        private final String[] COLUMN_NAMES = { "Material Code", "Brand Name", "Batch No.", "Qty", "Reserved Qty",
+                "Available Qty", "Exp Date", "QC Status", "Batch Source", "Location" };
 
         public InventoryTableModel() {
-            this.drugs = new ArrayList<>();
+            this.stocks = new ArrayList<>();
         }
 
-        // Method used to update the table data after fetching from the DB
-        public void setDrugs(List<Drug> newDrugs) {
-            this.drugs = newDrugs;
-            fireTableDataChanged(); // Notifies the JTable to redraw
+        public void setStocks(List<Stock> newStocks) {
+            this.stocks = newStocks;
+            fireTableDataChanged();
         }
 
         @Override
         public int getRowCount() {
-            return drugs.size();
+            return stocks.size();
         }
 
         @Override
@@ -236,18 +231,28 @@ public class InventoryPanel extends JPanel {
 
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
-            Drug drug = drugs.get(rowIndex);
+            Stock stock = stocks.get(rowIndex);
             switch (columnIndex) {
                 case 0:
-                    return drug.getMaterialCode();
+                    return stock.getMaterialCode();
                 case 1:
-                    return drug.getBrandName();
+                    return stock.getBrandName();
                 case 2:
-                    return drug.getGenericName();
+                    return stock.getBatchNumber();
                 case 3:
-                    return drug.getManufacturer();
+                    return stock.getQuantity();
                 case 4:
-                    return drug.getReorderLevel();
+                    return stock.getReservedQuantity();
+                case 5:
+                    return stock.getAvailableQuantity();
+                case 6:
+                    return stock.getExpDate();
+                case 7:
+                    return stock.getQcStatus();
+                case 8:
+                    return stock.getParentBatchId();
+                case 9:
+                    return stock.getLocationCode();
                 default:
                     return null;
             }

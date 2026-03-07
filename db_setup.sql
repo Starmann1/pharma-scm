@@ -8,6 +8,8 @@
 CREATE DATABASE IF NOT EXISTS pharma_ims;
 USE pharma_ims;
 
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- 2. Drop existing tables for a clean slate (Run this script multiple times)
 DROP TABLE IF EXISTS GRN_Item;
 DROP TABLE IF EXISTS Goods_Received_Note;
@@ -17,7 +19,10 @@ DROP TABLE IF EXISTS Stock_Inventory;
 DROP TABLE IF EXISTS Drug_Master;
 DROP TABLE IF EXISTS Supplier_Master;
 DROP TABLE IF EXISTS Location_Master;
+DROP TABLE IF EXISTS Role_Permission;
 DROP TABLE IF EXISTS User_Master;
+DROP TABLE IF EXISTS Role_Master;
+DROP TABLE IF EXISTS Permission_Master;
 
 -- ---------------------------------------------------------------------
 -- MASTER TABLES (Primary Data)
@@ -52,6 +57,8 @@ CREATE TABLE IF NOT EXISTS Drug_Master (
     is_active BOOLEAN DEFAULT TRUE,
     
     preferred_supplier_id INT, 
+    material_type VARCHAR(50) DEFAULT 'FINISHED_GOOD',
+    unit_of_measure VARCHAR(50) DEFAULT 'NOS',
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -72,16 +79,41 @@ CREATE TABLE IF NOT EXISTS Location_Master (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- 6. User Master Table (Using plaintext passwords for simple AuthService.java match)
+-- 6. Role Master Table
+CREATE TABLE IF NOT EXISTS Role_Master (
+    role_id INT AUTO_INCREMENT PRIMARY KEY,
+    role_name VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT
+);
+
+-- 7. Permission Master Table
+CREATE TABLE IF NOT EXISTS Permission_Master (
+    permission_id INT AUTO_INCREMENT PRIMARY KEY,
+    permission_name VARCHAR(100) UNIQUE NOT NULL,
+    module VARCHAR(100),
+    description TEXT
+);
+
+-- 8. Role_Permission Junction Table
+CREATE TABLE IF NOT EXISTS Role_Permission (
+    role_id INT NOT NULL,
+    permission_id INT NOT NULL,
+    PRIMARY KEY (role_id, permission_id),
+    FOREIGN KEY (role_id) REFERENCES Role_Master(role_id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES Permission_Master(permission_id) ON DELETE CASCADE
+);
+
+-- 9. User Master Table (Using plaintext passwords for simple AuthService.java match)
 CREATE TABLE IF NOT EXISTS User_Master (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
-    role VARCHAR(50),
+    role_id INT,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES Role_Master(role_id) ON DELETE RESTRICT
 );
 
 -- ---------------------------------------------------------------------
@@ -159,6 +191,9 @@ CREATE TABLE IF NOT EXISTS Stock_Inventory (
     unit_cost DECIMAL(10, 2),
     mfg_date DATE,
     exp_date DATE,
+    qc_status VARCHAR(50) DEFAULT 'RELEASED',
+    parent_batch_id TEXT,
+    production_order_id INT,
     
     -- Ensures a specific batch of a drug is tracked only once per location
     UNIQUE KEY (material_code, location_code, batch_number),
@@ -197,11 +232,78 @@ INSERT INTO Location_Master (location_code, location_name, description, capacity
 ('LOC-B2', 'Cold Storage B2', 'Temperature controlled storage', 2000),
 ('LOC-C3', 'Retail Counter C3', 'Front desk inventory', 500);
 
--- Sample Users (Passwords are plaintext: 'adminpass', 'pharmacistpass', 'staffpass')
-INSERT INTO User_Master (username, password_hash, full_name, role, is_active) VALUES
-('admin', 'adminpass', 'System Administrator', 'Admin', TRUE), 
-('pharmacist', 'pharmacistpass', 'Dr. Sarah Williams', 'Pharmacist', TRUE),
-('staff', 'staffpass', 'Mike Brown', 'Staff', TRUE);
+-- Sample Roles
+INSERT INTO Role_Master (role_name, description) VALUES
+('Admin', 'System Administrator with all permissions'),
+('Production Manager', 'Manages BOMs and Production Orders'),
+('Quality Analyst', 'Manages Quality Control and Batch Release'),
+('Warehouse Manager', 'Manages Inventory and Receipts'),
+('Procurement Manager', 'Manages Suppliers and Purchase Orders'),
+('Viewer', 'Read-only access to system data');
+
+-- Sample Permissions (Extracted precisely from Master Prompt)
+INSERT INTO Permission_Master (permission_name, module, description) VALUES
+('MANAGE_USERS', 'Admin', 'Manage Users and Roles'),
+('VIEW_AUDIT_TRAIL', 'Admin', 'View system audit trails'),
+('CREATE_DRUG', 'Drug', 'Create Drug'),
+('EDIT_DRUG', 'Drug', 'Edit Drug'),
+('DELETE_DRUG', 'Drug', 'Delete Drug'),
+('VIEW_DRUG', 'Drug', 'View Drug'),
+('VIEW_INVENTORY', 'Inventory', 'View stock inventory'),
+('ADJUST_STOCK', 'Inventory', 'Manually adjust stock levels'),
+('TRANSFER_STOCK', 'Inventory', 'Transfer stock between locations'),
+('MANAGE_LOCATIONS', 'Location', 'Manage warehouse locations'),
+('ADD_SUPPLIER', 'Supplier', 'Add new Supplier'),
+('EDIT_SUPPLIER', 'Supplier', 'Edit Supplier details'),
+('DELETE_SUPPLIER', 'Supplier', 'Delete Supplier'),
+('VIEW_SUPPLIERS', 'Supplier', 'View Suppliers'),
+('CREATE_PO', 'Purchase', 'Create Purchase Orders'),
+('EDIT_PO', 'Purchase', 'Edit Purchase Orders'),
+('VIEW_PO', 'Purchase', 'View Purchase Orders'),
+('RECEIVE_PO', 'Purchase', 'Receive Purchase Orders (GRN)'),
+('CREATE_PRODUCTION_ORDER', 'Production', 'Create new production orders'),
+('EXECUTE_PRODUCTION_RUN', 'Production', 'Execute production runs'),
+('UPDATE_QC_STATUS', 'QC', 'Update quality control status generically'),
+('RELEASE_BATCH', 'QC', 'Release batch from quarantine'),
+('REJECT_BATCH', 'QC', 'Reject batch'),
+('VIEW_BATCH_TRACEABILITY', 'QC', 'View genealogy and traceability'),
+('VIEW_REPORTS', 'Reports', 'View Analytics and Reports'),
+('EXPORT_REPORTS', 'Reports', 'Export Reports'),
+('VIEW_BOM', 'BOM', 'View BOM'),
+('MANAGE_BOM', 'BOM', 'Create and Edit BOM');
+
+-- Sample Role Permissions (Mapping)
+-- Admin (Role 1): Gets all permissions
+INSERT INTO Role_Permission (role_id, permission_id) SELECT 1, permission_id FROM Permission_Master;
+
+-- Production Manager (Role 2)
+INSERT INTO Role_Permission (role_id, permission_id) VALUES
+(2, 6), (2, 7), (2, 27), (2, 28), (2, 19), (2, 20), (2, 25);
+
+-- Quality Analyst (Role 3)
+INSERT INTO Role_Permission (role_id, permission_id) VALUES
+(3, 6), (3, 7), (3, 21), (3, 22), (3, 23), (3, 24), (3, 25);
+
+-- Warehouse Manager (Role 4)
+INSERT INTO Role_Permission (role_id, permission_id) VALUES
+(4, 6), (4, 7), (4, 8), (4, 9), (4, 10), (4, 17), (4, 18), (4, 25);
+
+-- Procurement Manager (Role 5)
+INSERT INTO Role_Permission (role_id, permission_id) VALUES
+(5, 6), (5, 11), (5, 12), (5, 14), (5, 15), (5, 16), (5, 17), (5, 18), (5, 25);
+
+-- Viewer (Role 6)
+INSERT INTO Role_Permission (role_id, permission_id) VALUES
+(6, 6), (6, 7), (6, 25);
+
+-- Sample Users
+INSERT INTO User_Master (username, password_hash, full_name, role_id, is_active) VALUES
+('admin', 'adminpass', 'System Administrator', 1, TRUE), 
+('prod_mgr', 'prodpass', 'John Doe (Production Manager)', 2, TRUE),
+('qa_analyst', 'qapass', 'Dr. Sarah Williams (QA)', 3, TRUE),
+('warehouse_mgr', 'whpass', 'Mike Brown (Warehouse)', 4, TRUE),
+('proc_mgr', 'procpass', 'Emily Davis (Procurement)', 5, TRUE),
+('viewer_user', 'viewerpass', 'Tom Viewer (Read Only)', 6, TRUE);
 
 
 -- Sample Transactional Data (to populate PO and GRN tables)

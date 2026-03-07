@@ -151,6 +151,7 @@ public class InventoryGUI extends JFrame {
     private final String REPORTS = "Reports";
     private final String PRODUCTION = "Production";
     private final String QUALITY = "Quality";
+    private final String ADMIN = "Admin (RBAC)";
 
     // EDITED: New constructor signature now accepts the DatabaseService AND the
     // authenticated User object.
@@ -202,7 +203,8 @@ public class InventoryGUI extends JFrame {
     // safer)
     public InventoryGUI(DatabaseService dbService) {
         // Fallback or initialization for systems without explicit user login setup
-        this(dbService, new User(0, "Guest", "N/A"));
+        this(dbService,
+                new User(0, "Guest", new pharma.model.Role(0, "Guest", "Guest User"), new java.util.HashSet<>()));
     }
 
     private void createSideNavigation() {
@@ -225,11 +227,37 @@ public class InventoryGUI extends JFrame {
         logo.setBorder(BorderFactory.createEmptyBorder(20, 10, 30, 10));
         sideNavPanel.add(logo);
 
-        String[] menuItems = { DRUGS, INVENTORY, LOCATIONS, SUPPLIERS, PURCHASE_ORDERS, GRN, PRODUCTION, QUALITY,
-                REPORTS };
-        for (String item : menuItems) {
-            JButton button = createNavButton(item);
-            sideNavPanel.add(button);
+        if (authService.hasPermission(activeUser, "VIEW_DRUG")) {
+            sideNavPanel.add(createNavButton(DRUGS));
+        }
+        if (authService.hasPermission(activeUser, "VIEW_INVENTORY")) {
+            sideNavPanel.add(createNavButton(INVENTORY));
+        }
+        if (authService.hasPermission(activeUser, "MANAGE_LOCATIONS")) {
+            sideNavPanel.add(createNavButton(LOCATIONS));
+        }
+        if (authService.hasPermission(activeUser, "VIEW_SUPPLIERS")) {
+            sideNavPanel.add(createNavButton(SUPPLIERS));
+        }
+        if (authService.hasPermission(activeUser, "VIEW_PO")) {
+            sideNavPanel.add(createNavButton(PURCHASE_ORDERS));
+        }
+        if (authService.hasPermission(activeUser, "RECEIVE_PO")) {
+            sideNavPanel.add(createNavButton(GRN));
+        }
+        if (authService.hasPermission(activeUser, "CREATE_PRODUCTION_ORDER")
+                || authService.hasPermission(activeUser, "VIEW_BOM")) {
+            sideNavPanel.add(createNavButton(PRODUCTION));
+        }
+        if (authService.hasPermission(activeUser, "UPDATE_QC_STATUS")
+                || authService.hasPermission(activeUser, "VIEW_BATCH_TRACEABILITY")) {
+            sideNavPanel.add(createNavButton(QUALITY));
+        }
+        if (authService.hasPermission(activeUser, "VIEW_REPORTS")) {
+            sideNavPanel.add(createNavButton(REPORTS));
+        }
+        if (authService.hasPermission(activeUser, "MANAGE_USERS")) {
+            sideNavPanel.add(createNavButton(ADMIN));
         }
 
         sideNavPanel.add(Box.createVerticalGlue());
@@ -279,7 +307,7 @@ public class InventoryGUI extends JFrame {
 
         // FIX for PurchaseOrderPanel (Problem 1): Corrected signature is (JFrame,
         // DatabaseService)
-        mainContentPanel.add(new PurchaseOrderPanel(this, dbService), PURCHASE_ORDERS);
+        mainContentPanel.add(new PurchaseOrderPanel(this, dbService, authService, activeUser), PURCHASE_ORDERS);
 
         // FIX for GRNPanel (Problem 3): Corrected signature is (JFrame,
         // DatabaseService)
@@ -291,37 +319,10 @@ public class InventoryGUI extends JFrame {
 
         // ReportsPanel: Assumed signature: ReportsPanel(DatabaseService)
         mainContentPanel.add(new ReportsPanel(dbService), REPORTS);
+
+        if (authService.hasPermission(activeUser, "MANAGE_USERS")) {
+            mainContentPanel.add(new AdminRBACPanel(new pharma.service.RoleService(dbService), activeUser), ADMIN);
+        }
     }
 
-    private JPanel createPlaceholderPanel(String title) {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-        JLabel label = new JLabel("Module: " + title, SwingConstants.CENTER);
-        label.setFont(new Font("Arial", Font.BOLD, 36));
-        label.setForeground(new Color(50, 50, 50));
-        panel.add(label, BorderLayout.CENTER);
-
-        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JLabel headerTitle = new JLabel(title);
-        headerTitle.setFont(new Font("Arial", Font.BOLD, 28));
-        header.add(headerTitle);
-        header.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
-        panel.add(header, BorderLayout.NORTH);
-
-        // Add informational message
-        JPanel infoPanel = new JPanel();
-        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
-        JLabel infoLabel = new JLabel("<html><div style='text-align: center;'>" +
-                "<p style='font-size: 14px; color: #666;'>This module is part of the Manufacturing ERP features.</p>" +
-                "<p style='font-size: 12px; color: #999;'>Complete DatabaseService integration to enable this panel.</p>"
-                +
-                "<p style='font-size: 12px; color: #999;'>See QUICK_START_GUIDE.md for instructions.</p>" +
-                "</div></html>");
-        infoLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        infoPanel.add(infoLabel);
-        panel.add(infoPanel, BorderLayout.SOUTH);
-
-        return panel;
-    }
 }

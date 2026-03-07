@@ -9,5 +9,6 @@
     "**/.project": true,
     "**/.settings": true,
     "**/.factorypath": true
-  }
+  },
+  "chatgpt.runCodexInWindowsSubsystemForLinux": false
 }

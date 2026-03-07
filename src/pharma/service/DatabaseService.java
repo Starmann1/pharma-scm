@@ -55,29 +55,7 @@ public class DatabaseService {
     }
 
     public User getUserByCredentials(String username, String password) {
-        // NOTE: In a real app, 'password_hash' should be used with hashing, not raw
-        // password.
-        String sql = "SELECT user_id, username, role FROM User_Master WHERE username = ? AND password_hash = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, username);
-            pstmt.setString(2, password);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return new User(
-                            rs.getInt("user_id"),
-                            rs.getString("username"),
-                            rs.getString("role"));
-                }
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Authentication Query Error: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return null;
+        return new pharma.service.AuthService(this).authenticate(username, password);
     }
 
     public static DatabaseService getInstance() {
@@ -143,6 +121,8 @@ public class DatabaseService {
                     if (generatedKeys.next()) {
                         newId = generatedKeys.getInt(1);
                         supplier.setSupplierId(newId);
+                        logAuditTrail(conn, 0, "ADD_SUPPLIER", "Supplier_Master", String.valueOf(newId), null,
+                                supplier.getSupplierName());
                         System.out.println("New supplier added with ID: " + newId);
                     }
                 }
@@ -174,7 +154,12 @@ public class DatabaseService {
             pstmt.setString(8, supplier.getPaymentTerms());
             pstmt.setInt(9, supplier.getSupplierId());
             int affectedRows = pstmt.executeUpdate();
-            return affectedRows > 0;
+            if (affectedRows > 0) {
+                logAuditTrail(conn, 0, "EDIT_SUPPLIER", "Supplier_Master", String.valueOf(supplier.getSupplierId()),
+                        null, supplier.getSupplierName());
+                return true;
+            }
+            return false;
         } catch (SQLException e) {
             System.err.println("Error updating supplier: " + e.getMessage());
             e.printStackTrace();
@@ -195,7 +180,12 @@ public class DatabaseService {
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, supplierId);
             int affectedRows = pstmt.executeUpdate();
-            return affectedRows > 0;
+            if (affectedRows > 0) {
+                logAuditTrail(conn, 0, "DELETE_SUPPLIER", "Supplier_Master", String.valueOf(supplierId), null,
+                        "DELETED");
+                return true;
+            }
+            return false;
         } catch (SQLException e) {
             System.err.println("Error deleting supplier: " + e.getMessage());
             e.printStackTrace();
@@ -241,6 +231,8 @@ public class DatabaseService {
         drug.setStorageConditions(rs.getString("storage_conditions"));
         drug.setReorderLevel(rs.getInt("reorder_level"));
         drug.setActive(rs.getBoolean("is_active"));
+        drug.setMaterialType(rs.getString("material_type"));
+        drug.setUnitOfMeasure(rs.getString("unit_of_measure"));
 
         int preferredSupplierId = rs.getInt("preferred_supplier_id");
         if (rs.wasNull()) { // Checks if the last value read was SQL NULL
@@ -253,7 +245,7 @@ public class DatabaseService {
 
     public List<Drug> getAllDrugs() {
         List<Drug> drugs = new ArrayList<>();
-        String SQL = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id FROM Drug_Master";
+        String SQL = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Drug_Master";
 
         try (Connection conn = getConnection();
                 Statement stmt = conn.createStatement();
@@ -271,9 +263,9 @@ public class DatabaseService {
     }
 
     public boolean addDrug(Drug newDrug) throws SQLException {
-        String SQL = "INSERT INTO Drug_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id) "
+        String SQL = "INSERT INTO Drug_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure) "
                 +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = getConnection();
                 PreparedStatement stmt = conn.prepareStatement(SQL)) {
@@ -293,6 +285,8 @@ public class DatabaseService {
             } else {
                 stmt.setInt(11, newDrug.getPreferredSupplierId());
             }
+            stmt.setString(12, newDrug.getMaterialType());
+            stmt.setString(13, newDrug.getUnitOfMeasure());
 
             int affectedRows = stmt.executeUpdate();
             System.out.println("Drug added successfully: " + newDrug.getBrandName());
@@ -313,7 +307,7 @@ public class DatabaseService {
      * Retrieves a single Drug record using its primary key (materialCode).
      */
     public Drug getDrugByMaterialCode(String materialCode) {
-        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id FROM Drug_Master WHERE material_code = ?";
+        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Drug_Master WHERE material_code = ?";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -335,8 +329,9 @@ public class DatabaseService {
      * Updates an existing Drug record based on its materialCode.
      */
     public boolean updateDrug(Drug drug) {
-        // Updated SQL to include 'preferred_supplier_id' in the SET clause
-        String sql = "UPDATE Drug_Master SET brand_name=?, generic_name=?, manufacturer=?, formulation=?, strength=?, schedule_category=?, storage_conditions=?, reorder_level=?, is_active=?, preferred_supplier_id=? WHERE material_code=?";
+        // Updated SQL to include 'preferred_supplier_id', 'material_type', and
+        // 'unit_of_measure' in the SET clause
+        String sql = "UPDATE Drug_Master SET brand_name=?, generic_name=?, manufacturer=?, formulation=?, strength=?, schedule_category=?, storage_conditions=?, reorder_level=?, is_active=?, preferred_supplier_id=?, material_type=?, unit_of_measure=? WHERE material_code=?";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -360,8 +355,11 @@ public class DatabaseService {
                 pstmt.setNull(10, java.sql.Types.INTEGER);
             }
 
-            // WHERE clause parameter (11)
-            pstmt.setString(11, drug.getMaterialCode());
+            pstmt.setString(11, drug.getMaterialType());
+            pstmt.setString(12, drug.getUnitOfMeasure());
+
+            // WHERE clause parameter (13)
+            pstmt.setString(13, drug.getMaterialCode());
 
             return pstmt.executeUpdate() > 0;
         } catch (SQLException | ClassNotFoundException e) {
@@ -390,9 +388,10 @@ public class DatabaseService {
     public List<Drug> getDrugs() {
         List<Drug> drugs = new ArrayList<>();
 
-        // FIX: Updated SQL query to explicitly select 'preferred_supplier_id' (11
+        // FIX: Updated SQL query to explicitly select 'preferred_supplier_id',
+        // 'material_type', 'unit_of_measure' (13
         // columns total)
-        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id FROM Drug_Master";
+        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Drug_Master";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -410,8 +409,9 @@ public class DatabaseService {
                         rs.getString("storage_conditions"),
                         rs.getInt("reorder_level"),
                         rs.getBoolean("is_active"),
-                        rs.getInt("preferred_supplier_id") // <-- NEW: 11th parameter added
-                );
+                        rs.getInt("preferred_supplier_id"),
+                        rs.getString("material_type"),
+                        rs.getString("unit_of_measure"));
                 drugs.add(drug);
             }
         } catch (SQLException | ClassNotFoundException e) {
@@ -662,6 +662,8 @@ public class DatabaseService {
                 }
 
                 conn.commit(); // Commit Transaction
+                logAuditTrail(conn, 0, "CREATE_PO", "Purchase_Order", String.valueOf(newPoId), null,
+                        "Total: " + po.getTotalAmount());
                 System.out.println("Purchase Order created successfully with ID: " + newPoId);
                 return true;
 
@@ -782,6 +784,8 @@ public class DatabaseService {
                 +
                 "VALUES (?, ?, ?, ?, ?, ?, ?) " +
                 "ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)";
+        String insertInventoryTransactionSql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String insertEventLogSql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES (?, ?, ?, ?, ?)";
         String updatePoStatusSql = "UPDATE Purchase_Order SET status = ? WHERE po_id = ?";
 
         try (Connection conn = getConnection()) {
@@ -820,7 +824,9 @@ public class DatabaseService {
                 }
 
                 try (PreparedStatement grnItemStmt = conn.prepareStatement(insertGrnItemSql);
-                        PreparedStatement stockStmt = conn.prepareStatement(insertOrUpdateStockSql)) {
+                        PreparedStatement stockStmt = conn.prepareStatement(insertOrUpdateStockSql);
+                        PreparedStatement txStmt = conn.prepareStatement(insertInventoryTransactionSql);
+                        PreparedStatement eventStmt = conn.prepareStatement(insertEventLogSql)) {
 
                     for (PurchaseOrderItem item : poItems) {
                         // Generate batch number (in real app, this would be from user input)
@@ -836,15 +842,27 @@ public class DatabaseService {
                         grnItemStmt.setDate(5, Date.valueOf(expiryDate));
                         grnItemStmt.addBatch();
 
-                        // Insert/Update Stock Inventory (default location: LOC-A1)
+                        // Insert/Update Stock Inventory (default location: RAW_MATERIAL_WAREHOUSE)
                         stockStmt.setString(1, item.getMaterialCode());
-                        stockStmt.setString(2, "LOC-A1"); // Default location, can be parameterized
+                        stockStmt.setString(2, "RAW_MATERIAL_WAREHOUSE"); // Default location
                         stockStmt.setString(3, batchNumber);
                         stockStmt.setInt(4, item.getQuantity());
                         stockStmt.setDouble(5, item.getUnitPrice());
                         stockStmt.setDate(6, Date.valueOf(mfgDate));
                         stockStmt.setDate(7, Date.valueOf(expiryDate));
                         stockStmt.addBatch();
+
+                        // Add Inventory Transaction
+                        txStmt.setString(1, item.getMaterialCode());
+                        txStmt.setString(2, batchNumber);
+                        txStmt.setString(3, "RAW_MATERIAL_WAREHOUSE");
+                        txStmt.setString(4, "GRN_RECEIPT");
+                        txStmt.setDouble(5, item.getQuantity());
+                        txStmt.setString(6, "GRN");
+                        txStmt.setString(7, String.valueOf(grnId));
+                        txStmt.setInt(8, 1); // System Admin ID
+                        txStmt.setString(9, "Received from PO " + po.getPoNumber());
+                        txStmt.addBatch();
 
                         System.out.println("Added GRN item: Drug=" + item.getMaterialCode() +
                                 ", Qty=" + item.getQuantity() +
@@ -854,6 +872,15 @@ public class DatabaseService {
                     // Execute batches
                     grnItemStmt.executeBatch();
                     stockStmt.executeBatch();
+                    txStmt.executeBatch();
+
+                    // Generate Event Log
+                    eventStmt.setString(1, "MATERIAL_RECEIVED");
+                    eventStmt.setString(2, "GRN");
+                    eventStmt.setString(3, String.valueOf(grnId));
+                    eventStmt.setString(4, "Received materials for PO " + po.getPoNumber());
+                    eventStmt.setString(5, "SUCCESS");
+                    eventStmt.executeUpdate();
                 }
 
                 // 3. Update PO status to "Received"
@@ -1029,7 +1056,7 @@ public class DatabaseService {
         }
     }
 
-    public void deletePurchaseOrder(int orderId) {
+    public void deletePurchaseOrder(int orderId) throws SQLException {
         String deleteItemsSql = "DELETE FROM PurchaseOrder_Item WHERE po_id = ?";
         String deleteOrderSql = "DELETE FROM Purchase_Order WHERE po_id = ?";
         try (Connection conn = getConnection()) {
@@ -1049,8 +1076,9 @@ public class DatabaseService {
                 System.err.println("Delete PurchaseOrder rollback: " + ex.getMessage());
                 throw ex; // propagate for upper level error handling if needed
             }
-        } catch (SQLException | ClassNotFoundException e) {
+        } catch (ClassNotFoundException e) {
             System.err.println("Delete PurchaseOrder error: " + e.getMessage());
+            throw new SQLException("Database driver not found: " + e.getMessage());
         }
     }
 
@@ -1061,6 +1089,7 @@ public class DatabaseService {
             pstmt.setString(1, "Received");
             pstmt.setInt(2, orderId);
             pstmt.executeUpdate();
+            logAuditTrail(conn, 0, "RECEIVE_PO", "Purchase_Order", String.valueOf(orderId), "Pending", "Received");
         } catch (SQLException | ClassNotFoundException e) {
             System.err.println("Error marking PO as received: " + e.getMessage());
         }
@@ -1341,7 +1370,10 @@ public class DatabaseService {
 
             try (ResultSet rs = pstmt.getGeneratedKeys()) {
                 if (rs.next()) {
-                    return rs.getInt(1);
+                    int orderId = rs.getInt(1);
+                    logAuditTrail(conn, order.getCreatedBy(), "CREATE_PRODUCTION_ORDER", "Production_Order",
+                            String.valueOf(orderId), null, order.getBatchNumber());
+                    return orderId;
                 }
             }
         }
@@ -1460,6 +1492,39 @@ public class DatabaseService {
                                 updateStmt.executeUpdate();
                             }
 
+                            // 1. Material Consumption
+                            String insertMcSql = "INSERT INTO production_material_consumption (production_order_id, material_code, batch_number, required_qty, consumed_qty, uom) VALUES (?, ?, ?, ?, ?, ?)";
+                            try (PreparedStatement mcStmt = conn.prepareStatement(insertMcSql)) {
+                                mcStmt.setInt(1, orderId);
+                                mcStmt.setString(2, ingredient.getIngredientMaterialCode());
+                                mcStmt.setString(3, batchNumber);
+                                mcStmt.setDouble(4, qtyNeeded);
+                                mcStmt.setDouble(5, toConsume);
+                                mcStmt.setString(6, ingredient.getUom());
+                                mcStmt.executeUpdate();
+                            }
+
+                            // 2. Inventory Transaction (Consumption)
+                            String insertTxSql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES (?, ?, 'PRODUCTION_FLOOR', 'PRODUCTION_CONSUMPTION', ?, 'PRODUCTION_ORDER', ?, ?, ?)";
+                            try (PreparedStatement txStmt = conn.prepareStatement(insertTxSql)) {
+                                txStmt.setString(1, ingredient.getIngredientMaterialCode());
+                                txStmt.setString(2, batchNumber);
+                                txStmt.setDouble(3, -toConsume);
+                                txStmt.setString(4, String.valueOf(orderId));
+                                txStmt.setInt(5, userId);
+                                txStmt.setString(6, "Consumed for Order " + orderId);
+                                txStmt.executeUpdate();
+                            }
+
+                            // 3. Batch Genealogy
+                            String insertBgSql = "INSERT INTO batch_genealogy (parent_batch, child_batch, production_order_id, relationship_type) VALUES (?, ?, ?, 'USED_IN')";
+                            try (PreparedStatement bgStmt = conn.prepareStatement(insertBgSql)) {
+                                bgStmt.setString(1, batchNumber);
+                                bgStmt.setString(2, order.getBatchNumber());
+                                bgStmt.setInt(3, orderId);
+                                bgStmt.executeUpdate();
+                            }
+
                             if (parentBatches.length() > 0) {
                                 parentBatches.append(",");
                             }
@@ -1475,7 +1540,7 @@ public class DatabaseService {
 
             try (PreparedStatement pstmt = conn.prepareStatement(insertStockSql)) {
                 pstmt.setString(1, bom.getMaterialCode());
-                pstmt.setString(2, "LOC-A1");
+                pstmt.setString(2, "PRODUCTION_FLOOR");
                 pstmt.setString(3, order.getBatchNumber());
                 pstmt.setDouble(4, order.getPlannedQty());
                 pstmt.setDouble(5, 0.0);
@@ -1484,6 +1549,39 @@ public class DatabaseService {
                 pstmt.setString(8, parentBatches.toString());
                 pstmt.setInt(9, orderId);
                 pstmt.executeUpdate();
+            }
+
+            // 4. Production Batch Record
+            String insertPbSql = "INSERT INTO production_batch (production_order_id, material_code, batch_number, quantity, mfg_date, expiry_date, qc_status, location_code) VALUES (?, ?, ?, ?, ?, ?, 'QUARANTINE', 'PRODUCTION_FLOOR')";
+            try (PreparedStatement pbStmt = conn.prepareStatement(insertPbSql)) {
+                pbStmt.setInt(1, orderId);
+                pbStmt.setString(2, bom.getMaterialCode());
+                pbStmt.setString(3, order.getBatchNumber());
+                pbStmt.setDouble(4, order.getPlannedQty());
+                pbStmt.setDate(5, java.sql.Date.valueOf(LocalDate.now()));
+                pbStmt.setDate(6, java.sql.Date.valueOf(LocalDate.now().plusYears(2)));
+                pbStmt.executeUpdate();
+            }
+
+            // 5. Inventory Transaction (Finished Good Receipt)
+            String insertTxFGSql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES (?, ?, 'PRODUCTION_FLOOR', 'PRODUCTION_RECEIPT', ?, 'PRODUCTION_ORDER', ?, ?, ?)";
+            try (PreparedStatement txFgStmt = conn.prepareStatement(insertTxFGSql)) {
+                txFgStmt.setString(1, bom.getMaterialCode());
+                txFgStmt.setString(2, order.getBatchNumber());
+                txFgStmt.setDouble(3, order.getPlannedQty());
+                txFgStmt.setString(4, String.valueOf(orderId));
+                txFgStmt.setInt(5, userId);
+                txFgStmt.setString(6, "Received from Production Order " + orderId);
+                txFgStmt.executeUpdate();
+            }
+
+            // 6. Event Log
+            String insertEventSql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES (?, 'PRODUCTION_ORDER', ?, ?, 'SUCCESS')";
+            try (PreparedStatement evStmt = conn.prepareStatement(insertEventSql)) {
+                evStmt.setString(1, "PRODUCTION_COMPLETED");
+                evStmt.setString(2, String.valueOf(orderId));
+                evStmt.setString(3, "Production run executed. Batch: " + order.getBatchNumber());
+                evStmt.executeUpdate();
             }
 
             String updateOrderSql = "UPDATE Production_Order SET status = 'Quality-Testing', actual_qty = ?, completed_date = CURDATE() WHERE order_id = ?";
@@ -1543,6 +1641,23 @@ public class DatabaseService {
                 pstmt.setString(1, newStatus);
                 pstmt.setString(2, batchNumber);
                 pstmt.executeUpdate();
+            }
+
+            // Also update production_batch if applicable
+            String updatePbSql = "UPDATE production_batch SET qc_status = ? WHERE batch_number = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(updatePbSql)) {
+                pstmt.setString(1, newStatus);
+                pstmt.setString(2, batchNumber);
+                pstmt.executeUpdate();
+            }
+
+            // Create event log
+            String insertEventSql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES (?, 'BATCH', ?, ?, 'SUCCESS')";
+            try (PreparedStatement evStmt = conn.prepareStatement(insertEventSql)) {
+                evStmt.setString(1, "QC_" + newStatus.toUpperCase());
+                evStmt.setString(2, batchNumber);
+                evStmt.setString(3, "QC Status updated from " + oldStatus + " to " + newStatus);
+                evStmt.executeUpdate();
             }
 
             logAuditTrail(conn, userId, "QC_STATUS_UPDATE", "Stock_Inventory", batchNumber, oldStatus, newStatus);
@@ -1768,6 +1883,205 @@ public class DatabaseService {
             }
         }
         return materials;
+    }
+
+    // =======================================================
+    // --- MANUFACTURER-CENTRIC SCM (NEW DAO METHODS) ---
+    // =======================================================
+
+    public boolean addInventoryTransaction(InventoryTransaction tx) {
+        String sql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) "
+                +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setString(1, tx.getMaterialCode());
+            pstmt.setString(2, tx.getBatchNumber());
+            pstmt.setString(3, tx.getLocationCode());
+            pstmt.setString(4, tx.getTransactionType());
+            pstmt.setDouble(5, tx.getQuantity());
+            pstmt.setString(6, tx.getReferenceType());
+            pstmt.setString(7, tx.getReferenceId());
+            pstmt.setInt(8, tx.getPerformedBy());
+            pstmt.setString(9, tx.getNotes());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next())
+                        tx.setTransactionId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean addMaterialConsumption(MaterialConsumption mc) {
+        String sql = "INSERT INTO production_material_consumption (production_order_id, material_code, batch_number, required_qty, consumed_qty, uom) "
+                +
+                "VALUES (?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, mc.getProductionOrderId());
+            pstmt.setString(2, mc.getMaterialCode());
+            pstmt.setString(3, mc.getBatchNumber());
+            pstmt.setDouble(4, mc.getRequiredQty());
+            pstmt.setDouble(5, mc.getConsumedQty());
+            pstmt.setString(6, mc.getUom());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next())
+                        mc.setConsumptionId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean addProductionBatch(ProductionBatch pb) {
+        String sql = "INSERT INTO production_batch (production_order_id, material_code, batch_number, quantity, mfg_date, expiry_date, qc_status, location_code) "
+                +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, pb.getProductionOrderId());
+            pstmt.setString(2, pb.getMaterialCode());
+            pstmt.setString(3, pb.getBatchNumber());
+            pstmt.setDouble(4, pb.getQuantity());
+            pstmt.setDate(5, pb.getMfgDate() != null ? java.sql.Date.valueOf(pb.getMfgDate()) : null);
+            pstmt.setDate(6, pb.getExpiryDate() != null ? java.sql.Date.valueOf(pb.getExpiryDate()) : null);
+            pstmt.setString(7, pb.getQcStatus());
+            pstmt.setString(8, pb.getLocationCode());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next())
+                        pb.setBatchId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean addBatchGenealogy(BatchGenealogy bg) {
+        String sql = "INSERT INTO batch_genealogy (parent_batch, child_batch, production_order_id, relationship_type) VALUES (?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setString(1, bg.getParentBatch());
+            pstmt.setString(2, bg.getChildBatch());
+            pstmt.setInt(3, bg.getProductionOrderId());
+            pstmt.setString(4, bg.getRelationshipType());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next())
+                        bg.setGenealogyId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean addEventLog(EventLog el) {
+        String sql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES (?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setString(1, el.getEventType());
+            pstmt.setString(2, el.getEntityType());
+            pstmt.setString(3, el.getEntityId());
+            pstmt.setString(4, el.getDetails());
+            pstmt.setString(5, el.getStatus());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next())
+                        el.setEventId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public List<Stock> getDetailedInventoryReport() {
+        List<Stock> stocks = new ArrayList<>();
+        String sql = "SELECT s.stock_id, s.material_code, d.brand_name, d.generic_name, s.location_code, s.batch_number, s.quantity, s.reserved_quantity, s.available_quantity, s.unit_cost, s.mfg_date, s.exp_date, s.qc_status, s.parent_batch_id "
+                +
+                "FROM Stock_Inventory s JOIN Drug_Master d ON s.material_code = d.material_code";
+        try (Connection conn = getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                Stock stock = new Stock();
+                stock.setStockId(rs.getInt("stock_id"));
+                stock.setMaterialCode(rs.getString("material_code"));
+                // We use the brand_name and generic_name fields directly populated from join
+                stock.setBrandName(rs.getString("brand_name"));
+                stock.setGenericName(rs.getString("generic_name"));
+                stock.setLocationCode(rs.getString("location_code"));
+                stock.setBatchNumber(rs.getString("batch_number"));
+                stock.setQuantity(rs.getDouble("quantity"));
+                stock.setReservedQuantity(rs.getDouble("reserved_quantity"));
+                stock.setAvailableQuantity(rs.getDouble("available_quantity"));
+                stock.setUnitCost(rs.getDouble("unit_cost"));
+                java.sql.Date mfg = rs.getDate("mfg_date");
+                if (mfg != null)
+                    stock.setMfgDate(mfg.toLocalDate());
+                java.sql.Date exp = rs.getDate("exp_date");
+                if (exp != null)
+                    stock.setExpDate(exp.toLocalDate());
+                stock.setQcStatus(rs.getString("qc_status"));
+                stock.setParentBatchId(rs.getString("parent_batch_id"));
+                stocks.add(stock);
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            System.err.println("Error fetching detailed inventory: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return stocks;
+    }
+
+    public List<MaterialConsumption> getMaterialConsumptionsForOrder(int orderId) {
+        List<MaterialConsumption> consumptions = new ArrayList<>();
+        String sql = "SELECT * FROM production_material_consumption WHERE production_order_id = ?";
+        try (Connection conn = getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, orderId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    MaterialConsumption mc = new MaterialConsumption();
+                    mc.setConsumptionId(rs.getInt("consumption_id"));
+                    mc.setProductionOrderId(rs.getInt("production_order_id"));
+                    mc.setMaterialCode(rs.getString("material_code"));
+                    mc.setBatchNumber(rs.getString("batch_number"));
+                    mc.setRequiredQty(rs.getDouble("required_qty"));
+                    mc.setConsumedQty(rs.getDouble("consumed_qty"));
+                    mc.setUom(rs.getString("uom"));
+                    java.sql.Timestamp ts = rs.getTimestamp("created_at");
+                    if (ts != null)
+                        mc.setCreatedAt(ts.toLocalDateTime());
+                    consumptions.add(mc);
+                }
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            System.err.println("Error fetching consumptions: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return consumptions;
     }
 
 }

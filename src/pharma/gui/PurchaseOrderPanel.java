@@ -3,6 +3,8 @@ package pharma.gui;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import pharma.model.PurchaseOrder;
+import pharma.model.User;
+import pharma.service.AuthService;
 import pharma.service.DatabaseService;
 import java.awt.*;
 import java.util.List;
@@ -13,11 +15,15 @@ public class PurchaseOrderPanel extends JPanel {
     private DatabaseService dbService;
     private JFrame mainFrame;
 
+    private AuthService authService;
+    private User currentUser;
     private JButton createOrderBtn, viewDetailsBtn, receiveShipmentBtn, deleteOrderBtn, refreshBtn;
 
-    public PurchaseOrderPanel(JFrame mainFrame, DatabaseService dbService) {
+    public PurchaseOrderPanel(JFrame mainFrame, DatabaseService dbService, AuthService authService, User currentUser) {
         this.mainFrame = mainFrame;
         this.dbService = dbService;
+        this.authService = authService;
+        this.currentUser = currentUser;
 
         setLayout(new BorderLayout(5, 5));
         setBorder(BorderFactory.createTitledBorder("Purchase Order Management"));
@@ -29,6 +35,16 @@ public class PurchaseOrderPanel extends JPanel {
         receiveShipmentBtn = new JButton("Receive Shipment");
         deleteOrderBtn = new JButton("Delete Order");
         refreshBtn = new JButton("Refresh Orders");
+
+        // Enforce specific action permissions
+        createOrderBtn.setEnabled(authService.hasPermission(currentUser, "CREATE_PO"));
+        viewDetailsBtn.setEnabled(
+                authService.hasPermission(currentUser, "EDIT_PO") || authService.hasPermission(currentUser, "VIEW_PO"));
+        receiveShipmentBtn.setEnabled(authService.hasPermission(currentUser, "RECEIVE_PO"));
+        // Delete assumes Admin logic, we can tie to DELETE_PO or simply Admin
+        // role/MANAGE_USERS since the prompt doesn't list DELETE_PO explicitly!
+        // Actually, wait, Prompt didn't list DELETE_PO. We will tie it to Admin!
+        deleteOrderBtn.setEnabled(authService.hasPermission(currentUser, "MANAGE_USERS"));
 
         controlPanel.add(createOrderBtn);
         controlPanel.add(viewDetailsBtn);
@@ -51,18 +67,16 @@ public class PurchaseOrderPanel extends JPanel {
         add(scrollPane, BorderLayout.CENTER);
 
         // Load initial data
-        loadOrderData();
+        if (authService.hasPermission(currentUser, "VIEW_PO")) {
+            loadOrderData();
+        }
 
         // Button event handlers
         refreshBtn.addActionListener(_ -> loadOrderData());
-
         viewDetailsBtn.addActionListener(_ -> handleViewEditOrder());
-
         receiveShipmentBtn.addActionListener(_ -> handleReceiveShipment());
-
         deleteOrderBtn.addActionListener(_ -> handleDeleteOrder());
-
-        createOrderBtn.addActionListener(_ -> openOrderCreationDialog()); // Assuming exists
+        createOrderBtn.addActionListener(_ -> openOrderCreationDialog());
     }
 
     void loadOrderData() {

@@ -136,13 +136,13 @@ public class QualityDashboard extends JPanel {
         releaseButton = new JButton("Release Batch");
         releaseButton.setBackground(new Color(144, 238, 144));
         releaseButton.addActionListener(e -> updateQCStatus("RELEASED"));
-        releaseButton.setEnabled(authService.hasPermission(currentUser, "UPDATE_QC_STATUS"));
+        releaseButton.setEnabled(authService.hasPermission(currentUser, "RELEASE_BATCH"));
         buttonPanel.add(releaseButton);
 
         rejectButton = new JButton("Reject Batch");
         rejectButton.setBackground(new Color(255, 160, 160));
         rejectButton.addActionListener(e -> updateQCStatus("REJECTED"));
-        rejectButton.setEnabled(authService.hasPermission(currentUser, "UPDATE_QC_STATUS"));
+        rejectButton.setEnabled(authService.hasPermission(currentUser, "REJECT_BATCH"));
         buttonPanel.add(rejectButton);
 
         genealogyButton = new JButton("View Genealogy");
@@ -318,9 +318,16 @@ public class QualityDashboard extends JPanel {
             return;
         }
 
-        if (!authService.hasPermission(currentUser, "UPDATE_QC_STATUS")) {
+        boolean isRelease = "RELEASED".equals(newStatus);
+        boolean isReject = "REJECTED".equals(newStatus);
+        boolean hasPerm = (isRelease && authService.hasPermission(currentUser, "RELEASE_BATCH")) ||
+                (isReject && authService.hasPermission(currentUser, "REJECT_BATCH")) ||
+                authService.hasPermission(currentUser, "UPDATE_QC_STATUS");
+
+        if (!hasPerm) {
             JOptionPane.showMessageDialog(this,
-                    "You don't have permission to update QC status.\nRequired role: QA Analyst", "Permission Denied",
+                    "You don't have permission to perform this QC status update.\nRequired Role: Quality Analyst",
+                    "Permission Denied",
                     JOptionPane.ERROR_MESSAGE);
             return;
         }

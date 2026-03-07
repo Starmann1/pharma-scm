@@ -1,32 +1,29 @@
 package pharma.model;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * POJO for the User_Master table, tracking logged-in user details.
  */
 public class User {
 
-    // Role constants for the manufacturing ERP system
-    public static final String ROLE_ADMIN = "Admin";
-    public static final String ROLE_PHARMACIST = "Pharmacist";
-    public static final String ROLE_STAFF = "Staff";
-    public static final String ROLE_PRODUCTION_MANAGER = "Production Manager";
-    public static final String ROLE_QA_ANALYST = "QA Analyst";
-    public static final String ROLE_INVENTORY_HEAD = "Inventory Head";
-
     private int userId;
     private String username;
-    private String role; // e.g., "Admin", "Staff", "Production Manager", "QA Analyst"
+    private Role role; // Uses the Role object instead of a string
+    private Set<String> permissions; // Represents all permissions assigned to the role
 
     // Constructor used by AuthService upon successful login
-    public User(int userId, String username, String role) {
+    public User(int userId, String username, Role role, Set<String> permissions) {
         this.userId = userId;
         this.username = username;
         this.role = role;
+        this.permissions = permissions != null ? permissions : new HashSet<>();
     }
 
     // Default Constructor
     public User() {
-
+        this.permissions = new HashSet<>();
     }
 
     // Getters
@@ -38,8 +35,12 @@ public class User {
         return username;
     }
 
-    public String getRole() {
+    public Role getRole() {
         return role;
+    }
+
+    public Set<String> getPermissions() {
+        return permissions;
     }
 
     // Setters
@@ -51,14 +52,26 @@ public class User {
         this.username = username;
     }
 
-    public void setRole(String role) {
+    public void setRole(Role role) {
         this.role = role;
+    }
+
+    public void setPermissions(Set<String> permissions) {
+        this.permissions = permissions != null ? permissions : new HashSet<>();
     }
 
     /**
      * Helper method to check if user has a specific role
      */
     public boolean hasRole(String roleName) {
-        return this.role != null && this.role.equalsIgnoreCase(roleName);
+        return this.role != null && this.role.getRoleName() != null
+                && this.role.getRoleName().equalsIgnoreCase(roleName);
+    }
+
+    /**
+     * Helper method to check if user has a specific permission
+     */
+    public boolean hasPermission(String permissionName) {
+        return permissions.contains(permissionName);
     }
 }

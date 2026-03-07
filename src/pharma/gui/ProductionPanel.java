@@ -383,6 +383,15 @@ public class ProductionPanel extends JPanel {
                         .append(order.getCompletedDate() != null ? order.getCompletedDate() : "N/A").append("\n");
                 details.append("Notes: ").append(order.getNotes() != null ? order.getNotes() : "").append("\n");
 
+                List<MaterialConsumption> consumptions = dbService.getMaterialConsumptionsForOrder(orderId);
+                if (!consumptions.isEmpty()) {
+                    details.append("\n--- Material Consumption ---\n");
+                    for (MaterialConsumption mc : consumptions) {
+                        details.append(String.format("- %s (Batch: %s): %s %s\n",
+                                mc.getMaterialCode(), mc.getBatchNumber(), mc.getConsumedQty(), mc.getUom()));
+                    }
+                }
+
                 orderDetailsArea.setText(details.toString());
             }
         } catch (Exception e) {

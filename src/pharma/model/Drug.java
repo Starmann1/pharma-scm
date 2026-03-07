@@ -15,11 +15,14 @@ public class Drug {
     private int reorderLevel;
     private boolean isActive;
     private Integer preferredSupplierId;
+    private String materialType;
+    private String unitOfMeasure;
 
     // Constructor
-    public Drug(String materialCode, String brandName, String genericName, String manufacturer, 
-                String formulation, String strength, String scheduleCategory, 
-                String storageConditions, Integer reorderLevel, boolean isActive, Integer preferredSupplierId) {
+    public Drug(String materialCode, String brandName, String genericName, String manufacturer,
+            String formulation, String strength, String scheduleCategory,
+            String storageConditions, Integer reorderLevel, boolean isActive, Integer preferredSupplierId,
+            String materialType, String unitOfMeasure) {
         this.materialCode = materialCode;
         this.brandName = brandName;
         this.genericName = genericName;
@@ -31,10 +34,12 @@ public class Drug {
         this.reorderLevel = reorderLevel;
         this.isActive = isActive;
         this.preferredSupplierId = preferredSupplierId;
+        this.materialType = materialType;
+        this.unitOfMeasure = unitOfMeasure;
     }
 
     // Default Constructor (required by some frameworks/libraries)
-    //public Drug() {}
+    // public Drug() {}
 
     // ----------------------------------------------------------
     // Getters and Setters for accessing and modifying the fields
@@ -122,6 +127,7 @@ public class Drug {
     public void setActive(boolean isactive) {
         isActive = isactive;
     }
+
     public Integer getPreferredSupplierId() {
         return preferredSupplierId;
     }
@@ -130,4 +136,19 @@ public class Drug {
         this.preferredSupplierId = preferredSupplierId;
     }
 
+    public String getMaterialType() {
+        return materialType;
+    }
+
+    public void setMaterialType(String materialType) {
+        this.materialType = materialType;
+    }
+
+    public String getUnitOfMeasure() {
+        return unitOfMeasure;
+    }
+
+    public void setUnitOfMeasure(String unitOfMeasure) {
+        this.unitOfMeasure = unitOfMeasure;
+    }
 }

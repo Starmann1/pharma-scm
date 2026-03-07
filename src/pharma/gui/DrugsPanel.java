@@ -355,7 +355,7 @@ public class DrugsPanel extends JPanel {
         // Table Setup
         // NOTE: Material Code is the primary key (PK)
         tableModel = new DefaultTableModel(new Object[] { "Material Code", "Brand Name", "Generic Name", "Manufacturer",
-                "Formulation", "Strength", "Reorder Level", "Preferred Supplier ID" }, 0) {
+                "Formulation", "Strength", "Reorder Level", "Preferred Supplier ID", "Material Type", "UOM" }, 0) {
             // Override isCellEditable to make the table non-editable
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -491,7 +491,9 @@ public class DrugsPanel extends JPanel {
                             drug.getFormulation(),
                             drug.getStrength(),
                             drug.getReorderLevel(),
-                            drug.getPreferredSupplierId()
+                            drug.getPreferredSupplierId(),
+                            drug.getMaterialType(),
+                            drug.getUnitOfMeasure()
                     });
                 }
             }
@@ -553,6 +555,8 @@ public class DrugsPanel extends JPanel {
         private JTextField reorderLevelField;
         private JCheckBox isActiveCheckBox;
         private JTextField preferredSupplierIdField;
+        private JComboBox<String> materialTypeComboBox;
+        private JTextField unitOfMeasureField;
 
         // Updated constructor signature to handle both modes
         public DrugFormDialog(JFrame owner, DrugsPanel parent, Drug drug) {
@@ -661,6 +665,24 @@ public class DrugsPanel extends JPanel {
             preferredSupplierIdField = new JTextField(20);
             add(preferredSupplierIdField, gbc);
 
+            // 12. Material Type
+            gbc.gridx = 0;
+            gbc.gridy = y++;
+            add(new JLabel("Material Type:"), gbc);
+            gbc.gridx = 1;
+            materialTypeComboBox = new JComboBox<>(
+                    new String[] { "RAW_MATERIAL", "PACKAGING", "INTERMEDIATE", "FINISHED_GOOD" });
+            add(materialTypeComboBox, gbc);
+
+            // 13. Unit of Measure
+            gbc.gridx = 0;
+            gbc.gridy = y++;
+            add(new JLabel("Unit of Measure:"), gbc);
+            gbc.gridx = 1;
+            unitOfMeasureField = new JTextField(20);
+            unitOfMeasureField.setText("NOS"); // Default
+            add(unitOfMeasureField, gbc);
+
             // --- Load existing data if in Edit Mode ---
             if (drugToEdit != null) {
                 loadDrugData(drugToEdit);
@@ -704,6 +726,12 @@ public class DrugsPanel extends JPanel {
             } else {
                 preferredSupplierIdField.setText("");
             }
+            if (drug.getMaterialType() != null) {
+                materialTypeComboBox.setSelectedItem(drug.getMaterialType());
+            }
+            if (drug.getUnitOfMeasure() != null) {
+                unitOfMeasureField.setText(drug.getUnitOfMeasure());
+            }
         }
 
         private void saveDrug() {
@@ -721,6 +749,8 @@ public class DrugsPanel extends JPanel {
                 String reorderLevelStr = reorderLevelField.getText().trim();
                 boolean isActive = isActiveCheckBox.isSelected();
                 String preferredSupplierIdStr = preferredSupplierIdField.getText().trim();
+                String materialType = (String) materialTypeComboBox.getSelectedItem();
+                String unitOfMeasure = unitOfMeasureField.getText().trim();
 
                 // Basic validation
                 if (materialCode.isEmpty() || brandName.isEmpty() || genericName.isEmpty()
@@ -767,6 +797,8 @@ public class DrugsPanel extends JPanel {
                 drugToSave.setReorderLevel(reorderLevel);
                 drugToSave.setActive(isActive);
                 drugToSave.setPreferredSupplierId(preferredSupplierId);
+                drugToSave.setMaterialType(materialType);
+                drugToSave.setUnitOfMeasure(unitOfMeasure.isEmpty() ? "NOS" : unitOfMeasure);
 
                 // 3. Call Database Service
                 boolean success;
