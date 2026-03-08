@@ -38,8 +38,10 @@ public class LoginGUI extends JFrame {
     private void initializeComponents() {
         // --- Main Login Panel (Aesthetics: Card-like panel) ---
         JPanel loginPanel = new JPanel(new GridBagLayout());
-        loginPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
-        loginPanel.setBackground(new Color(240, 248, 255)); // AliceBlue background
+        loginPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Color.decode("#D1D5DB"), 1, true),
+                BorderFactory.createEmptyBorder(30, 30, 30, 30)));
+        loginPanel.setBackground(Color.decode("#F4F6F8")); // Background color
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
@@ -48,7 +50,7 @@ public class LoginGUI extends JFrame {
         // Title/Logo
         JLabel titleLabel = new JLabel("Pharma IMS Login", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
-        titleLabel.setForeground(new Color(0, 102, 102));
+        titleLabel.setForeground(Color.decode("#0F766E")); // Primary Color
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.gridwidth = 2;
@@ -56,14 +58,16 @@ public class LoginGUI extends JFrame {
 
         // Message Label (for error/success messages)
         messageLabel = new JLabel("Enter your credentials", SwingConstants.CENTER);
-        messageLabel.setForeground(Color.BLACK);
+        messageLabel.setForeground(Color.decode("#1F2937")); // Text color
         gbc.gridy = 1;
         loginPanel.add(messageLabel, gbc);
 
         // Role Field
         gbc.gridy = 2;
         gbc.gridwidth = 1;
-        loginPanel.add(new JLabel("Role:", SwingConstants.RIGHT), gbc);
+        JLabel roleLabel = new JLabel("Role:", SwingConstants.RIGHT);
+        roleLabel.setForeground(Color.decode("#1F2937"));
+        loginPanel.add(roleLabel, gbc);
         roleDropdown = new JComboBox<>();
         try {
             pharma.service.RoleService rs = new pharma.service.RoleService(dbService);
@@ -78,7 +82,9 @@ public class LoginGUI extends JFrame {
         // Username Field
         gbc.gridx = 0;
         gbc.gridy = 3;
-        loginPanel.add(new JLabel("Username:", SwingConstants.RIGHT), gbc);
+        JLabel userLabel = new JLabel("Username:", SwingConstants.RIGHT);
+        userLabel.setForeground(Color.decode("#1F2937"));
+        loginPanel.add(userLabel, gbc);
         usernameField = new JTextField(15);
         gbc.gridx = 1;
         loginPanel.add(usernameField, gbc);
@@ -86,7 +92,9 @@ public class LoginGUI extends JFrame {
         // Password Field
         gbc.gridx = 0;
         gbc.gridy = 4;
-        loginPanel.add(new JLabel("Password:", SwingConstants.RIGHT), gbc);
+        JLabel passLabel = new JLabel("Password:", SwingConstants.RIGHT);
+        passLabel.setForeground(Color.decode("#1F2937"));
+        loginPanel.add(passLabel, gbc);
 
         JPanel passwordPanel = new JPanel(new BorderLayout(5, 0));
         passwordPanel.setOpaque(false);
@@ -142,9 +150,21 @@ public class LoginGUI extends JFrame {
         // Login Button
         JButton loginButton = new JButton("Login");
         loginButton.setFont(new Font("Arial", Font.BOLD, 14));
-        loginButton.setBackground(new Color(0, 153, 153));
+        loginButton.setBackground(Color.decode("#0F766E")); // Primary color
         loginButton.setForeground(Color.WHITE);
         loginButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        loginButton.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
+
+        // Hover effect for Button
+        loginButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                loginButton.setBackground(Color.decode("#115E59")); // Button Hover
+            }
+
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                loginButton.setBackground(Color.decode("#0F766E")); // Primary
+            }
+        });
 
         gbc.gridx = 0;
         gbc.gridy = 6;
@@ -157,11 +177,15 @@ public class LoginGUI extends JFrame {
         passwordField.addActionListener(_ -> attemptLogin());
 
         // Add login panel to the frame center
-        add(loginPanel, BorderLayout.CENTER);
+        getContentPane().setBackground(Color.WHITE); // Surround background
+        JPanel outerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 50));
+        outerPanel.setBackground(Color.WHITE);
+        outerPanel.add(loginPanel);
+        add(outerPanel, BorderLayout.CENTER);
 
         // --- Footer Note ---
         JLabel footerLabel = new JLabel(
-                "Authorized access only. All activities are monitored and logged per regulatory requirements.",
+                "Authorized access only. All activities are monitored and logged per regulatory requirements (FDA / CDSCO / TGA / EFSA).",
                 SwingConstants.CENTER);
         footerLabel.setFont(new Font("Arial", Font.PLAIN, 10));
         footerLabel.setForeground(Color.GRAY);
