@@ -17,6 +17,7 @@ public class LoginGUI extends JFrame {
     private JTextField usernameField;
     private JPasswordField passwordField;
     private JLabel messageLabel;
+    private JLabel capsLockWarningLabel;
 
     public LoginGUI(DatabaseService dbService) {
         this.dbService = dbService;
@@ -86,9 +87,57 @@ public class LoginGUI extends JFrame {
         gbc.gridx = 0;
         gbc.gridy = 4;
         loginPanel.add(new JLabel("Password:", SwingConstants.RIGHT), gbc);
+
+        JPanel passwordPanel = new JPanel(new BorderLayout(5, 0));
+        passwordPanel.setOpaque(false);
         passwordField = new JPasswordField(15);
+
+        // Show/Hide Password Button
+        JToggleButton showPasswordBtn = new JToggleButton("👁");
+        showPasswordBtn.setMargin(new Insets(0, 5, 0, 5));
+        showPasswordBtn.setToolTipText("Show or Hide Password");
+        showPasswordBtn.setFocusPainted(false);
+        char defaultEchoChar = passwordField.getEchoChar();
+        showPasswordBtn.addActionListener(_ -> {
+            if (showPasswordBtn.isSelected()) {
+                passwordField.setEchoChar((char) 0); // Show
+            } else {
+                passwordField.setEchoChar(defaultEchoChar); // Hide
+            }
+        });
+
+        passwordPanel.add(passwordField, BorderLayout.CENTER);
+        passwordPanel.add(showPasswordBtn, BorderLayout.EAST);
+
         gbc.gridx = 1;
-        loginPanel.add(passwordField, gbc);
+        loginPanel.add(passwordPanel, gbc);
+
+        // Caps Lock Warning Label
+        capsLockWarningLabel = new JLabel("Caps Lock is ON");
+        capsLockWarningLabel.setForeground(Color.RED);
+        capsLockWarningLabel.setFont(new Font("Arial", Font.ITALIC, 11));
+        capsLockWarningLabel.setVisible(false);
+        gbc.gridx = 1;
+        gbc.gridy = 5;
+        loginPanel.add(capsLockWarningLabel, gbc);
+
+        // Caps Lock Listener
+        passwordField.addKeyListener(new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyPressed(java.awt.event.KeyEvent e) {
+                checkCapsLock();
+            }
+
+            @Override
+            public void keyReleased(java.awt.event.KeyEvent e) {
+                checkCapsLock();
+            }
+
+            @Override
+            public void keyTyped(java.awt.event.KeyEvent e) {
+                checkCapsLock();
+            }
+        });
 
         // Login Button
         JButton loginButton = new JButton("Login");
@@ -98,7 +147,7 @@ public class LoginGUI extends JFrame {
         loginButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         gbc.gridx = 0;
-        gbc.gridy = 5;
+        gbc.gridy = 6;
         gbc.gridwidth = 2;
         gbc.insets = new Insets(20, 10, 10, 10);
         loginPanel.add(loginButton, gbc);
@@ -109,6 +158,11 @@ public class LoginGUI extends JFrame {
 
         // Add login panel to the frame center
         add(loginPanel, BorderLayout.CENTER);
+    }
+
+    private void checkCapsLock() {
+        boolean isCapsLockOn = Toolkit.getDefaultToolkit().getLockingKeyState(java.awt.event.KeyEvent.VK_CAPS_LOCK);
+        capsLockWarningLabel.setVisible(isCapsLockOn);
     }
 
     private void attemptLogin() {

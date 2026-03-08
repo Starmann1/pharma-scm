@@ -127,4 +127,60 @@ public class AuthService {
         }
         return false;
     }
+
+    /**
+     * Fetches all usernames associated with a given role.
+     * 
+     * @param roleName The name of the role to filter by
+     * @return List of usernames
+     */
+    public java.util.List<String> getUsernamesByRole(String roleName) {
+        java.util.List<String> usernames = new java.util.ArrayList<>();
+        String sql = "SELECT u.username FROM User_Master u JOIN Role_Master r ON u.role_id = r.role_id WHERE r.role_name = ? AND u.is_active = TRUE ORDER BY u.username";
+
+        try (Connection conn = dbService.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, roleName);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    usernames.add(rs.getString("username"));
+                }
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            System.err.println("Error fetching users by role: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return usernames;
+    }
+
+    /**
+     * Fetches all User objects associated with a given role.
+     * 
+     * @param roleName The name of the role to filter by
+     * @return List of User objects containing basic info (id, username, full name)
+     */
+    public java.util.List<User> getUsersByRole(String roleName) {
+        java.util.List<User> users = new java.util.ArrayList<>();
+        String sql = "SELECT u.user_id, u.username, u.full_name FROM User_Master u JOIN Role_Master r ON u.role_id = r.role_id WHERE r.role_name = ? AND u.is_active = TRUE ORDER BY u.full_name";
+
+        try (Connection conn = dbService.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, roleName);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    User user = new User();
+                    user.setUserId(rs.getInt("user_id"));
+                    user.setUsername(rs.getString("username"));
+                    user.setFullName(rs.getString("full_name"));
+                    users.add(user);
+                }
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            System.err.println("Error fetching User objects by role: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return users;
+    }
 }

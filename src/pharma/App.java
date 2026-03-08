@@ -2,9 +2,6 @@ package pharma;
 
 import pharma.service.DatabaseService;
 import pharma.gui.LoginGUI;
-//import pharma.gui.InventoryGUI; // 👈 UPDATED: Import InventoryGUI
-//import pharma.gui.LoginGUI;
-
 import javax.swing.SwingUtilities;
 import javax.swing.JOptionPane;
 
