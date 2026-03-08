@@ -102,14 +102,21 @@ public class QualityDashboard extends JPanel {
 
                 if ("QUARANTINE".equals(status)) {
                     c.setBackground(new Color(255, 255, 200)); // Yellow
+                    c.setForeground(Color.BLACK);
                 } else if ("RELEASED".equals(status)) {
                     c.setBackground(new Color(200, 255, 200)); // Green
+                    c.setForeground(Color.BLACK);
                 } else if ("REJECTED".equals(status)) {
                     c.setBackground(new Color(255, 200, 200)); // Red
+                    c.setForeground(Color.BLACK);
+                } else {
+                    c.setBackground(table.getBackground());
+                    c.setForeground(table.getForeground());
                 }
 
                 if (isSelected) {
                     c.setBackground(table.getSelectionBackground());
+                    c.setForeground(table.getSelectionForeground());
                 }
                 return c;
             }
@@ -135,12 +142,14 @@ public class QualityDashboard extends JPanel {
 
         releaseButton = new JButton("Release Batch");
         releaseButton.setBackground(new Color(144, 238, 144));
+        releaseButton.setForeground(Color.BLACK);
         releaseButton.addActionListener(e -> updateQCStatus("RELEASED"));
         releaseButton.setEnabled(authService.hasPermission(currentUser, "RELEASE_BATCH"));
         buttonPanel.add(releaseButton);
 
         rejectButton = new JButton("Reject Batch");
         rejectButton.setBackground(new Color(255, 160, 160));
+        rejectButton.setForeground(Color.BLACK);
         rejectButton.addActionListener(e -> updateQCStatus("REJECTED"));
         rejectButton.setEnabled(authService.hasPermission(currentUser, "REJECT_BATCH"));
         buttonPanel.add(rejectButton);

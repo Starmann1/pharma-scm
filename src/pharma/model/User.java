@@ -10,13 +10,15 @@ public class User {
 
     private int userId;
     private String username;
+    private String fullName;
     private Role role; // Uses the Role object instead of a string
     private Set<String> permissions; // Represents all permissions assigned to the role
 
     // Constructor used by AuthService upon successful login
-    public User(int userId, String username, Role role, Set<String> permissions) {
+    public User(int userId, String username, String fullName, Role role, Set<String> permissions) {
         this.userId = userId;
         this.username = username;
+        this.fullName = fullName;
         this.role = role;
         this.permissions = permissions != null ? permissions : new HashSet<>();
     }
@@ -35,6 +37,10 @@ public class User {
         return username;
     }
 
+    public String getFullName() {
+        return fullName;
+    }
+
     public Role getRole() {
         return role;
     }
@@ -50,6 +56,10 @@ public class User {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
     }
 
     public void setRole(Role role) {

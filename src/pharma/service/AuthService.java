@@ -25,7 +25,8 @@ public class AuthService {
      * @return User object if successful, null otherwise.
      */
     public User authenticate(String username, String password) {
-        String authSql = "SELECT u.user_id, u.username, u.role_id, r.role_name, r.description FROM User_Master u " +
+        String authSql = "SELECT u.user_id, u.username, u.full_name, u.role_id, r.role_name, r.description FROM User_Master u "
+                +
                 "JOIN Role_Master r ON u.role_id = r.role_id " +
                 "WHERE u.username = ? AND u.password_hash = ?";
 
@@ -43,6 +44,7 @@ public class AuthService {
                 if (rs.next()) {
                     int userId = rs.getInt("user_id");
                     String dbUsername = rs.getString("username");
+                    String fullName = rs.getString("full_name");
                     int roleId = rs.getInt("role_id");
                     String roleName = rs.getString("role_name");
                     String roleDesc = rs.getString("description");
@@ -66,7 +68,7 @@ public class AuthService {
                     } catch (Exception e) {
                     }
 
-                    return new User(userId, dbUsername, role, permissions);
+                    return new User(userId, dbUsername, fullName, role, permissions);
                 } else {
                     try {
                         dbService.logAuditTrail(0, "LOGIN_ATTEMPT", "User_Master", username, null,

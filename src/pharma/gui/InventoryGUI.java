@@ -129,6 +129,7 @@ import pharma.service.DatabaseService;
 import pharma.service.AuthService;
 import pharma.model.User; // Required to accept the authenticated user
 import javax.swing.*;
+import javax.swing.plaf.ColorUIResource;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -204,7 +205,8 @@ public class InventoryGUI extends JFrame {
     public InventoryGUI(DatabaseService dbService) {
         // Fallback or initialization for systems without explicit user login setup
         this(dbService,
-                new User(0, "Guest", new pharma.model.Role(0, "Guest", "Guest User"), new java.util.HashSet<>()));
+                new User(0, "Guest", "Guest User", new pharma.model.Role(0, "Guest", "Guest User"),
+                        new java.util.HashSet<>()));
     }
 
     private void createSideNavigation() {
@@ -216,9 +218,12 @@ public class InventoryGUI extends JFrame {
         sideNavPanel.setBackground(new Color(30, 30, 30));
 
         // EDITED: Displaying user information in the navigation header
+        String displayUser = (activeUser.getFullName() != null && !activeUser.getFullName().isEmpty())
+                ? activeUser.getFullName()
+                : activeUser.getUsername();
         String userInfoHtml = String.format(
                 "<html><div style='text-align: center;'><b>Pharma IMS</b><br><span style='font-size:10px;'>User: %s</span><br><span style='font-size:10px;'>Role: %s</span></div></html>",
-                activeUser.getUsername(), activeUser.getRole());
+                displayUser, activeUser.getRole().getRoleName());
 
         JLabel logo = new JLabel(userInfoHtml, SwingConstants.CENTER);
         logo.setForeground(new Color(153, 204, 255));
@@ -261,6 +266,73 @@ public class InventoryGUI extends JFrame {
         }
 
         sideNavPanel.add(Box.createVerticalGlue());
+
+        JToggleButton darkModeToggle = new JToggleButton("🌓 Dark Mode");
+        darkModeToggle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        darkModeToggle.setMaximumSize(new Dimension(180, 40));
+        darkModeToggle.setForeground(Color.WHITE);
+        darkModeToggle.setBackground(new Color(50, 50, 50));
+        darkModeToggle.setFocusPainted(false);
+        darkModeToggle.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 10));
+        darkModeToggle.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        darkModeToggle.addActionListener(_ -> toggleDarkMode(darkModeToggle.isSelected()));
+        sideNavPanel.add(darkModeToggle);
+
+        sideNavPanel.add(Box.createVerticalStrut(20));
+    }
+
+    private void toggleDarkMode(boolean isDark) {
+        if (isDark) {
+            UIManager.put("Panel.background", new ColorUIResource(45, 45, 45));
+            UIManager.put("Label.foreground", new ColorUIResource(Color.WHITE));
+            UIManager.put("Table.background", new ColorUIResource(60, 60, 60));
+            UIManager.put("Table.foreground", new ColorUIResource(Color.WHITE));
+            UIManager.put("TableHeader.background", new ColorUIResource(45, 45, 45));
+            UIManager.put("TableHeader.foreground", new ColorUIResource(Color.WHITE));
+            UIManager.put("ScrollPane.background", new ColorUIResource(45, 45, 45));
+            UIManager.put("Viewport.background", new ColorUIResource(45, 45, 45));
+            UIManager.put("TextField.background", new ColorUIResource(60, 60, 60));
+            UIManager.put("TextField.foreground", new ColorUIResource(Color.WHITE));
+            UIManager.put("ComboBox.background", new ColorUIResource(45, 45, 45));
+            UIManager.put("ComboBox.foreground", new ColorUIResource(Color.WHITE));
+            UIManager.put("CheckBox.background", new ColorUIResource(45, 45, 45));
+            UIManager.put("CheckBox.foreground", new ColorUIResource(Color.WHITE));
+            UIManager.put("TitledBorder.titleColor", new ColorUIResource(Color.WHITE));
+            UIManager.put("Button.background", new ColorUIResource(60, 60, 60));
+            UIManager.put("Button.foreground", new ColorUIResource(Color.BLACK));
+        } else {
+            UIManager.put("Panel.background", null);
+            UIManager.put("Label.foreground", null);
+            UIManager.put("Table.background", null);
+            UIManager.put("Table.foreground", null);
+            UIManager.put("TableHeader.background", null);
+            UIManager.put("TableHeader.foreground", null);
+            UIManager.put("ScrollPane.background", null);
+            UIManager.put("Viewport.background", null);
+            UIManager.put("TextField.background", null);
+            UIManager.put("TextField.foreground", null);
+            UIManager.put("ComboBox.background", null);
+            UIManager.put("ComboBox.foreground", null);
+            UIManager.put("CheckBox.background", null);
+            UIManager.put("CheckBox.foreground", null);
+            UIManager.put("TitledBorder.titleColor", null);
+            UIManager.put("Button.background", null);
+            UIManager.put("Button.foreground", null);
+        }
+
+        try {
+            // Re-apply the current look and feel defaults to clear out the UIResources
+            // properly
+            // if switching to light mode, and to update components if switching to dark
+            // mode
+            String currentLaf = UIManager.getLookAndFeel().getClass().getName();
+            UIManager.setLookAndFeel(currentLaf);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        SwingUtilities.updateComponentTreeUI(this);
+        sideNavPanel.setBackground(new Color(30, 30, 30));
     }
 
     private JButton createNavButton(String text) {
