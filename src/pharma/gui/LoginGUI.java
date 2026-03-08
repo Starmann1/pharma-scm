@@ -158,6 +158,15 @@ public class LoginGUI extends JFrame {
 
         // Add login panel to the frame center
         add(loginPanel, BorderLayout.CENTER);
+
+        // --- Footer Note ---
+        JLabel footerLabel = new JLabel(
+                "Authorized access only. All activities are monitored and logged per regulatory requirements.",
+                SwingConstants.CENTER);
+        footerLabel.setFont(new Font("Arial", Font.PLAIN, 10));
+        footerLabel.setForeground(Color.GRAY);
+        footerLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        add(footerLabel, BorderLayout.SOUTH);
     }
 
     private void checkCapsLock() {
