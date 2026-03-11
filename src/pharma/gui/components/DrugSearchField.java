@@ -172,10 +172,12 @@ public class DrugSearchField extends JTextField {
 
         // Show popup if there are suggestions
         if (!listModel.isEmpty()) {
-            // Adjust popup size
+            // Adjust popup size specifically so it's not crushed if there's only 1 item
             int width = getWidth();
-            int height = suggestionList.getPreferredSize().height;
-            suggestionPopup.setPopupSize(width, Math.min(height + 5, 250));
+            // Default list item height is usually ~20px. Add padding for the scrollpane borders 
+            int itemHeight = suggestionList.getFixedCellHeight() > 0 ? suggestionList.getFixedCellHeight() : 25;
+            int calculatedHeight = (listModel.getSize() * itemHeight) + 10;
+            suggestionPopup.setPopupSize(width, Math.min(Math.max(calculatedHeight, 40), 250));
 
             // Show popup below the text field
             if (!suggestionPopup.isVisible()) {
