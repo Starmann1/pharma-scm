@@ -300,6 +300,8 @@ public class InventoryGUI extends JFrame {
             UIManager.put("TitledBorder.titleColor", new ColorUIResource(Color.WHITE));
             UIManager.put("Button.background", new ColorUIResource(60, 60, 60));
             UIManager.put("Button.foreground", new ColorUIResource(Color.BLACK));
+            UIManager.put("OptionPane.background", new ColorUIResource(45, 45, 45));
+            UIManager.put("OptionPane.messageForeground", new ColorUIResource(Color.WHITE));
         } else {
             UIManager.put("Panel.background", null);
             UIManager.put("Label.foreground", null);
@@ -318,6 +320,8 @@ public class InventoryGUI extends JFrame {
             UIManager.put("TitledBorder.titleColor", null);
             UIManager.put("Button.background", null);
             UIManager.put("Button.foreground", null);
+            UIManager.put("OptionPane.background", null);
+            UIManager.put("OptionPane.messageForeground", null);
         }
 
         try {

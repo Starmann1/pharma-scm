@@ -1,4 +1,4 @@
-﻿/*
+/*
 -- MySQL Database Setup for Pharmaceutical IMS
 -- This script creates the database and all master/transactional tables,
 -- including tables required for Purchase Orders (PO) and Goods Received Notes (GRN).
@@ -730,6 +730,130 @@ INSERT INTO stock_inventory (material_code, location_code, batch_number, quantit
 -- Insert events for the initial setup
 INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES
 ('SYSTEM_INITIALIZATION', 'SYSTEM', '1', 'Manufacturer-Centric SCM initialized with sample data', 'SUCCESS');
+
+-- ---------------------------------------------------------------------
+-- ADDITIONAL EXTENDED SAMPLE DATA
+-- ---------------------------------------------------------------------
+
+-- Additional Suppliers
+INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address, email, phone_number, gstin, payment_terms) VALUES
+(4, 'Global APIs Inc.', 'David Miller', '405 API Blvd, CA', 'david.miller@globalapis.com', '1555123456', 'GST33445', 'Net 30'),
+(5, 'EuroPharma Packaging', 'Sophie Laurent', '22 Rue Pasteur, Paris', 's.laurent@europharma.eu', '3319876543', 'GST55667', 'Net 45');
+
+-- Additional Drugs/Materials
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('RM-IBU-API', 'Ibuprofen API', 'Ibuprofen', 'Global APIs Inc.', 4, 'RAW_MATERIAL', 'KG', 1),
+('RM-MCC', 'Microcrystalline Cellulose', 'MCC Excipient', 'EuroPharma Packaging', 5, 'RAW_MATERIAL', 'KG', 1),
+('PM-BOTTLE-100', 'HDPE Bottle 100ml', 'Packaging Bottle', 'EuroPharma Packaging', 5, 'PACKAGING', 'NOS', 1),
+('DRG004', 'Ibuprofen 400mg Tablet', 'Ibuprofen', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+
+-- Additional Bill of Materials
+INSERT INTO bom_header (bom_id, material_code, version_number, is_active, effective_date, description) VALUES
+(3, 'DRG004', 1, 1, '2025-01-01', 'BOM for Ibuprofen 400mg Tablet (per 1000 tablets)');
+
+INSERT INTO bom_details (bom_id, ingredient_material_code, required_qty, uom, sequence_number) VALUES
+(3, 'RM-IBU-API', 0.4000, 'KG', 10),
+(3, 'RM-MCC', 0.2000, 'KG', 20),
+(3, 'PM-BOTTLE-100', 10.0000, 'NOS', 30); -- 100 tablets per bottle -> 10 bottles for 1000 tablets
+
+-- Additional Purchase Orders
+INSERT INTO purchase_order (po_id, supplier_id, order_date, expected_date, status) VALUES
+(4, 4, '2025-10-05', '2025-10-10', 'Received'),
+(5, 5, '2025-10-06', '2025-10-12', 'Received');
+
+-- Additional Purchase Order Items
+INSERT INTO purchaseorder_item (po_id, drug_id, quantity, unit_price) VALUES
+(4, 'RM-IBU-API', 300.0000, 20.00),
+(5, 'RM-MCC', 500.0000, 4.00),
+(5, 'PM-BOTTLE-100', 2000.0000, 0.50);
+
+-- Additional Stock Inventory
+INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
+('RM-IBU-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-IBU-001', 300.0000, 0, 20.00, '2025-09-01', '2028-09-01', 'RELEASED'),
+('RM-MCC', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-MCC-001', 500.0000, 0, 4.00, '2025-09-15', '2027-09-15', 'RELEASED'),
+('PM-BOTTLE-100', 'PACKAGING_WAREHOUSE', 'BATCH-PM-BOT-001', 2000.0000, 0, 0.50, '2025-09-10', '2030-09-10', 'RELEASED'),
+('DRG004', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-IBU400-001', 10000.0000, 0, 0.60, '2025-11-20', '2027-11-19', 'RELEASED');
+
+-- Additional Inventory Transactions
+INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES
+('RM-IBU-API', 'BATCH-RM-IBU-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 300.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance'),
+('RM-MCC', 'BATCH-RM-MCC-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 500.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance'),
+('PM-BOTTLE-100', 'BATCH-PM-BOT-001', 'PACKAGING_WAREHOUSE', 'GRN_RECEIPT', 2000.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance');
+
+-- ---------------------------------------------------------------------
+-- 15 ADDITIONAL SAMPLE DATA EXTENSIONS
+-- ---------------------------------------------------------------------
+
+-- 1. Suppliers
+INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address, email, phone_number, gstin, payment_terms) VALUES
+(6, 'Kemico Industries', 'Mark Taylor', '808 Tech Park, IL', 'sales@kemico.com', '1231231234', 'GST77889', 'Net 30'),
+(7, 'Alpha Blisters Ltd', 'Karen O Connor', '99 Packaging Way, UK', 'karen@alphablister.co.uk', '441234567', 'GST44556', 'Net 60');
+
+-- 2. New Drugs/Materials (Raw Materials, Packaging, Excipients, Finished Goods)
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('RM-VITC-API', 'Ascorbic Acid API', 'Vitamin C', 'Kemico Industries', 6, 'RAW_MATERIAL', 'KG', 1),
+('RM-ZINC-OX', 'Zinc Oxide', 'Zinc Supplement', 'Kemico Industries', 6, 'RAW_MATERIAL', 'KG', 1),
+('RM-SUCROSE', 'Sucrose Excipient', 'Sucrose', 'HealthCare Supplies', 2, 'RAW_MATERIAL', 'KG', 1),
+('RM-COLORANT', 'Orange Colorant', 'Food Color', 'Zenith Meds', 3, 'RAW_MATERIAL', 'KG', 1),
+('PM-BOTTLE-60', 'HDPE Bottle 60ml', 'Packaging Bottle', 'Alpha Blisters Ltd', 7, 'PACKAGING', 'NOS', 1),
+('PM-BOTTLE-CAP', 'Child-restant Cap', 'Cap Closure', 'Alpha Blisters Ltd', 7, 'PACKAGING', 'NOS', 1),
+('PM-LABEL-VIT', 'Vitamin C Label', 'Printed Label', 'MedSupply Corp', 1, 'PACKAGING', 'ROLL', 1),
+('DRG005', 'Vit-C Orange Chewable', 'Vitamin C 500mg', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
+('DRG006', 'Zinc Boost 50mg', 'Zinc Oxide', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+
+-- 3. Bill of Materials
+INSERT INTO bom_header (bom_id, material_code, version_number, is_active, effective_date, description) VALUES
+(4, 'DRG005', 1, 1, '2025-01-01', 'BOM for Vit-C Orange Chewable 500mg (per 1000 tablets)'),
+(5, 'DRG006', 1, 1, '2025-01-01', 'BOM for Zinc Boost 50mg (per 1000 tablets)');
+
+INSERT INTO bom_details (bom_id, ingredient_material_code, required_qty, uom, sequence_number) VALUES
+-- Vit-C BOM
+(4, 'RM-VITC-API', 0.5000, 'KG', 10),
+(4, 'RM-SUCROSE', 0.2000, 'KG', 20),
+(4, 'RM-COLORANT', 0.0100, 'KG', 30),
+(4, 'PM-BOTTLE-60', 20.0000, 'NOS', 40),
+(4, 'PM-BOTTLE-CAP', 20.0000, 'NOS', 50),
+(4, 'PM-LABEL-VIT', 0.0500, 'ROLL', 60),
+
+-- Zinc Boost BOM
+(5, 'RM-ZINC-OX', 0.0500, 'KG', 10),
+(5, 'RM-SUCROSE', 0.1500, 'KG', 20),
+(5, 'PM-BOTTLE-60', 20.0000, 'NOS', 30),
+(5, 'PM-BOTTLE-CAP', 20.0000, 'NOS', 40);
+
+-- 4. Purchase Orders
+INSERT INTO purchase_order (po_id, supplier_id, order_date, expected_date, status) VALUES
+(6, 6, '2025-10-15', '2025-10-20', 'Received'),
+(7, 7, '2025-10-16', '2025-10-21', 'Received'),
+(8, 2, '2025-10-17', '2025-10-22', 'Received');
+
+-- 5. Purchase Order Items
+INSERT INTO purchaseorder_item (po_id, drug_id, quantity, unit_price) VALUES
+(6, 'RM-VITC-API', 500.0000, 15.00),
+(6, 'RM-ZINC-OX', 200.0000, 10.00),
+(7, 'PM-BOTTLE-60', 10000.0000, 0.40),
+(7, 'PM-BOTTLE-CAP', 10000.0000, 0.15),
+(8, 'RM-SUCROSE', 1000.0000, 2.00);
+
+-- 6. Stock Inventory (Adding inventory for the new components)
+INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
+('RM-VITC-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-VITC-001', 500.0000, 0, 15.00, '2025-09-10', '2027-09-10', 'RELEASED'),
+('RM-ZINC-OX', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-ZINC-001', 200.0000, 0, 10.00, '2025-09-12', '2028-09-12', 'RELEASED'),
+('RM-SUCROSE', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-SUCR-001', 1000.0000, 0, 2.00, '2025-08-01', '2026-08-01', 'RELEASED'),
+('RM-COLORANT', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-COL-001', 50.0000, 0, 25.00, '2025-09-01', '2027-09-01', 'RELEASED'),
+('PM-BOTTLE-60', 'PACKAGING_WAREHOUSE', 'BATCH-PM-BOT60-001', 10000.0000, 0, 0.40, '2025-09-05', '2030-09-05', 'RELEASED'),
+('PM-BOTTLE-CAP', 'PACKAGING_WAREHOUSE', 'BATCH-PM-CAP-001', 10000.0000, 0, 0.15, '2025-09-06', '2030-09-06', 'RELEASED'),
+('PM-LABEL-VIT', 'PACKAGING_WAREHOUSE', 'BATCH-PM-LBLVIT-001', 200.0000, 0, 3.00, '2025-09-15', '2030-09-15', 'RELEASED'),
+('DRG005', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-VITC-001', 5000.0000, 0, 0.70, '2025-11-25', '2027-11-24', 'RELEASED');
+
+-- 7. Inventory Transactions for these new stocks
+INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES
+('RM-VITC-API', 'BATCH-RM-VITC-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 500.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance'),
+('RM-ZINC-OX', 'BATCH-RM-ZINC-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 200.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance'),
+('RM-SUCROSE', 'BATCH-RM-SUCR-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 1000.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance'),
+('RM-COLORANT', 'BATCH-RM-COL-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 50.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance'),
+('PM-BOTTLE-60', 'BATCH-PM-BOT60-001', 'PACKAGING_WAREHOUSE', 'GRN_RECEIPT', 10000.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance'),
+('PM-BOTTLE-CAP', 'BATCH-PM-CAP-001', 'PACKAGING_WAREHOUSE', 'GRN_RECEIPT', 10000.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance');
 
 -- 6. Enable Foreign Key Checks
 SET FOREIGN_KEY_CHECKS = 1;

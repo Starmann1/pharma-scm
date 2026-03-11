@@ -281,11 +281,14 @@ public class ProductionPanel extends JPanel {
                     String status = (String) table.getValueAt(row, 4);
                     if ("SHORTAGE".equals(status)) {
                         c.setBackground(new Color(255, 200, 200));
+                        c.setForeground(Color.BLACK);
                     } else {
                         c.setBackground(new Color(200, 255, 200));
+                        c.setForeground(Color.BLACK);
                     }
                     if (isSelected) {
                         c.setBackground(table.getSelectionBackground());
+                        c.setForeground(table.getSelectionForeground());
                     }
                     return c;
                 }

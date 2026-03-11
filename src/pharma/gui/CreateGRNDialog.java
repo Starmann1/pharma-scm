@@ -3,15 +3,20 @@ package pharma.gui;
 import pharma.model.PurchaseOrder;
 import pharma.service.DatabaseService;
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.time.LocalDate;
 import java.util.Date;
 
 public class CreateGRNDialog extends JDialog {
 
     private GRNPanel parentPanel;
     private PurchaseOrder purchaseOrder;
-    // UI components for GRN details, e.g., GRN Date, Received Items Table, etc.
-    // private JTable itemsTable;
+    private JTable itemsTable;
 
     public CreateGRNDialog(JFrame owner, GRNPanel parent, PurchaseOrder po) {
         super(owner, "Create GRN for PO: " + po.getPoNumber(), true);
@@ -34,11 +39,38 @@ public class CreateGRNDialog extends JDialog {
 
         add(headerPanel, BorderLayout.NORTH);
 
-        // --- Center Panel (GRN Line Items - Placeholder for complex logic) ---
-        JTextArea itemsArea = new JTextArea(
-                "GRN line item grid will go here. Must reflect PO items and allow actual quantities/batch/expiry data entry.");
-        itemsArea.setEditable(false);
-        add(new JScrollPane(itemsArea), BorderLayout.CENTER);
+        // --- Center Panel (GRN Line Items) ---
+        String[] columnNames = {"Material Code", "PO Qty", "Receive Qty", "Batch", "Expiry Date"};
+        DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column >= 2; // Allow editing only Receive Qty, Batch, Expiry Date
+            }
+        };
+
+        // Fetch PO items directly from DB to populate the grid
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/pharma_ims?allowPublicKeyRetrieval=true&useSSL=false", "root", "SiriusBlack@369");
+                 PreparedStatement pstmt = conn.prepareStatement("SELECT drug_id, quantity FROM PurchaseOrder_Item WHERE po_id = ?")) {
+                pstmt.setInt(1, po.getId());
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    while (rs.next()) {
+                        String matCode = rs.getString("drug_id");
+                        int qty = rs.getInt("quantity");
+                        String defaultBatch = "BATCH-" + System.currentTimeMillis() % 100000 + "-" + matCode;
+                        String defaultExpiry = LocalDate.now().plusYears(2).toString();
+                        tableModel.addRow(new Object[]{matCode, qty, qty, defaultBatch, defaultExpiry});
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("Error fetching PO items for grid: " + e.getMessage());
+        }
+
+        itemsTable = new JTable(tableModel);
+        add(new JScrollPane(itemsTable), BorderLayout.CENTER);
 
         // --- Button Panel (OK and CANCEL buttons, related to Problem 4) ---
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
