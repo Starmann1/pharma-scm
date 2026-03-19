@@ -1,6 +1,6 @@
 /*package pharma.gui;
 
-import pharma.model.Drug;
+import pharma.model.Material;
 import pharma.service.DatabaseService;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -37,7 +37,7 @@ public class InventoryPanel extends JPanel {
         add(controlPanel, BorderLayout.NORTH);
 
         // --- Center Table View ---
-        String[] columnNames = {"Drug Name", "Batch No.", "Quantity", "Unit Price", "Expiry Date", "Location Code", "Supplier"};
+        String[] columnNames = {"Material Name", "Batch No.", "Quantity", "Unit Price", "Expiry Date", "Location Code", "Supplier"};
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -63,7 +63,7 @@ public class InventoryPanel extends JPanel {
         
         try {
             // FIX: Calls the injected dbService
-            List<Drug> inventoryList = dbService.getFullInventoryReport();
+            List<Material> inventoryList = dbService.getFullInventoryReport();
             
             // Simulated data for display structure confirmation:
             tableModel.addRow(new Object[]{"Paracetamol 500mg", "PT500-A22", 450, 1.50, "2025-11-30", "A1", "Acme Pharma Inc."});
@@ -90,10 +90,10 @@ public class InventoryPanel extends JPanel {
 package pharma.gui;
 
 import javax.swing.*;
-import pharma.model.Drug;
+import pharma.model.Material;
 import pharma.model.Stock;
 import pharma.service.DatabaseService;
-import pharma.gui.components.DrugSearchField;
+import pharma.gui.components.MaterialSearchField;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableRowSorter;
 import javax.swing.RowFilter;
@@ -106,14 +106,14 @@ public class InventoryPanel extends JPanel {
     private DatabaseService dbService;
     private JTable inventoryTable;
     private InventoryTableModel tableModel;
-    private DrugSearchField searchField;
+    private MaterialSearchField searchField;
     private TableRowSorter<InventoryTableModel> sorter;
 
     // The constructor sets up the panel and immediately tries to load the data.
     public InventoryPanel(DatabaseService dbService) {
         this.dbService = dbService;
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Inventory Management: Drug Stock & Locations"));
+        setBorder(BorderFactory.createTitledBorder("Inventory Management: Material Stock & Locations"));
 
         // 1. Initialize the Table Model
         this.tableModel = new InventoryTableModel();
@@ -132,11 +132,11 @@ public class InventoryPanel extends JPanel {
 
         // Search Field with Autocomplete
         JLabel searchLabel = new JLabel("Search:");
-        searchField = new DrugSearchField(dbService.getFullInventoryReport());
+        searchField = new MaterialSearchField(dbService.getFullInventoryReport());
         searchField.setPreferredSize(new Dimension(300, 25));
-        searchField.setSelectionListener(drug -> {
-            // When a drug is selected from dropdown, filter the table
-            filterTableByDrug(drug);
+        searchField.setSelectionListener(material -> {
+            // When a material is selected from dropdown, filter the table
+            filterTableByDrug(material);
         });
 
         JButton clearSearchBtn = new JButton("Clear Search");
@@ -160,7 +160,7 @@ public class InventoryPanel extends JPanel {
     }
 
     /**
-     * FIX: Loads the inventory data (List<Drug>) from the DatabaseService
+     * FIX: Loads the inventory data (List<Material>) from the DatabaseService
      * and updates the table model.
      */
     public void loadInventoryData() {
@@ -183,17 +183,17 @@ public class InventoryPanel extends JPanel {
     }
 
     /**
-     * Filter table to show only the selected drug
+     * Filter table to show only the selected material
      */
-    private void filterTableByDrug(Drug drug) {
-        if (drug == null) {
+    private void filterTableByDrug(Material material) {
+        if (material == null) {
             sorter.setRowFilter(null);
             return;
         }
 
-        // Filter to show only rows matching the selected drug's material code
+        // Filter to show only rows matching the selected material's material code
         RowFilter<InventoryTableModel, Object> filter = RowFilter.regexFilter(
-                "^" + drug.getMaterialCode() + "$", 0); // Column 0 is Material Code
+                "^" + material.getMaterialCode() + "$", 0); // Column 0 is Material Code
         sorter.setRowFilter(filter);
     }
 

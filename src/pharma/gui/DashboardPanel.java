@@ -20,11 +20,11 @@ public class DashboardPanel extends JPanel {
         // --- Main Content (Summary Cards) ---
         JPanel summaryPanel = new JPanel(new GridLayout(2, 2, 15, 15));
         
-        // Card 1: Total Drugs/Stock
+        // Card 1: Total Materials/Stock
         summaryPanel.add(createSummaryCard("Total Inventory Items", "1540", "items in stock", Color.CYAN.darker()));
         
         // Card 2: Low Stock Alerts
-        summaryPanel.add(createSummaryCard("Low Stock Alerts", "12", "drugs need reorder", Color.ORANGE));
+        summaryPanel.add(createSummaryCard("Low Stock Alerts", "12", "materials need reorder", Color.ORANGE));
         
         // Card 3: Pending Purchase Orders
         summaryPanel.add(createSummaryCard("Pending Orders", "5", "pending shipment", Color.MAGENTA.darker()));
@@ -83,7 +83,7 @@ public class DashboardPanel extends JPanel {
         
         // These calls would eventually use dbService.getMetrics()
         summaryPanel.add(createSummaryCard("Total Inventory Items", "1540", "items in stock", Color.CYAN.darker()));
-        summaryPanel.add(createSummaryCard("Low Stock Alerts", "12", "drugs need reorder", Color.ORANGE));
+        summaryPanel.add(createSummaryCard("Low Stock Alerts", "12", "materials need reorder", Color.ORANGE));
         summaryPanel.add(createSummaryCard("Pending Orders", "5", "pending shipment", Color.MAGENTA.darker()));
         summaryPanel.add(createSummaryCard("Expired Items", "2", "items expired (last week)", Color.RED.darker()));
 

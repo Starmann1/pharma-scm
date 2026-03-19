@@ -1,8 +1,8 @@
 package pharma.gui;
 
-import pharma.model.Drug;
+import pharma.model.Material;
 import pharma.service.DatabaseService;
-import pharma.gui.components.DrugSearchField;
+import pharma.gui.components.MaterialSearchField;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
@@ -10,21 +10,21 @@ import javax.swing.RowFilter;
 import java.awt.*;
 import java.util.List;
 
-public class DrugsPanel extends JPanel {
+public class MaterialsPanel extends JPanel {
 
     private JTable drugsTable;
     private DefaultTableModel tableModel;
     private DatabaseService dbService;
     private JFrame mainFrame;
-    private DrugSearchField searchField;
+    private MaterialSearchField searchField;
     private TableRowSorter<DefaultTableModel> sorter;
 
-    public DrugsPanel(JFrame mainFrame, DatabaseService dbService) {
+    public MaterialsPanel(JFrame mainFrame, DatabaseService dbService) {
         this.mainFrame = mainFrame;
         this.dbService = dbService;
 
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Drug Management"));
+        setBorder(BorderFactory.createTitledBorder("Material Management"));
 
         // Table Setup
         // NOTE: Material Code is the primary key (PK)
@@ -51,11 +51,11 @@ public class DrugsPanel extends JPanel {
 
         // Search Field with Autocomplete
         JLabel searchLabel = new JLabel("Search:");
-        searchField = new DrugSearchField(dbService.getAllDrugs());
+        searchField = new MaterialSearchField(dbService.getAllDrugs());
         searchField.setPreferredSize(new Dimension(300, 25));
-        searchField.setSelectionListener(drug -> {
-            // When a drug is selected from dropdown, filter the table
-            filterTableByDrug(drug);
+        searchField.setSelectionListener(material -> {
+            // When a material is selected from dropdown, filter the table
+            filterTableByDrug(material);
         });
 
         JButton clearSearchBtn = new JButton("Clear Search");
@@ -64,9 +64,9 @@ public class DrugsPanel extends JPanel {
             sorter.setRowFilter(null); // Show all rows
         });
 
-        JButton addButton = new JButton("Add Drug");
-        JButton editButton = new JButton("Edit Drug");
-        JButton deleteButton = new JButton("Delete Drug");
+        JButton addButton = new JButton("Add Material");
+        JButton editButton = new JButton("Edit Material");
+        JButton deleteButton = new JButton("Delete Material");
         JButton refreshButton = new JButton("Refresh Data");
 
         addButton.addActionListener(_ -> showDrugFormDialog(null)); // Pass null for ADD mode
@@ -75,7 +75,7 @@ public class DrugsPanel extends JPanel {
         editButton.addActionListener(_ -> {
             int selectedRow = drugsTable.getSelectedRow();
             if (selectedRow == -1) {
-                JOptionPane.showMessageDialog(DrugsPanel.this, "Please select a drug to edit.", "Selection Error",
+                JOptionPane.showMessageDialog(MaterialsPanel.this, "Please select a material to edit.", "Selection Error",
                         JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -84,13 +84,13 @@ public class DrugsPanel extends JPanel {
             int modelRow = drugsTable.convertRowIndexToModel(selectedRow);
             String materialCode = (String) tableModel.getValueAt(modelRow, 0);
 
-            // Fetch the full Drug object for pre-populating the form
-            Drug drugToEdit = dbService.getDrugByMaterialCode(materialCode);
+            // Fetch the full Material object for pre-populating the form
+            Material drugToEdit = dbService.getDrugByMaterialCode(materialCode);
 
             if (drugToEdit != null) {
-                showDrugFormDialog(drugToEdit); // Pass the existing drug object for EDIT mode
+                showDrugFormDialog(drugToEdit); // Pass the existing material object for EDIT mode
             } else {
-                JOptionPane.showMessageDialog(DrugsPanel.this, "Could not fetch drug data from the database.", "Error",
+                JOptionPane.showMessageDialog(MaterialsPanel.this, "Could not fetch material data from the database.", "Error",
                         JOptionPane.ERROR_MESSAGE);
             }
         });
@@ -99,7 +99,7 @@ public class DrugsPanel extends JPanel {
         deleteButton.addActionListener(_ -> {
             int selectedRow = drugsTable.getSelectedRow();
             if (selectedRow == -1) {
-                JOptionPane.showMessageDialog(DrugsPanel.this, "Please select a drug to delete.", "Selection Error",
+                JOptionPane.showMessageDialog(MaterialsPanel.this, "Please select a material to delete.", "Selection Error",
                         JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -109,19 +109,19 @@ public class DrugsPanel extends JPanel {
             String brandName = (String) tableModel.getValueAt(modelRow, 1);
 
             int confirm = JOptionPane.showConfirmDialog(
-                    DrugsPanel.this,
-                    "Are you sure you want to delete the drug: " + brandName + " (" + materialCode + ")?",
+                    MaterialsPanel.this,
+                    "Are you sure you want to delete the material: " + brandName + " (" + materialCode + ")?",
                     "Confirm Deletion",
                     JOptionPane.YES_NO_OPTION);
 
             if (confirm == JOptionPane.YES_OPTION) {
                 if (dbService.deleteDrug(materialCode)) {
-                    JOptionPane.showMessageDialog(DrugsPanel.this, "Drug deleted successfully.", "Success",
+                    JOptionPane.showMessageDialog(MaterialsPanel.this, "Material deleted successfully.", "Success",
                             JOptionPane.INFORMATION_MESSAGE);
                     refreshDrugList(); // Refresh the table
                 } else {
-                    JOptionPane.showMessageDialog(DrugsPanel.this,
-                            "Failed to delete drug. It might be referenced by other records.", "Database Error",
+                    JOptionPane.showMessageDialog(MaterialsPanel.this,
+                            "Failed to delete material. It might be referenced by other records.", "Database Error",
                             JOptionPane.ERROR_MESSAGE);
                 }
             }
@@ -130,7 +130,7 @@ public class DrugsPanel extends JPanel {
         // --- REFRESH BUTTON IMPLEMENTATION ---
         refreshButton.addActionListener(_ -> {
             refreshDrugList();
-            JOptionPane.showMessageDialog(DrugsPanel.this, "Drug list refreshed.", "Info",
+            JOptionPane.showMessageDialog(MaterialsPanel.this, "Material list refreshed.", "Info",
                     JOptionPane.INFORMATION_MESSAGE);
         });
 
@@ -144,7 +144,7 @@ public class DrugsPanel extends JPanel {
         controlPanel.add(deleteButton);
         controlPanel.add(refreshButton);
 
-        // Add the Control Panel to the DrugsPanel
+        // Add the Control Panel to the MaterialsPanel
         add(controlPanel, BorderLayout.NORTH);
 
         loadDrugs(); // Load initial data
@@ -154,32 +154,32 @@ public class DrugsPanel extends JPanel {
         tableModel.setRowCount(0); // Clear existing data
 
         try {
-            List<Drug> drugs = dbService.getAllDrugs();
-            if (drugs != null) {
-                for (Drug drug : drugs) {
+            List<Material> materials = dbService.getAllDrugs();
+            if (materials != null) {
+                for (Material material : materials) {
                     tableModel.addRow(new Object[] {
-                            drug.getMaterialCode(),
-                            drug.getBrandName(),
-                            drug.getGenericName(),
-                            drug.getManufacturer(),
-                            drug.getFormulation(),
-                            drug.getStrength(),
-                            drug.getReorderLevel(),
-                            drug.getPreferredSupplierId(),
-                            drug.getMaterialType(),
-                            drug.getUnitOfMeasure()
+                            material.getMaterialCode(),
+                            material.getBrandName(),
+                            material.getGenericName(),
+                            material.getManufacturer(),
+                            material.getFormulation(),
+                            material.getStrength(),
+                            material.getReorderLevel(),
+                            material.getPreferredSupplierId(),
+                            material.getMaterialType(),
+                            material.getUnitOfMeasure()
                     });
                 }
             }
         } catch (Exception e) {
-            System.err.println("Error loading drugs: " + e.getMessage());
+            System.err.println("Error loading materials: " + e.getMessage());
         }
     }
 
     /**
      * Handles opening the dialog in either Add or Edit mode.
      */
-    private void showDrugFormDialog(Drug drugToEdit) {
+    private void showDrugFormDialog(Material drugToEdit) {
         // Use the stored mainFrame and pass THIS panel instance for refresh callback
         JDialog dialog = new DrugFormDialog(this.mainFrame, this, drugToEdit);
         dialog.setVisible(true);
@@ -190,22 +190,22 @@ public class DrugsPanel extends JPanel {
      */
     public void refreshDrugList() {
         loadDrugs();
-        // Update search field with latest drug list
+        // Update search field with latest material list
         searchField.setDrugList(dbService.getAllDrugs());
     }
 
     /**
-     * Filter table to show only the selected drug
+     * Filter table to show only the selected material
      */
-    private void filterTableByDrug(Drug drug) {
-        if (drug == null) {
+    private void filterTableByDrug(Material material) {
+        if (material == null) {
             sorter.setRowFilter(null);
             return;
         }
 
-        // Filter to show only rows matching the selected drug's material code
+        // Filter to show only rows matching the selected material's material code
         RowFilter<DefaultTableModel, Object> filter = RowFilter.regexFilter(
-                "^" + drug.getMaterialCode() + "$", 0); // Column 0 is Material Code
+                "^" + material.getMaterialCode() + "$", 0); // Column 0 is Material Code
         sorter.setRowFilter(filter);
     }
 
@@ -215,8 +215,8 @@ public class DrugsPanel extends JPanel {
      */
     private class DrugFormDialog extends JDialog {
 
-        private DrugsPanel parentPanel;
-        private Drug drugToEdit; // Holds the drug object if in EDIT mode (or null for ADD mode)
+        private MaterialsPanel parentPanel;
+        private Material drugToEdit; // Holds the material object if in EDIT mode (or null for ADD mode)
 
         private JTextField materialCodeField;
         private JTextField brandNameField;
@@ -233,10 +233,10 @@ public class DrugsPanel extends JPanel {
         private JTextField unitOfMeasureField;
 
         // Updated constructor signature to handle both modes
-        public DrugFormDialog(JFrame owner, DrugsPanel parent, Drug drug) {
-            super(owner, drug == null ? "Add New Drug" : "Edit Drug: " + drug.getMaterialCode(), true);
+        public DrugFormDialog(JFrame owner, MaterialsPanel parent, Material material) {
+            super(owner, material == null ? "Add New Material" : "Edit Material: " + material.getMaterialCode(), true);
             this.parentPanel = parent;
-            this.drugToEdit = drug;
+            this.drugToEdit = material;
 
             setLayout(new GridBagLayout());
             GridBagConstraints gbc = new GridBagConstraints();
@@ -402,26 +402,26 @@ public class DrugsPanel extends JPanel {
             setLocationRelativeTo(owner);
         }
 
-        private void loadDrugData(Drug drug) {
-            brandNameField.setText(drug.getBrandName());
-            genericNameField.setText(drug.getGenericName());
-            manufacturerField.setText(drug.getManufacturer());
-            formulationField.setText(drug.getFormulation());
-            strengthField.setText(drug.getStrength());
-            scheduleCategoryField.setText(drug.getScheduleCategory());
-            storageConditionsField.setText(drug.getStorageConditions());
-            reorderLevelField.setText(String.valueOf(drug.getReorderLevel()));
-            isActiveCheckBox.setSelected(drug.isActive());
-            if (drug.getPreferredSupplierId() != null) {
-                preferredSupplierIdField.setText(String.valueOf(drug.getPreferredSupplierId()));
+        private void loadDrugData(Material material) {
+            brandNameField.setText(material.getBrandName());
+            genericNameField.setText(material.getGenericName());
+            manufacturerField.setText(material.getManufacturer());
+            formulationField.setText(material.getFormulation());
+            strengthField.setText(material.getStrength());
+            scheduleCategoryField.setText(material.getScheduleCategory());
+            storageConditionsField.setText(material.getStorageConditions());
+            reorderLevelField.setText(String.valueOf(material.getReorderLevel()));
+            isActiveCheckBox.setSelected(material.isActive());
+            if (material.getPreferredSupplierId() != null) {
+                preferredSupplierIdField.setText(String.valueOf(material.getPreferredSupplierId()));
             } else {
                 preferredSupplierIdField.setText("");
             }
-            if (drug.getMaterialType() != null) {
-                materialTypeComboBox.setSelectedItem(drug.getMaterialType());
+            if (material.getMaterialType() != null) {
+                materialTypeComboBox.setSelectedItem(material.getMaterialType().name());
             }
-            if (drug.getUnitOfMeasure() != null) {
-                unitOfMeasureField.setText(drug.getUnitOfMeasure());
+            if (material.getUnitOfMeasure() != null) {
+                unitOfMeasureField.setText(material.getUnitOfMeasure().name());
             }
         }
 
@@ -473,9 +473,9 @@ public class DrugsPanel extends JPanel {
                     }
                 }
 
-                // 2. Create/Update Drug Object
+                // 2. Create/Update Material Object
                 // Use the existing object for update if available, otherwise create a new one
-                Drug drugToSave = (drugToEdit != null) ? drugToEdit : new Drug();
+                Material drugToSave = (drugToEdit != null) ? drugToEdit : new Material();
 
                 drugToSave.setMaterialCode(materialCode);
                 drugToSave.setBrandName(brandName);
@@ -488,8 +488,8 @@ public class DrugsPanel extends JPanel {
                 drugToSave.setReorderLevel(reorderLevel);
                 drugToSave.setActive(isActive);
                 drugToSave.setPreferredSupplierId(preferredSupplierId);
-                drugToSave.setMaterialType(materialType);
-                drugToSave.setUnitOfMeasure(unitOfMeasure.isEmpty() ? "NOS" : unitOfMeasure);
+                drugToSave.setMaterialType(Material.MaterialType.fromString(materialType));
+                drugToSave.setUnitOfMeasure(Material.UnitOfMeasure.fromString(unitOfMeasure.isEmpty() ? "NOS" : unitOfMeasure));
 
                 // 3. Call Database Service
                 boolean success;
@@ -498,11 +498,11 @@ public class DrugsPanel extends JPanel {
                 if (drugToEdit == null) {
                     // ADD Mode
                     success = parentPanel.dbService.addDrug(drugToSave);
-                    message = "Drug added successfully!";
+                    message = "Material added successfully!";
                 } else {
                     // EDIT Mode
                     success = parentPanel.dbService.updateDrug(drugToSave);
-                    message = "Drug updated successfully!";
+                    message = "Material updated successfully!";
                 }
 
                 // 4. Handle Result
@@ -512,12 +512,12 @@ public class DrugsPanel extends JPanel {
                     dispose(); // Close the dialog
                 } else {
                     JOptionPane.showMessageDialog(this,
-                            (drugToEdit == null ? "Failed to add drug. It may already exist (duplicate Material Code)."
-                                    : "Failed to update drug."),
+                            (drugToEdit == null ? "Failed to add material. It may already exist (duplicate Material Code)."
+                                    : "Failed to update material."),
                             "Database Error", JOptionPane.ERROR_MESSAGE);
                 }
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Error processing drug record: " + ex.getMessage(), "Error",
+                JOptionPane.showMessageDialog(this, "Error processing material record: " + ex.getMessage(), "Error",
                         JOptionPane.ERROR_MESSAGE);
                 ex.printStackTrace();
             }

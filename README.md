@@ -5,7 +5,7 @@ The **Manufacturer-centric Pharmaceutical Supply Chain Management System** is a 
 ## 🚀 Features
 
 ### Core Modules
-- **Master Data Management**: Manage details of Drugs/Materials, Suppliers, and Warehouse Locations.
+- **Master Data Management**: Manage details of Materials/Materials, Suppliers, and Warehouse Locations.
 - **Purchase Order Module**: Create, edit, and track Purchase Orders (POs) securely.
 - **Goods Received Note (GRN)**: Manage incoming stock and map directly to corresponding POs. 
 - **Inventory Management**: Track and adjust stock levels across multiple locations, including batch-level monitoring and transfer tracking.

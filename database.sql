@@ -16,7 +16,7 @@ DROP TABLE IF EXISTS Goods_Received_Note;
 DROP TABLE IF EXISTS PurchaseOrder_Item;
 DROP TABLE IF EXISTS Purchase_Order;
 DROP TABLE IF EXISTS Stock_Inventory;
-DROP TABLE IF EXISTS Drug_Master;
+DROP TABLE IF EXISTS Material_Master;
 DROP TABLE IF EXISTS Supplier_Master;
 DROP TABLE IF EXISTS Location_Master;
 DROP TABLE IF EXISTS Role_Permission;
@@ -43,8 +43,8 @@ CREATE TABLE IF NOT EXISTS Supplier_Master (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- 4. Drug Master Table (Includes Foreign Key to Supplier)
-CREATE TABLE IF NOT EXISTS Drug_Master (
+-- 4. Material Master Table (Includes Foreign Key to Supplier)
+CREATE TABLE IF NOT EXISTS Material_Master (
     material_code VARCHAR(50) PRIMARY KEY,
     brand_name VARCHAR(255) NOT NULL,
     generic_name VARCHAR(255),
@@ -138,14 +138,14 @@ CREATE TABLE IF NOT EXISTS Purchase_Order (
 CREATE TABLE IF NOT EXISTS PurchaseOrder_Item (
     po_item_id INT AUTO_INCREMENT PRIMARY KEY,
     po_id INT NOT NULL,
-    drug_id VARCHAR(50) NOT NULL, -- Links to Drug_Master.material_code
+    drug_id VARCHAR(50) NOT NULL, -- Links to Material_Master.material_code
     quantity INT NOT NULL,
     unit_price DECIMAL(10, 2) NOT NULL,
     
     FOREIGN KEY (po_id) REFERENCES Purchase_Order(po_id) 
         ON DELETE CASCADE 
         ON UPDATE CASCADE,
-    FOREIGN KEY (drug_id) REFERENCES Drug_Master(material_code) 
+    FOREIGN KEY (drug_id) REFERENCES Material_Master(material_code) 
         ON DELETE RESTRICT 
         ON UPDATE CASCADE
 );
@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS Goods_Received_Note (
 CREATE TABLE IF NOT EXISTS GRN_Item (
     grn_item_id INT AUTO_INCREMENT PRIMARY KEY,
     grn_id INT NOT NULL,
-    drug_id VARCHAR(50) NOT NULL, -- Links to Drug_Master.material_code
+    drug_id VARCHAR(50) NOT NULL, -- Links to Material_Master.material_code
     batch_number VARCHAR(100) NOT NULL,
     quantity_received INT NOT NULL,
     expiry_date DATE NOT NULL,
@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS GRN_Item (
     FOREIGN KEY (grn_id) REFERENCES Goods_Received_Note(grn_id) 
         ON DELETE CASCADE 
         ON UPDATE CASCADE,
-    FOREIGN KEY (drug_id) REFERENCES Drug_Master(material_code) 
+    FOREIGN KEY (drug_id) REFERENCES Material_Master(material_code) 
         ON DELETE RESTRICT 
         ON UPDATE CASCADE
 );
@@ -195,10 +195,10 @@ CREATE TABLE IF NOT EXISTS Stock_Inventory (
     parent_batch_id TEXT,
     production_order_id INT,
     
-    -- Ensures a specific batch of a drug is tracked only once per location
+    -- Ensures a specific batch of a material is tracked only once per location
     UNIQUE KEY (material_code, location_code, batch_number),
     
-    FOREIGN KEY (material_code) REFERENCES Drug_Master(material_code) 
+    FOREIGN KEY (material_code) REFERENCES Material_Master(material_code) 
         ON DELETE RESTRICT 
         ON UPDATE CASCADE,
     FOREIGN KEY (location_code) REFERENCES Location_Master(location_code) 
@@ -220,8 +220,8 @@ INSERT INTO Supplier_Master (supplier_name, contact_person, email, phone_number,
 ('PharmaDistributors Ltd', 'Jane Doe', 'jane@pharmadist.com', '+91-9876543211', '29FGHIJ5678K2Z6', 'DL-67890', 'Net 45'),
 ('HealthCare Supplies', 'Bob Johnson', 'bob@healthcare.com', '+91-9876543212', '29LMNOP9012Q3Z7', 'DL-11223', 'Net 60');
 
--- Sample Drugs (using supplier IDs from above: 1, 2)
-INSERT INTO Drug_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id) VALUES
+-- Sample Materials (using supplier IDs from above: 1, 2)
+INSERT INTO Material_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id) VALUES
 ('DRG001', 'Paracet-500', 'Paracetamol', 'XYZ Pharma', 'Tablet', '500mg', 'OTC', 'Store below 30Â°C', 100, TRUE, 1),
 ('DRG002', 'Amox-250', 'Amoxicillin', 'ABC Labs', 'Capsule', '250mg', 'Schedule H', 'Store in cool place', 50, TRUE, 2),
 ('DRG003', 'Cetiriz-10', 'Cetirizine', 'DEF Pharma', 'Tablet', '10mg', 'OTC', 'Store below 25Â°C', 75, TRUE, 1);
@@ -245,10 +245,10 @@ INSERT INTO Role_Master (role_name, description) VALUES
 INSERT INTO Permission_Master (permission_name, module, description) VALUES
 ('MANAGE_USERS', 'Admin', 'Manage Users and Roles'),
 ('VIEW_AUDIT_TRAIL', 'Admin', 'View system audit trails'),
-('CREATE_DRUG', 'Drug', 'Create Drug'),
-('EDIT_DRUG', 'Drug', 'Edit Drug'),
-('DELETE_DRUG', 'Drug', 'Delete Drug'),
-('VIEW_DRUG', 'Drug', 'View Drug'),
+('CREATE_DRUG', 'Material', 'Create Material'),
+('EDIT_DRUG', 'Material', 'Edit Material'),
+('DELETE_DRUG', 'Material', 'Delete Material'),
+('VIEW_DRUG', 'Material', 'View Material'),
 ('VIEW_INVENTORY', 'Inventory', 'View stock inventory'),
 ('ADJUST_STOCK', 'Inventory', 'Manually adjust stock levels'),
 ('TRANSFER_STOCK', 'Inventory', 'Transfer stock between locations'),
@@ -338,7 +338,7 @@ INSERT INTO Stock_Inventory (material_code, location_code, batch_number, quantit
 -- Verify the setup
 SELECT 'Database setup complete!' AS Status;
 SELECT COUNT(*) AS Supplier_Count FROM Supplier_Master;
-SELECT COUNT(*) AS Drug_Count FROM Drug_Master;
+SELECT COUNT(*) AS Drug_Count FROM Material_Master;
 SELECT COUNT(*) AS Location_Count FROM Location_Master;
 SELECT COUNT(*) AS User_Count FROM User_Master;
 SELECT COUNT(*) AS Stock_Count FROM Stock_Inventory;
@@ -347,7 +347,7 @@ SELECT COUNT(*) AS GRN_Count FROM Goods_Received_Note;
 
 use pharma_ims;
 show tables;
-select * from drug_master;
+select * from material_master;
 select * from goods_received_note;
 select * from grn_item;
 select * from location_master;
@@ -366,7 +366,7 @@ INSERT INTO Supplier_Master (supplier_name, contact_person, email, phone_number,
 ('Zenith Meds', 'Alice Lee', 'alice@zenithmed.com', '91-9876500004', '29PQRST3456L4Z8', 'DL-33445', 'Net 15'),
 ('Apollo Medex', 'Tom Kim', 'tom@apollomedex.com', '91-9876500005', '29UVWXY7890S8Z9', 'DL-55667', 'Net 30');
 
-INSERT INTO Drug_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id) VALUES
+INSERT INTO Material_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id) VALUES
 ('DRG005', 'Ibupro-X', 'Ibuprofen', 'ZYX Labs', 'Tablet', '400mg', 'OTC', 'Cool dry', 50, TRUE, 2),
 ('DRG006', 'Azithro-250', 'Azithromycin', 'PQR Pharma', 'Tablet', '250mg', 'Schedule H', 'Cool dry', 60, TRUE, 2),
 ('DRG007', 'Metfor-500', 'Metformin', 'MetHealth Ltd', 'Tablet', '500mg', 'OTC', 'Below 30C', 80, TRUE, 3),
@@ -462,7 +462,7 @@ INSERT INTO Supplier_Master (supplier_name, contact_person, email, phone_number,
 ('Santiago Farma SA',        'Cristian Rojas',     'crojas@santifarma.cl',            '+56-2-23456789',    'CL3498576231', 'CL-SA9087',  'Net 30'),
 ('Seoul MedExport Co.',      'Min-jun Kim',        'mj.kim@seoulmedexport.kr',         '+82-2-12345678',   'KR4455123399', 'KR-ME5472',  'Net 45');
 
-INSERT INTO Drug_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id) VALUES
+INSERT INTO Material_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id) VALUES
 ('DRG012', 'Lipicure',           'Atorvastatin',     'Sun Pharma',           'Tablet',   '10mg',  'H', 'Below 30C', 60, 1, 15),
 ('DRG013', 'Losar',              'Losartan',         'Zydus',                'Tablet',   '50mg',  'H', 'Below 30C', 40, 1, 16),
 ('DRG014', 'Telmikind',          'Telmisartan',      'Mankind',              'Tablet',   '40mg',  'H', 'Below 30C', 25, 1, 17),
@@ -520,7 +520,7 @@ USE pharma_ims;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- 2. Modify Existing Tables to match new requirements
--- Phase 1: drug_master (Ensure material_type is present - it already is, but we ensure quantities in other tables are decimal)
+-- Phase 1: material_master (Ensure material_type is present - it already is, but we ensure quantities in other tables are decimal)
 -- Phase 3: stock_inventory (Add reserved_quantity, available_quantity)
 ALTER TABLE stock_inventory 
     MODIFY COLUMN quantity DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
@@ -546,7 +546,7 @@ CREATE TABLE IF NOT EXISTS inventory_transaction (
     performed_by INT,
     transaction_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     notes TEXT,
-    FOREIGN KEY (material_code) REFERENCES drug_master(material_code) ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (material_code) REFERENCES material_master(material_code) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (location_code) REFERENCES location_master(location_code) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (performed_by) REFERENCES user_master(user_id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
@@ -562,7 +562,7 @@ CREATE TABLE IF NOT EXISTS production_material_consumption (
     uom VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (production_order_id) REFERENCES production_order(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (material_code) REFERENCES drug_master(material_code) ON DELETE RESTRICT ON UPDATE CASCADE
+    FOREIGN KEY (material_code) REFERENCES material_master(material_code) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- Phase 5: production_batch
@@ -578,7 +578,7 @@ CREATE TABLE IF NOT EXISTS production_batch (
     location_code VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (production_order_id) REFERENCES production_order(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (material_code) REFERENCES drug_master(material_code) ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (material_code) REFERENCES material_master(material_code) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (location_code) REFERENCES location_master(location_code) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
@@ -620,7 +620,7 @@ TRUNCATE TABLE purchase_order;
 TRUNCATE TABLE stock_inventory;
 TRUNCATE TABLE bom_details;
 TRUNCATE TABLE bom_header;
-TRUNCATE TABLE drug_master;
+TRUNCATE TABLE material_master;
 TRUNCATE TABLE supplier_master;
 TRUNCATE TABLE location_master;
 
@@ -648,8 +648,8 @@ INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address
 (2, 'HealthCare Supplies', 'Jane Smith', '45 Biotech Park, NJ', 'contact@healthcaresupplies.com', '0987654321', 'GST98765', 'Net 45'),
 (3, 'Zenith Meds', 'Alex Roe', '78 API Hub, TX', 'info@zenithmeds.com', '1122334455', 'GST11223', 'Net 60');
 
--- Drugs / Materials (Strict material_type: RAW_MATERIAL, PACKAGING, INTERMEDIATE, FINISHED_GOOD)
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+-- Materials / Materials (Strict material_type: RAW_MATERIAL, PACKAGING, INTERMEDIATE, FINISHED_GOOD)
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
 ('RM-PARA-API', 'Paracetamol API', 'Paracetamol', 'Zenith Meds', 3, 'RAW_MATERIAL', 'KG', 1),
 ('RM-STARCH', 'Corn Starch', 'Starch Excipient', 'MedSupply Corp', 1, 'RAW_MATERIAL', 'KG', 1),
 ('RM-MAGNESIUM', 'Magnesium Stearate', 'Magnesium Stearate', 'MedSupply Corp', 1, 'RAW_MATERIAL', 'KG', 1),
@@ -740,8 +740,8 @@ INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address
 (4, 'Global APIs Inc.', 'David Miller', '405 API Blvd, CA', 'david.miller@globalapis.com', '1555123456', 'GST33445', 'Net 30'),
 (5, 'EuroPharma Packaging', 'Sophie Laurent', '22 Rue Pasteur, Paris', 's.laurent@europharma.eu', '3319876543', 'GST55667', 'Net 45');
 
--- Additional Drugs/Materials
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+-- Additional Materials/Materials
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
 ('RM-IBU-API', 'Ibuprofen API', 'Ibuprofen', 'Global APIs Inc.', 4, 'RAW_MATERIAL', 'KG', 1),
 ('RM-MCC', 'Microcrystalline Cellulose', 'MCC Excipient', 'EuroPharma Packaging', 5, 'RAW_MATERIAL', 'KG', 1),
 ('PM-BOTTLE-100', 'HDPE Bottle 100ml', 'Packaging Bottle', 'EuroPharma Packaging', 5, 'PACKAGING', 'NOS', 1),
@@ -789,8 +789,8 @@ INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address
 (6, 'Kemico Industries', 'Mark Taylor', '808 Tech Park, IL', 'sales@kemico.com', '1231231234', 'GST77889', 'Net 30'),
 (7, 'Alpha Blisters Ltd', 'Karen O Connor', '99 Packaging Way, UK', 'karen@alphablister.co.uk', '441234567', 'GST44556', 'Net 60');
 
--- 2. New Drugs/Materials (Raw Materials, Packaging, Excipients, Finished Goods)
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+-- 2. New Materials/Materials (Raw Materials, Packaging, Excipients, Finished Goods)
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
 ('RM-VITC-API', 'Ascorbic Acid API', 'Vitamin C', 'Kemico Industries', 6, 'RAW_MATERIAL', 'KG', 1),
 ('RM-ZINC-OX', 'Zinc Oxide', 'Zinc Supplement', 'Kemico Industries', 6, 'RAW_MATERIAL', 'KG', 1),
 ('RM-SUCROSE', 'Sucrose Excipient', 'Sucrose', 'HealthCare Supplies', 2, 'RAW_MATERIAL', 'KG', 1),
@@ -867,33 +867,33 @@ INSERT INTO supplier_master (supplier_name, contact_person, address, email, phon
 ('Prime Packaging', 'Optimus Prime', '78 Carton St, NY', 'optimus@primepack.com', '4445556666', 'GST55667', 'Net 30'),
 ('Global Excipients', 'Bruce Wayne', '90 Gotham Ave, NJ', 'bruce@globalexcipients.com', '7778889999', 'GST66778', 'Net 45');
 
--- 10 New Drugs / Materials
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+-- 10 New Materials / Materials
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
 SELECT 'RM-ASPIRIN-API', 'Aspirin API', 'Acetylsalicylic acid', 'Apex Pharma', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Apex Pharma';
 
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
 SELECT 'RM-MAIZE', 'Maize Starch', 'Maize Starch Excipient', 'Global Excipients', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Global Excipients';
 
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
 SELECT 'PM-BOTTLE-200', 'HDPE Bottle 200ml', 'Packaging Bottle', 'Prime Packaging', supplier_id, 'PACKAGING', 'NOS', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
 
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
 SELECT 'PM-CAP-200', 'Bottle Cap 200ml', 'Bottle Cap', 'Prime Packaging', supplier_id, 'PACKAGING', 'NOS', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
 
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
 SELECT 'PM-LABEL-ASP', 'Aspirin Label', 'Printed Label', 'Prime Packaging', supplier_id, 'PACKAGING', 'ROLL', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
 
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
 ('DRG-061', 'Aspirin 300mg Tablet', 'Aspirin', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
 ('DRG-062', 'Aspirin 500mg Tablet', 'Aspirin', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
 
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
 SELECT 'RM-TRAMADOL', 'Tramadol API', 'Tramadol HCl', 'Giga APIs', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Giga APIs';
 
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
 SELECT 'RM-DICLOFENAC', 'Diclofenac API', 'Diclofenac Sodium', 'Nova Meds', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Nova Meds';
 
-INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
 ('DRG-063', 'Tramadol 50mg Capsule', 'Tramadol', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
 ('DRG-064', 'Diclofenac 50mg Tablet', 'Diclofenac', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
 

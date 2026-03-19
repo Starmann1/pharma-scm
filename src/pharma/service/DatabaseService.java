@@ -216,54 +216,54 @@ public class DatabaseService {
     }
 
     // =======================================================
-    // --- DRUG CRUD OPERATIONS (BASED ON PREVIOUS REQUEST) ---
+    // --- MATERIAL CRUD OPERATIONS (BASED ON PREVIOUS REQUEST) ---
     // =======================================================
 
-    private Drug mapResultSetToDrug(ResultSet rs) throws SQLException {
-        Drug drug = new Drug();
-        drug.setMaterialCode(rs.getString("material_code"));
-        drug.setBrandName(rs.getString("brand_name"));
-        drug.setGenericName(rs.getString("generic_name"));
-        drug.setManufacturer(rs.getString("manufacturer"));
-        drug.setFormulation(rs.getString("formulation"));
-        drug.setStrength(rs.getString("strength"));
-        drug.setScheduleCategory(rs.getString("schedule_category"));
-        drug.setStorageConditions(rs.getString("storage_conditions"));
-        drug.setReorderLevel(rs.getInt("reorder_level"));
-        drug.setActive(rs.getBoolean("is_active"));
-        drug.setMaterialType(rs.getString("material_type"));
-        drug.setUnitOfMeasure(rs.getString("unit_of_measure"));
+    private Material mapResultSetToDrug(ResultSet rs) throws SQLException {
+        Material material = new Material();
+        material.setMaterialCode(rs.getString("material_code"));
+        material.setBrandName(rs.getString("brand_name"));
+        material.setGenericName(rs.getString("generic_name"));
+        material.setManufacturer(rs.getString("manufacturer"));
+        material.setFormulation(rs.getString("formulation"));
+        material.setStrength(rs.getString("strength"));
+        material.setScheduleCategory(rs.getString("schedule_category"));
+        material.setStorageConditions(rs.getString("storage_conditions"));
+        material.setReorderLevel(rs.getInt("reorder_level"));
+        material.setActive(rs.getBoolean("is_active"));
+        material.setMaterialType(Material.MaterialType.fromString(rs.getString("material_type")));
+        material.setUnitOfMeasure(Material.UnitOfMeasure.fromString(rs.getString("unit_of_measure")));
 
         int preferredSupplierId = rs.getInt("preferred_supplier_id");
         if (rs.wasNull()) { // Checks if the last value read was SQL NULL
-            drug.setPreferredSupplierId(null);
+            material.setPreferredSupplierId(null);
         } else {
-            drug.setPreferredSupplierId(preferredSupplierId);
+            material.setPreferredSupplierId(preferredSupplierId);
         }
-        return drug;
+        return material;
     }
 
-    public List<Drug> getAllDrugs() {
-        List<Drug> drugs = new ArrayList<>();
-        String SQL = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Drug_Master";
+    public List<Material> getAllDrugs() {
+        List<Material> materials = new ArrayList<>();
+        String SQL = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Material_Master";
 
         try (Connection conn = getConnection();
                 Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(SQL)) {
 
             while (rs.next()) {
-                drugs.add(mapResultSetToDrug(rs));
+                materials.add(mapResultSetToDrug(rs));
             }
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching all drugs: " + e.getMessage());
+            System.err.println("Error fetching all materials: " + e.getMessage());
             e.printStackTrace();
             return Collections.emptyList();
         }
-        return drugs;
+        return materials;
     }
 
-    public boolean addDrug(Drug newDrug) throws SQLException {
-        String SQL = "INSERT INTO Drug_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure) "
+    public boolean addDrug(Material newDrug) throws SQLException {
+        String SQL = "INSERT INTO Material_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure) "
                 +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
@@ -285,15 +285,15 @@ public class DatabaseService {
             } else {
                 stmt.setInt(11, newDrug.getPreferredSupplierId());
             }
-            stmt.setString(12, newDrug.getMaterialType());
-            stmt.setString(13, newDrug.getUnitOfMeasure());
+            stmt.setString(12, newDrug.getMaterialType() != null ? newDrug.getMaterialType().name() : null);
+            stmt.setString(13, newDrug.getUnitOfMeasure() != null ? newDrug.getUnitOfMeasure().name() : null);
 
             int affectedRows = stmt.executeUpdate();
-            System.out.println("Drug added successfully: " + newDrug.getBrandName());
+            System.out.println("Material added successfully: " + newDrug.getBrandName());
             return affectedRows > 0; // <-- FIXED to return boolean result
 
         } catch (SQLException e) {
-            System.err.println("Database Error inserting drug: " + e.getMessage());
+            System.err.println("Database Error inserting material: " + e.getMessage());
             e.printStackTrace();
             throw e;
         } catch (ClassNotFoundException e) {
@@ -304,10 +304,10 @@ public class DatabaseService {
     }
 
     /**
-     * Retrieves a single Drug record using its primary key (materialCode).
+     * Retrieves a single Material record using its primary key (materialCode).
      */
-    public Drug getDrugByMaterialCode(String materialCode) {
-        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Drug_Master WHERE material_code = ?";
+    public Material getDrugByMaterialCode(String materialCode) {
+        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Material_Master WHERE material_code = ?";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -319,59 +319,59 @@ public class DatabaseService {
                 }
             }
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching drug by code: " + e.getMessage());
+            System.err.println("Error fetching material by code: " + e.getMessage());
             e.printStackTrace();
         }
         return null;
     }
 
     /**
-     * Updates an existing Drug record based on its materialCode.
+     * Updates an existing Material record based on its materialCode.
      */
-    public boolean updateDrug(Drug drug) {
+    public boolean updateDrug(Material material) {
         // Updated SQL to include 'preferred_supplier_id', 'material_type', and
         // 'unit_of_measure' in the SET clause
-        String sql = "UPDATE Drug_Master SET brand_name=?, generic_name=?, manufacturer=?, formulation=?, strength=?, schedule_category=?, storage_conditions=?, reorder_level=?, is_active=?, preferred_supplier_id=?, material_type=?, unit_of_measure=? WHERE material_code=?";
+        String sql = "UPDATE Material_Master SET brand_name=?, generic_name=?, manufacturer=?, formulation=?, strength=?, schedule_category=?, storage_conditions=?, reorder_level=?, is_active=?, preferred_supplier_id=?, material_type=?, unit_of_measure=? WHERE material_code=?";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             // Existing parameters (1-9)
-            pstmt.setString(1, drug.getBrandName());
-            pstmt.setString(2, drug.getGenericName());
-            pstmt.setString(3, drug.getManufacturer());
-            pstmt.setString(4, drug.getFormulation());
-            pstmt.setString(5, drug.getStrength());
-            pstmt.setString(6, drug.getScheduleCategory());
-            pstmt.setString(7, drug.getStorageConditions());
-            pstmt.setInt(8, drug.getReorderLevel());
-            pstmt.setBoolean(9, drug.isActive());
+            pstmt.setString(1, material.getBrandName());
+            pstmt.setString(2, material.getGenericName());
+            pstmt.setString(3, material.getManufacturer());
+            pstmt.setString(4, material.getFormulation());
+            pstmt.setString(5, material.getStrength());
+            pstmt.setString(6, material.getScheduleCategory());
+            pstmt.setString(7, material.getStorageConditions());
+            pstmt.setInt(8, material.getReorderLevel());
+            pstmt.setBoolean(9, material.isActive());
 
             // FIX: New parameter (10) for the foreign key
-            Integer supplierId = drug.getPreferredSupplierId();
+            Integer supplierId = material.getPreferredSupplierId();
             if (supplierId != null) {
                 pstmt.setInt(10, supplierId);
             } else {
                 pstmt.setNull(10, java.sql.Types.INTEGER);
             }
 
-            pstmt.setString(11, drug.getMaterialType());
-            pstmt.setString(12, drug.getUnitOfMeasure());
+            pstmt.setString(11, material.getMaterialType() != null ? material.getMaterialType().name() : null);
+            pstmt.setString(12, material.getUnitOfMeasure() != null ? material.getUnitOfMeasure().name() : null);
 
             // WHERE clause parameter (13)
-            pstmt.setString(13, drug.getMaterialCode());
+            pstmt.setString(13, material.getMaterialCode());
 
             return pstmt.executeUpdate() > 0;
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error updating drug: " + e.getMessage());
+            System.err.println("Error updating material: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
 
     public boolean deleteDrug(String materialCode) { // <--- MODIFIED METHOD SIGNATURE AND LOGIC
-        // FIX: Corrected table name to Drug_Master
-        String sql = "DELETE FROM Drug_Master WHERE material_code = ?";
+        // FIX: Corrected table name to Material_Master
+        String sql = "DELETE FROM Material_Master WHERE material_code = ?";
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
@@ -379,26 +379,26 @@ public class DatabaseService {
 
             return pstmt.executeUpdate() > 0;
         } catch (SQLException | ClassNotFoundException e) { // Combined catch block
-            System.err.println("Error deleting drug: " + e.getMessage());
+            System.err.println("Error deleting material: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
 
-    public List<Drug> getDrugs() {
-        List<Drug> drugs = new ArrayList<>();
+    public List<Material> getDrugs() {
+        List<Material> materials = new ArrayList<>();
 
         // FIX: Updated SQL query to explicitly select 'preferred_supplier_id',
         // 'material_type', 'unit_of_measure' (13
         // columns total)
-        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Drug_Master";
+        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Material_Master";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql);
                 ResultSet rs = pstmt.executeQuery()) {
 
             while (rs.next()) {
-                Drug drug = new Drug(
+                Material material = new Material(
                         rs.getString("material_code"),
                         rs.getString("brand_name"),
                         rs.getString("generic_name"),
@@ -410,19 +410,19 @@ public class DatabaseService {
                         rs.getInt("reorder_level"),
                         rs.getBoolean("is_active"),
                         rs.getInt("preferred_supplier_id"),
-                        rs.getString("material_type"),
-                        rs.getString("unit_of_measure"));
-                drugs.add(drug);
+                        Material.MaterialType.fromString(rs.getString("material_type")),
+                        Material.UnitOfMeasure.fromString(rs.getString("unit_of_measure")));
+                materials.add(material);
             }
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching all drugs: " + e.getMessage());
+            System.err.println("Error fetching all materials: " + e.getMessage());
             e.printStackTrace();
         }
-        return drugs;
+        return materials;
     }
 
-    public boolean editDrug(Drug drug) {
-        return updateDrug(drug);
+    public boolean editDrug(Material material) {
+        return updateDrug(material);
     }
 
     // =======================================================
@@ -572,13 +572,13 @@ public class DatabaseService {
     // --- REPORTING & TRANSACTIONAL METHODS (FIXED FROM STUBS) ---
     // =======================================================
     /**
-     * FIX: Implemented to retrieve the full inventory data (Drug Master Data).
+     * FIX: Implemented to retrieve the full inventory data (Material Master Data).
      * 
-     * @return List of Drug objects.
+     * @return List of Material objects.
      */
-    public List<Drug> getFullInventoryReport() {
+    public List<Material> getFullInventoryReport() {
         try {
-            System.out.println("Retrieving full inventory (Drug Master Data)...");
+            System.out.println("Retrieving full inventory (Material Master Data)...");
             return getDrugs();
         } catch (Exception e) {
             System.err.println("Error retrieving data for Full Inventory Report: " + e.getMessage());
@@ -644,7 +644,7 @@ public class DatabaseService {
 
                 // 2. Insert PO Items (Line Items)
                 if (po.getItems() != null && !po.getItems().isEmpty()) {
-                    // SQL uses 'drug_id' which references Drug_Master.material_code (VARCHAR)
+                    // SQL uses 'drug_id' which references Material_Master.material_code (VARCHAR)
                     String sqlItems = "INSERT INTO PurchaseOrder_Item (po_id, drug_id, quantity, unit_price) VALUES (?, ?, ?, ?)";
                     try (PreparedStatement pstmtItems = conn.prepareStatement(sqlItems)) {
                         for (PurchaseOrder.PurchaseOrderItem item : po.getItems()) {
@@ -864,7 +864,7 @@ public class DatabaseService {
                         txStmt.setString(9, "Received from PO " + po.getPoNumber());
                         txStmt.addBatch();
 
-                        System.out.println("Added GRN item: Drug=" + item.getMaterialCode() +
+                        System.out.println("Added GRN item: Material=" + item.getMaterialCode() +
                                 ", Qty=" + item.getQuantity() +
                                 ", Batch=" + batchNumber);
                     }
@@ -966,7 +966,7 @@ public class DatabaseService {
                     double unitPrice = rs.getDouble("unit_price");
 
                     System.out.println(
-                            "DEBUG: Found item - Drug ID: " + drugId + ", Qty: " + quantity + ", Price: " + unitPrice);
+                            "DEBUG: Found item - Material ID: " + drugId + ", Qty: " + quantity + ", Price: " + unitPrice);
 
                     items.add(new PurchaseOrderItem(
                             // 💡 FIX 1: Read the material_code (drug_id) as a String
@@ -1706,7 +1706,7 @@ public class DatabaseService {
             throws SQLException, ClassNotFoundException {
         List<Map<String, Object>> affectedBatches = new ArrayList<>();
 
-        String sql = "SELECT si.batch_number, si.material_code, dm.brand_name, si.quantity, si.qc_status, si.exp_date, si.location_code FROM Stock_Inventory si JOIN Drug_Master dm ON si.material_code = dm.material_code WHERE si.parent_batch_id LIKE ?";
+        String sql = "SELECT si.batch_number, si.material_code, dm.brand_name, si.quantity, si.qc_status, si.exp_date, si.location_code FROM Stock_Inventory si JOIN Material_Master dm ON si.material_code = dm.material_code WHERE si.parent_batch_id LIKE ?";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -1803,11 +1803,11 @@ public class DatabaseService {
         return trails;
     }
 
-    // --- Material Methods (replacing Drug methods) ---
+    // --- Material Methods (replacing Material methods) ---
 
     public List<Material> getAllMaterials() throws SQLException, ClassNotFoundException {
         List<Material> materials = new ArrayList<>();
-        String sql = "SELECT * FROM Drug_Master ORDER BY material_code";
+        String sql = "SELECT * FROM Material_Master ORDER BY material_code";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -1838,7 +1838,7 @@ public class DatabaseService {
     }
 
     public void addMaterial(Material material) throws SQLException, ClassNotFoundException {
-        String sql = "INSERT INTO Drug_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO Material_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -1869,7 +1869,7 @@ public class DatabaseService {
 
     public List<Material> getMaterialsByType(Material.MaterialType type) throws SQLException, ClassNotFoundException {
         List<Material> materials = new ArrayList<>();
-        String sql = "SELECT * FROM Drug_Master WHERE material_type = ? ORDER BY material_code";
+        String sql = "SELECT * FROM Material_Master WHERE material_type = ? ORDER BY material_code";
 
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -2021,7 +2021,7 @@ public class DatabaseService {
         List<Stock> stocks = new ArrayList<>();
         String sql = "SELECT s.stock_id, s.material_code, d.brand_name, d.generic_name, s.location_code, s.batch_number, s.quantity, s.reserved_quantity, s.available_quantity, s.unit_cost, s.mfg_date, s.exp_date, s.qc_status, s.parent_batch_id "
                 +
-                "FROM Stock_Inventory s JOIN Drug_Master d ON s.material_code = d.material_code";
+                "FROM Stock_Inventory s JOIN Material_Master d ON s.material_code = d.material_code";
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql);
                 ResultSet rs = pstmt.executeQuery()) {

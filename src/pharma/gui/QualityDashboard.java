@@ -191,7 +191,7 @@ public class QualityDashboard extends JPanel {
 
         String sql = "SELECT si.batch_number, dm.brand_name, si.quantity, si.qc_status, si.mfg_date, si.exp_date " +
                 "FROM Stock_Inventory si " +
-                "JOIN Drug_Master dm ON si.material_code = dm.material_code ";
+                "JOIN Material_Master dm ON si.material_code = dm.material_code ";
 
         if (!"All".equals(statusFilter)) {
             sql += "WHERE si.qc_status = ? ";
@@ -257,7 +257,7 @@ public class QualityDashboard extends JPanel {
 
             String sql = "SELECT si.*, dm.brand_name, dm.generic_name, dm.manufacturer " +
                     "FROM Stock_Inventory si " +
-                    "JOIN Drug_Master dm ON si.material_code = dm.material_code " +
+                    "JOIN Material_Master dm ON si.material_code = dm.material_code " +
                     "WHERE si.batch_number = ?";
 
             Connection conn = null;

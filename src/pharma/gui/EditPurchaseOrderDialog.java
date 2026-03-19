@@ -102,7 +102,7 @@ public class EditPurchaseOrderDialog extends JDialog {
     private JPanel buildLineItemPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(BorderFactory.createTitledBorder("Line Items"));
-        String[] columnNames = {"Drug ID", "Quantity", "Unit Price"};
+        String[] columnNames = {"Material ID", "Quantity", "Unit Price"};
         itemTableModel = new DefaultTableModel(columnNames, 0) {
             public boolean isCellEditable(int row, int col) { return false; }
             public Class<?> getColumnClass(int col) {
@@ -113,7 +113,7 @@ public class EditPurchaseOrderDialog extends JDialog {
 
         // Input fields for editing line items (add new)
         JPanel inputFields = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-        inputFields.add(new JLabel("Drug ID"));
+        inputFields.add(new JLabel("Material ID"));
         itemDrugIdField = new JTextField(8);
         inputFields.add(itemDrugIdField);
         inputFields.add(new JLabel("Qty"));
@@ -357,7 +357,7 @@ public class EditPurchaseOrderDialog extends JDialog {
     private JPanel buildLineItemPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(BorderFactory.createTitledBorder("Line Items"));
-        String[] columnNames = { "Drug ID", "Quantity", "Unit Price" };
+        String[] columnNames = { "Material ID", "Quantity", "Unit Price" };
         itemTableModel = new DefaultTableModel(columnNames, 0) {
             public boolean isCellEditable(int row, int col) {
                 return false;
@@ -369,7 +369,7 @@ public class EditPurchaseOrderDialog extends JDialog {
         };
         itemTable = new JTable(itemTableModel);
         JPanel inputFields = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-        inputFields.add(new JLabel("Drug ID"));
+        inputFields.add(new JLabel("Material ID"));
         itemDrugIdField = new JTextField(8);
         inputFields.add(itemDrugIdField);
         inputFields.add(new JLabel("Qty"));
@@ -405,7 +405,7 @@ public class EditPurchaseOrderDialog extends JDialog {
         itemTableModel.setRowCount(0);
         System.out.println("DEBUG: Number of items in PO: " + (po.getItems() != null ? po.getItems().size() : 0));
         for (PurchaseOrderItem item : po.getItems()) {
-            System.out.println("DEBUG: Adding item to table - Drug: " + item.getMaterialCode() + ", Qty: "
+            System.out.println("DEBUG: Adding item to table - Material: " + item.getMaterialCode() + ", Qty: "
                     + item.getQuantity() + ", Price: " + item.getUnitPrice());
             itemTableModel.addRow(new Object[] { item.getMaterialCode(), item.getQuantity(), item.getUnitPrice() });
         }

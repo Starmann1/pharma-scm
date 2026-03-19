@@ -2,7 +2,7 @@ package pharma.model;
 
 /**
  * Model class representing a Material in the manufacturing system.
- * Replaces the Drug.java class to support both raw materials and finished
+ * Replaces the Material.java class to support both raw materials and finished
  * goods.
  * Materials can be classified as RAW_MATERIAL, EXCIPIENT, PACKAGING, or
  * FINISHED_GOOD.
@@ -65,7 +65,7 @@ public class Material {
         }
     }
 
-    // Fields corresponding to the Drug_Master table
+    // Fields corresponding to the Material_Master table
     private String materialCode;
     private String brandName;
     private String genericName;

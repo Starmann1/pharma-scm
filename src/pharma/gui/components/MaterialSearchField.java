@@ -1,6 +1,6 @@
 package pharma.gui.components;
 
-import pharma.model.Drug;
+import pharma.model.Material;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -10,12 +10,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Autocomplete search field for drugs with dropdown suggestions.
- * Filters drugs as user types and displays matching results in a popup.
+ * Autocomplete search field for materials with dropdown suggestions.
+ * Filters materials as user types and displays matching results in a popup.
  */
-public class DrugSearchField extends JTextField {
+public class MaterialSearchField extends JTextField {
 
-    private List<Drug> allDrugs;
+    private List<Material> allDrugs;
     private JPopupMenu suggestionPopup;
     private JList<String> suggestionList;
     private DefaultListModel<String> listModel;
@@ -23,14 +23,14 @@ public class DrugSearchField extends JTextField {
     private int maxSuggestions = 10;
 
     /**
-     * Interface for handling drug selection events
+     * Interface for handling material selection events
      */
     public interface DrugSelectionListener {
-        void onDrugSelected(Drug drug);
+        void onDrugSelected(Material material);
     }
 
-    public DrugSearchField(List<Drug> drugs) {
-        this.allDrugs = drugs != null ? drugs : new ArrayList<>();
+    public MaterialSearchField(List<Material> materials) {
+        this.allDrugs = materials != null ? materials : new ArrayList<>();
         initializeComponents();
         setupListeners();
     }
@@ -56,7 +56,7 @@ public class DrugSearchField extends JTextField {
         suggestionPopup.add(scrollPane);
 
         // Set placeholder text
-        setToolTipText("Type drug name, code, or generic name to search...");
+        setToolTipText("Type material name, code, or generic name to search...");
     }
 
     private void setupListeners() {
@@ -154,14 +154,14 @@ public class DrugSearchField extends JTextField {
             return;
         }
 
-        // Filter drugs based on search text
+        // Filter materials based on search text
         listModel.clear();
-        List<Drug> matchedDrugs = new ArrayList<>();
+        List<Material> matchedDrugs = new ArrayList<>();
 
-        for (Drug drug : allDrugs) {
-            if (matchesDrug(drug, searchText)) {
-                matchedDrugs.add(drug);
-                String displayText = formatDrugForDisplay(drug);
+        for (Material material : allDrugs) {
+            if (matchesDrug(material, searchText)) {
+                matchedDrugs.add(material);
+                String displayText = formatDrugForDisplay(material);
                 listModel.addElement(displayText);
 
                 if (matchedDrugs.size() >= maxSuggestions) {
@@ -191,24 +191,24 @@ public class DrugSearchField extends JTextField {
         }
     }
 
-    private boolean matchesDrug(Drug drug, String searchText) {
-        // Check if search text matches any drug property
-        return (drug.getBrandName() != null && drug.getBrandName().toLowerCase().contains(searchText)) ||
-                (drug.getGenericName() != null && drug.getGenericName().toLowerCase().contains(searchText)) ||
-                (drug.getMaterialCode() != null && drug.getMaterialCode().toLowerCase().contains(searchText)) ||
-                (drug.getManufacturer() != null && drug.getManufacturer().toLowerCase().contains(searchText));
+    private boolean matchesDrug(Material material, String searchText) {
+        // Check if search text matches any material property
+        return (material.getBrandName() != null && material.getBrandName().toLowerCase().contains(searchText)) ||
+                (material.getGenericName() != null && material.getGenericName().toLowerCase().contains(searchText)) ||
+                (material.getMaterialCode() != null && material.getMaterialCode().toLowerCase().contains(searchText)) ||
+                (material.getManufacturer() != null && material.getManufacturer().toLowerCase().contains(searchText));
     }
 
-    private String formatDrugForDisplay(Drug drug) {
+    private String formatDrugForDisplay(Material material) {
         // Format: "Brand Name (Generic Name) - Code"
         StringBuilder sb = new StringBuilder();
-        sb.append(drug.getBrandName());
+        sb.append(material.getBrandName());
 
-        if (drug.getGenericName() != null && !drug.getGenericName().isEmpty()) {
-            sb.append(" (").append(drug.getGenericName()).append(")");
+        if (material.getGenericName() != null && !material.getGenericName().isEmpty()) {
+            sb.append(" (").append(material.getGenericName()).append(")");
         }
 
-        sb.append(" - ").append(drug.getMaterialCode());
+        sb.append(" - ").append(material.getMaterialCode());
 
         return sb.toString();
     }
@@ -221,8 +221,8 @@ public class DrugSearchField extends JTextField {
             // Extract material code from the formatted string
             String materialCode = extractMaterialCode(selectedText);
 
-            // Find the drug object
-            Drug selectedDrug = findDrugByCode(materialCode);
+            // Find the material object
+            Material selectedDrug = findDrugByCode(materialCode);
 
             if (selectedDrug != null) {
                 // Set text field to brand name
@@ -247,10 +247,10 @@ public class DrugSearchField extends JTextField {
         return "";
     }
 
-    private Drug findDrugByCode(String materialCode) {
-        for (Drug drug : allDrugs) {
-            if (drug.getMaterialCode().equals(materialCode)) {
-                return drug;
+    private Material findDrugByCode(String materialCode) {
+        for (Material material : allDrugs) {
+            if (material.getMaterialCode().equals(materialCode)) {
+                return material;
             }
         }
         return null;
@@ -258,8 +258,8 @@ public class DrugSearchField extends JTextField {
 
     // Public methods
 
-    public void setDrugList(List<Drug> drugs) {
-        this.allDrugs = drugs != null ? drugs : new ArrayList<>();
+    public void setDrugList(List<Material> materials) {
+        this.allDrugs = materials != null ? materials : new ArrayList<>();
     }
 
     public void setSelectionListener(DrugSelectionListener listener) {

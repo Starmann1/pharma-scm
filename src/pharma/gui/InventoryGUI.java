@@ -14,7 +14,7 @@ public class InventoryGUI extends JFrame {
     private DatabaseService dbService;
 
     private final String DASHBOARD = "Dashboard";
-    private final String DRUGS = "Drugs";
+    private final String MATERIALS = "Materials";
     private final String SUPPLIERS = "Suppliers";
     private final String PURCHASE_ORDERS = "PurchaseOrders";
     private final String GRN = "GRN";
@@ -63,7 +63,7 @@ public class InventoryGUI extends JFrame {
         logo.setBorder(BorderFactory.createEmptyBorder(20, 10, 30, 10));
         sideNavPanel.add(logo);
 
-        String[] menuItems = {DASHBOARD, DRUGS, SUPPLIERS, PURCHASE_ORDERS, GRN, INVENTORY, LOCATIONS, REPORTS};
+        String[] menuItems = {DASHBOARD, MATERIALS, SUPPLIERS, PURCHASE_ORDERS, GRN, INVENTORY, LOCATIONS, REPORTS};
         for (String item : menuItems) {
             JButton button = createNavButton(item);
             sideNavPanel.add(button);
@@ -95,7 +95,7 @@ public class InventoryGUI extends JFrame {
     private void addContentPanels() {
         mainContentPanel.add(new SuppliersPanel(dbService), SUPPLIERS);
         mainContentPanel.add(createPlaceholderPanel(DASHBOARD), DASHBOARD);
-        mainContentPanel.add(createPlaceholderPanel(DRUGS + " - Drug Master"), DRUGS);
+        mainContentPanel.add(createPlaceholderPanel(MATERIALS + " - Material Master"), MATERIALS);
         mainContentPanel.add(createPlaceholderPanel(PURCHASE_ORDERS + " - PO Management"), PURCHASE_ORDERS);
         mainContentPanel.add(createPlaceholderPanel(GRN + " - Goods Receipt Notes"), GRN);
         mainContentPanel.add(createPlaceholderPanel(INVENTORY + " - Real-time Stock"), INVENTORY);
@@ -143,7 +143,7 @@ public class InventoryGUI extends JFrame {
     private User activeUser; // Field to hold the logged-in user
 
     // REMOVED DASHBOARD :private final String DASHBOARD = "Dashboard";
-    private final String DRUGS = "Drugs";
+    private final String MATERIALS = "Materials";
     private final String SUPPLIERS = "Suppliers";
     private final String PURCHASE_ORDERS = "PurchaseOrders";
     private final String GRN = "GRN";
@@ -195,7 +195,7 @@ public class InventoryGUI extends JFrame {
         add(mainContentPanel, BorderLayout.CENTER);
 
         // Show the Dashboard upon startup
-        cardLayout.show(mainContentPanel, DRUGS);
+        cardLayout.show(mainContentPanel, MATERIALS);
         pack();
         setLocationRelativeTo(null);
     }
@@ -233,7 +233,7 @@ public class InventoryGUI extends JFrame {
         sideNavPanel.add(logo);
 
         if (authService.hasPermission(activeUser, "VIEW_DRUG")) {
-            sideNavPanel.add(createNavButton(DRUGS));
+            sideNavPanel.add(createNavButton(MATERIALS));
         }
         if (authService.hasPermission(activeUser, "VIEW_INVENTORY")) {
             sideNavPanel.add(createNavButton(INVENTORY));
@@ -367,9 +367,9 @@ public class InventoryGUI extends JFrame {
         // Note: The constructor parameter order must exactly match the definition in
         // each Panel.
 
-        // DrugsPanel: Assumed signature: DrugsPanel(JFrame, DatabaseService)
+        // MaterialsPanel: Assumed signature: MaterialsPanel(JFrame, DatabaseService)
         // This fix also addresses the form opening for Problem 4.
-        mainContentPanel.add(new DrugsPanel(null, dbService), DRUGS);
+        mainContentPanel.add(new MaterialsPanel(null, dbService), MATERIALS);
 
         // InventoryPanel: Assumed signature: InventoryPanel(DatabaseService)
         mainContentPanel.add(new InventoryPanel(dbService), INVENTORY);

@@ -101,7 +101,7 @@ public class LocationsPanel extends JPanel {
     private void handleDeleteLocation() {
         int selectedRow = locationsTable.getSelectedRow();
         if (selectedRow >= 0) {
-            int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete this location? All linked drugs will lose their location data.", "Confirm Deletion", JOptionPane.YES_NO_OPTION);
+            int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete this location? All linked materials will lose their location data.", "Confirm Deletion", JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
                 try {
                     int locationId = (int) tableModel.getValueAt(selectedRow, 0);

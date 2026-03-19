@@ -34,18 +34,18 @@ public class CreatePurchaseOrderDialog extends JDialog {
     private JComboBox<String> itemDrugComboBox; // Changed from text field to dropdown
     private JTextField itemQuantityField;
     private JTextField itemPriceField;
-    private JTextField drugSearchField; // Search field for filtering drugs
+    private JTextField drugSearchField; // Search field for filtering materials
 
     // Utility Maps
     private Map<String, Integer> supplierNameToIdMap;
     private Map<String, String> drugDisplayToCodeMap; // Maps display text to material code
-    private List<String> allDrugDisplayNames; // Sorted list of all drug display names
+    private List<String> allDrugDisplayNames; // Sorted list of all material display names
 
     public CreatePurchaseOrderDialog(JFrame owner, PurchaseOrderPanel parent) throws ClassNotFoundException {
         super(owner, "Create New Purchase Order", true);
         this.parentPanel = parent;
         loadSupplierData();
-        loadDrugData(); // Load drugs for dropdown
+        loadDrugData(); // Load materials for dropdown
         initComponents();
         pack();
         setLocationRelativeTo(owner);
@@ -65,21 +65,21 @@ public class CreatePurchaseOrderDialog extends JDialog {
 
     private void loadDrugData() {
         try {
-            var drugs = dbService.getDrugs();
-            drugDisplayToCodeMap = drugs.stream()
+            var materials = dbService.getDrugs();
+            drugDisplayToCodeMap = materials.stream()
                     .collect(Collectors.toMap(
-                            drug -> drug.getMaterialCode() + " - " + drug.getBrandName(),
-                            drug -> drug.getMaterialCode()));
+                            material -> material.getMaterialCode() + " - " + material.getBrandName(),
+                            material -> material.getMaterialCode()));
 
-            // Create sorted list by Drug ID (material code)
+            // Create sorted list by Material ID (material code)
             allDrugDisplayNames = drugDisplayToCodeMap.keySet().stream()
                     .sorted() // Sorts alphabetically by material code (DRG001, DRG002, etc.)
                     .collect(Collectors.toList());
 
             System.out.println(
-                    "DEBUG: Loaded " + drugDisplayToCodeMap.size() + " drugs for dropdown (sorted by Drug ID)");
+                    "DEBUG: Loaded " + drugDisplayToCodeMap.size() + " materials for dropdown (sorted by Material ID)");
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error loading drug data: " + e.getMessage(), "Database Error",
+            JOptionPane.showMessageDialog(this, "Error loading material data: " + e.getMessage(), "Database Error",
                     JOptionPane.ERROR_MESSAGE);
             drugDisplayToCodeMap = Map.of();
             allDrugDisplayNames = new ArrayList<>();
@@ -142,7 +142,7 @@ public class CreatePurchaseOrderDialog extends JDialog {
         panel.setBorder(BorderFactory.createTitledBorder("Line Items"));
 
         // Table Setup
-        String[] columnNames = { "Drug ID", "Quantity", "Unit Price" };
+        String[] columnNames = { "Material ID", "Quantity", "Unit Price" };
         itemTableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -161,7 +161,7 @@ public class CreatePurchaseOrderDialog extends JDialog {
 
         // Search field at the top
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-        searchPanel.add(new JLabel("🔍 Search Drug:"));
+        searchPanel.add(new JLabel("🔍 Search Material:"));
         drugSearchField = new JTextField(20);
         drugSearchField.addKeyListener(new java.awt.event.KeyAdapter() {
             public void keyReleased(java.awt.event.KeyEvent evt) {
@@ -179,8 +179,8 @@ public class CreatePurchaseOrderDialog extends JDialog {
 
         // Input Fields for adding items
         JPanel inputFields = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
-        inputFields.add(new JLabel("Select Drug:"));
-        // Create dropdown with sorted drugs
+        inputFields.add(new JLabel("Select Material:"));
+        // Create dropdown with sorted materials
         itemDrugComboBox = new JComboBox<>(allDrugDisplayNames.toArray(new String[0]));
         itemDrugComboBox.setPreferredSize(new Dimension(250, 25));
         inputFields.add(itemDrugComboBox);
@@ -205,7 +205,7 @@ public class CreatePurchaseOrderDialog extends JDialog {
         try {
             String selectedDisplay = (String) itemDrugComboBox.getSelectedItem();
             if (selectedDisplay == null || selectedDisplay.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please select a drug.", "Validation Error",
+                JOptionPane.showMessageDialog(this, "Please select a material.", "Validation Error",
                         JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -219,10 +219,10 @@ public class CreatePurchaseOrderDialog extends JDialog {
                 throw new IllegalArgumentException("Quantity and Price must be positive values.");
             }
 
-            // Check if drug already exists in the table
+            // Check if material already exists in the table
             for (int i = 0; i < itemTableModel.getRowCount(); i++) {
                 if (itemTableModel.getValueAt(i, 0).equals(drugId)) {
-                    JOptionPane.showMessageDialog(this, "Drug already added. Remove it first to change quantity/price.",
+                    JOptionPane.showMessageDialog(this, "Material already added. Remove it first to change quantity/price.",
                             "Duplicate Item", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
@@ -254,22 +254,22 @@ public class CreatePurchaseOrderDialog extends JDialog {
     }
 
     /**
-     * Filters the drug dropdown based on search text
-     * Searches in both Drug ID and Brand Name (case-insensitive)
+     * Filters the material dropdown based on search text
+     * Searches in both Material ID and Brand Name (case-insensitive)
      */
     private void filterDrugDropdown(String searchText) {
         itemDrugComboBox.removeAllItems();
 
         if (searchText == null || searchText.trim().isEmpty()) {
-            // Show all drugs (sorted)
+            // Show all materials (sorted)
             for (String drugDisplay : allDrugDisplayNames) {
                 itemDrugComboBox.addItem(drugDisplay);
             }
         } else {
-            // Filter drugs that match the search text
+            // Filter materials that match the search text
             String searchLower = searchText.toLowerCase().trim();
             List<String> filteredDrugs = allDrugDisplayNames.stream()
-                    .filter(drug -> drug.toLowerCase().contains(searchLower))
+                    .filter(material -> material.toLowerCase().contains(searchLower))
                     .collect(Collectors.toList());
 
             for (String drugDisplay : filteredDrugs) {
