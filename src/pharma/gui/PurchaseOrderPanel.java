@@ -15,15 +15,11 @@ public class PurchaseOrderPanel extends JPanel {
     private DatabaseService dbService;
     private JFrame mainFrame;
 
-    private AuthService authService;
-    private User currentUser;
     private JButton createOrderBtn, viewDetailsBtn, receiveShipmentBtn, deleteOrderBtn, refreshBtn;
 
     public PurchaseOrderPanel(JFrame mainFrame, DatabaseService dbService, AuthService authService, User currentUser) {
         this.mainFrame = mainFrame;
         this.dbService = dbService;
-        this.authService = authService;
-        this.currentUser = currentUser;
 
         setLayout(new BorderLayout(5, 5));
         setBorder(BorderFactory.createTitledBorder("Purchase Order Management"));
