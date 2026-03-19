@@ -855,5 +855,96 @@ INSERT INTO inventory_transaction (material_code, batch_number, location_code, t
 ('PM-BOTTLE-60', 'BATCH-PM-BOT60-001', 'PACKAGING_WAREHOUSE', 'GRN_RECEIPT', 10000.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance'),
 ('PM-BOTTLE-CAP', 'BATCH-PM-CAP-001', 'PACKAGING_WAREHOUSE', 'GRN_RECEIPT', 10000.0000, 'INITIAL', 'OP_BAL', 1, 'Opening Balance');
 
+-- ---------------------------------------------------------------------
+-- ADDITIONAL EXTENDED SAMPLE DATA (from more_sample_data.sql)
+-- ---------------------------------------------------------------------
+
+-- 5 New Suppliers
+INSERT INTO supplier_master (supplier_name, contact_person, address, email, phone_number, gstin, payment_terms) VALUES
+('Apex Pharma', 'Chris Evans', '12 Industrial Way, WA', 'chris@apexpharma.com', '1235557890', 'GST22334', 'Net 30'),
+('Nova Meds', 'Sarah Connor', '34 Bio Lane, CA', 'sarah@novameds.com', '9875554321', 'GST33445', 'Net 45'),
+('Giga APIs', 'Elon Musk', '56 Tech Blvd, TX', 'elon@gigaapis.com', '1112223333', 'GST44556', 'Net 60'),
+('Prime Packaging', 'Optimus Prime', '78 Carton St, NY', 'optimus@primepack.com', '4445556666', 'GST55667', 'Net 30'),
+('Global Excipients', 'Bruce Wayne', '90 Gotham Ave, NJ', 'bruce@globalexcipients.com', '7778889999', 'GST66778', 'Net 45');
+
+-- 10 New Drugs / Materials
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'RM-ASPIRIN-API', 'Aspirin API', 'Acetylsalicylic acid', 'Apex Pharma', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Apex Pharma';
+
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'RM-MAIZE', 'Maize Starch', 'Maize Starch Excipient', 'Global Excipients', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Global Excipients';
+
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'PM-BOTTLE-200', 'HDPE Bottle 200ml', 'Packaging Bottle', 'Prime Packaging', supplier_id, 'PACKAGING', 'NOS', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
+
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'PM-CAP-200', 'Bottle Cap 200ml', 'Bottle Cap', 'Prime Packaging', supplier_id, 'PACKAGING', 'NOS', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
+
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'PM-LABEL-ASP', 'Aspirin Label', 'Printed Label', 'Prime Packaging', supplier_id, 'PACKAGING', 'ROLL', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
+
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('DRG-061', 'Aspirin 300mg Tablet', 'Aspirin', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
+('DRG-062', 'Aspirin 500mg Tablet', 'Aspirin', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'RM-TRAMADOL', 'Tramadol API', 'Tramadol HCl', 'Giga APIs', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Giga APIs';
+
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'RM-DICLOFENAC', 'Diclofenac API', 'Diclofenac Sodium', 'Nova Meds', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Nova Meds';
+
+INSERT INTO drug_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('DRG-063', 'Tramadol 50mg Capsule', 'Tramadol', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
+('DRG-064', 'Diclofenac 50mg Tablet', 'Diclofenac', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+
+
+-- 3 New Purchase Orders
+INSERT INTO purchase_order (supplier_id, order_date, expected_date, status)
+SELECT supplier_id, '2026-03-01', '2026-03-10', 'Received' FROM supplier_master WHERE supplier_name = 'Apex Pharma';
+SET @po1 = LAST_INSERT_ID();
+
+INSERT INTO purchaseorder_item (po_id, drug_id, quantity, unit_price) VALUES
+(@po1, 'RM-ASPIRIN-API', 1000.00, 10.00);
+
+
+INSERT INTO purchase_order (supplier_id, order_date, expected_date, status)
+SELECT supplier_id, '2026-03-02', '2026-03-12', 'Pending' FROM supplier_master WHERE supplier_name = 'Nova Meds';
+SET @po2 = LAST_INSERT_ID();
+
+INSERT INTO purchaseorder_item (po_id, drug_id, quantity, unit_price) VALUES
+(@po2, 'RM-DICLOFENAC', 500.00, 20.00);
+
+
+INSERT INTO purchase_order (supplier_id, order_date, expected_date, status)
+SELECT supplier_id, '2026-03-03', '2026-03-15', 'Received' FROM supplier_master WHERE supplier_name = 'Prime Packaging';
+SET @po3 = LAST_INSERT_ID();
+
+INSERT INTO purchaseorder_item (po_id, drug_id, quantity, unit_price) VALUES
+(@po3, 'PM-BOTTLE-200', 10000.00, 0.50),
+(@po3, 'PM-CAP-200', 10000.00, 0.10);
+
+
+-- 2 New Goods Received Notes
+INSERT INTO goods_received_note (po_id, received_date, received_by, status) VALUES
+(@po1, '2026-03-08', 'admin', 'Verified');
+SET @grn1 = LAST_INSERT_ID();
+
+INSERT INTO grn_item (grn_id, drug_id, batch_number, quantity_received, expiry_date) VALUES
+(@grn1, 'RM-ASPIRIN-API', 'BATCH-RM-ASP-001', 1000.00, '2028-03-01');
+
+INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
+('RM-ASPIRIN-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-ASP-001', 1000.00, 0, 10.00, '2026-01-01', '2028-03-01', 'RELEASED');
+
+
+INSERT INTO goods_received_note (po_id, received_date, received_by, status) VALUES
+(@po3, '2026-03-10', 'admin', 'Verified');
+SET @grn2 = LAST_INSERT_ID();
+
+INSERT INTO grn_item (grn_id, drug_id, batch_number, quantity_received, expiry_date) VALUES
+(@grn2, 'PM-BOTTLE-200', 'BATCH-PM-B200-001', 10000.00, '2030-03-01');
+
+INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
+('PM-BOTTLE-200', 'PACKAGING_WAREHOUSE', 'BATCH-PM-B200-001', 10000.00, 0, 0.50, '2026-02-01', '2030-03-01', 'RELEASED');
+
 -- 6. Enable Foreign Key Checks
 SET FOREIGN_KEY_CHECKS = 1;
