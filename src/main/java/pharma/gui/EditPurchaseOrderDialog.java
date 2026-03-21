@@ -323,6 +323,8 @@ public class EditPurchaseOrderDialog extends JDialog {
         headerPanel.add(new JLabel("PO Number"));
         poNumberField = new JTextField();
         poNumberField.setEditable(false);
+        poNumberField.setBackground(new Color(45, 45, 45));
+        poNumberField.setForeground(Color.WHITE);
         headerPanel.add(poNumberField);
         headerPanel.add(new JLabel("Supplier"));
         supplierComboBox = new JComboBox<>(supplierNameToIdMap.keySet().toArray(new String[0]));
@@ -333,6 +335,8 @@ public class EditPurchaseOrderDialog extends JDialog {
         headerPanel.add(new JLabel("Total Amount"));
         totalAmountField = new JTextField();
         totalAmountField.setEditable(false);
+        totalAmountField.setBackground(new Color(45, 45, 45));
+        totalAmountField.setForeground(Color.WHITE);
         headerPanel.add(totalAmountField);
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 

@@ -98,6 +98,8 @@ public class CreatePurchaseOrderDialog extends JDialog {
         headerPanel.add(new JLabel("PO Number:"));
         poNumberField = new JTextField(dbService.generateNextPoNumber());
         poNumberField.setEditable(false);
+        poNumberField.setBackground(new Color(45, 45, 45));
+        poNumberField.setForeground(Color.WHITE);
         headerPanel.add(poNumberField);
 
         // Supplier Dropdown
@@ -114,6 +116,8 @@ public class CreatePurchaseOrderDialog extends JDialog {
         headerPanel.add(new JLabel("Total Amount:"));
         totalAmountField = new JTextField("0.00");
         totalAmountField.setEditable(false);
+        totalAmountField.setBackground(new Color(45, 45, 45));
+        totalAmountField.setForeground(Color.WHITE);
         headerPanel.add(totalAmountField);
 
         mainPanel.add(headerPanel, BorderLayout.NORTH);
