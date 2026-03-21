@@ -255,6 +255,7 @@ public class MaterialsPanel extends JPanel {
                 materialCodeField.setText(drugToEdit.getMaterialCode());
                 materialCodeField.setEditable(false); // PK cannot be changed in edit mode
                 materialCodeField.setBackground(Color.LIGHT_GRAY);
+                materialCodeField.setForeground(Color.BLACK);
             }
             add(materialCodeField, gbc);
 
