@@ -13,7 +13,7 @@ public class LoginGUI extends JFrame {
     private final AuthService authService;
     private final DatabaseService dbService;
 
-    private JComboBox<String> roleDropdown;
+
     private JTextField usernameField;
     private JPasswordField passwordField;
     private JLabel messageLabel;
@@ -62,27 +62,10 @@ public class LoginGUI extends JFrame {
         gbc.gridy = 1;
         loginPanel.add(messageLabel, gbc);
 
-        // Role Field
+        // Employee ID Field
         gbc.gridy = 2;
         gbc.gridwidth = 1;
-        JLabel roleLabel = new JLabel("Role:", SwingConstants.RIGHT);
-        roleLabel.setForeground(Color.decode("#1F2937"));
-        loginPanel.add(roleLabel, gbc);
-        roleDropdown = new JComboBox<>();
-        try {
-            pharma.service.RoleService rs = new pharma.service.RoleService(dbService);
-            for (pharma.model.Role r : rs.getAllRoles()) {
-                roleDropdown.addItem(r.getRoleName());
-            }
-        } catch (Exception e) {
-        }
-        gbc.gridx = 1;
-        loginPanel.add(roleDropdown, gbc);
-
-        // Username Field
-        gbc.gridx = 0;
-        gbc.gridy = 3;
-        JLabel userLabel = new JLabel("Username:", SwingConstants.RIGHT);
+        JLabel userLabel = new JLabel("Employee ID:", SwingConstants.RIGHT);
         userLabel.setForeground(Color.decode("#1F2937"));
         loginPanel.add(userLabel, gbc);
         usernameField = new JTextField(15);
@@ -91,7 +74,7 @@ public class LoginGUI extends JFrame {
 
         // Password Field
         gbc.gridx = 0;
-        gbc.gridy = 4;
+        gbc.gridy = 3;
         JLabel passLabel = new JLabel("Password:", SwingConstants.RIGHT);
         passLabel.setForeground(Color.decode("#1F2937"));
         loginPanel.add(passLabel, gbc);
@@ -126,7 +109,7 @@ public class LoginGUI extends JFrame {
         capsLockWarningLabel.setFont(new Font("Arial", Font.ITALIC, 11));
         capsLockWarningLabel.setVisible(false);
         gbc.gridx = 1;
-        gbc.gridy = 5;
+        gbc.gridy = 4;
         loginPanel.add(capsLockWarningLabel, gbc);
 
         // Caps Lock Listener
@@ -167,7 +150,7 @@ public class LoginGUI extends JFrame {
         });
 
         gbc.gridx = 0;
-        gbc.gridy = 6;
+        gbc.gridy = 5;
         gbc.gridwidth = 2;
         gbc.insets = new Insets(20, 10, 10, 10);
         loginPanel.add(loginButton, gbc);
@@ -201,10 +184,9 @@ public class LoginGUI extends JFrame {
     private void attemptLogin() {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
-        String selectedRole = (String) roleDropdown.getSelectedItem();
 
-        if (username.isEmpty() || password.isEmpty() || selectedRole == null) {
-            messageLabel.setText("Role, username, and password are required.");
+        if (username.isEmpty() || password.isEmpty()) {
+            messageLabel.setText("Employee ID and password are required.");
             messageLabel.setForeground(Color.RED);
             return;
         }
@@ -214,18 +196,10 @@ public class LoginGUI extends JFrame {
         User user = authService.authenticate(username, password);
 
         if (user != null) {
-            if (!user.getRole().getRoleName().equalsIgnoreCase(selectedRole)) {
-                messageLabel.setText("Invalid role selected for this user.");
-                messageLabel.setForeground(Color.RED);
-                return;
-            }
-
-            // Success: User authenticated
+            // Success: role is auto-detected from DB
             messageLabel.setText("Login Successful!");
             messageLabel.setForeground(Color.BLUE.darker());
 
-            // FIX: Launch main application GUI by calling the correct TWO-argument
-            // constructor!
             SwingUtilities.invokeLater(() -> {
                 InventoryGUI gui = new InventoryGUI(dbService, user); // Pass both dbService AND the authenticated user
                 gui.setVisible(true);
@@ -233,7 +207,7 @@ public class LoginGUI extends JFrame {
             });
         } else {
             // Failure
-            messageLabel.setText("Invalid username or password.");
+            messageLabel.setText("Invalid Employee ID or password.");
             messageLabel.setForeground(Color.RED);
             passwordField.setText("");
             passwordField.requestFocusInWindow();

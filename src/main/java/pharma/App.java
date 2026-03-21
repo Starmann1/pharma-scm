@@ -8,6 +8,12 @@ import javax.swing.JOptionPane;
 public class App {
     public static void main(String[] args) {
         // Ensure the GUI starts on the Event Dispatch Thread (EDT)
+        // Shut down HikariCP cleanly when the JVM exits (fixes thread-linger warnings)
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            DatabaseService.closePool();
+            System.out.println("HikariCP connection pool closed.");
+        }, "hikari-shutdown-hook"));
+
         SwingUtilities.invokeLater(() -> {
             DatabaseService dbService = new DatabaseService();
 

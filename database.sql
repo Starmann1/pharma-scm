@@ -311,11 +311,11 @@ INSERT INTO Role_Permission (role_id, permission_id) VALUES
 
 -- Sample Users
 INSERT INTO User_Master (username, password_hash, full_name, role_id, is_active) VALUES
-('admin', 'adminpass', 'System Administrator', 1, TRUE), 
-('prod_mgr', 'prodpass', 'John Doe (Production Manager)', 2, TRUE),
-('qa_analyst', 'qapass', 'Dr. Sarah Williams (QA)', 3, TRUE),
-('warehouse_mgr', 'whpass', 'Mike Brown (Warehouse)', 4, TRUE),
-('proc_mgr', 'procpass', 'Emily Davis (Procurement)', 5, TRUE),
+('ADM1001', 'adminpass', 'Alan Astraeus', 1, TRUE), 
+('PRD1001', 'prodpass', 'Aryan Sahay', 2, TRUE),
+('QA1001', 'qapass', 'Ankita Acharya', 3, TRUE),
+('WH1001', 'whpass', 'Arnav Rajan', 4, TRUE),
+('PRC1001', 'procpass', 'Shreshta', 5, TRUE),
 ('viewer_user', 'viewerpass', 'Tom Viewer (Read Only)', 6, TRUE);
 
 
@@ -643,7 +643,7 @@ TRUNCATE TABLE location_master;
 
 -- Ensure admin user exists for 'performed_by'
 INSERT IGNORE INTO role_master (role_id, role_name, description) VALUES (1, 'Admin', 'System Administrator');
-INSERT IGNORE INTO user_master (user_id, username, password_hash, full_name, role_id) VALUES (1, 'admin', 'admin123', 'System Admin', 1);
+INSERT IGNORE INTO user_master (user_id, username, password_hash, full_name, role_id) VALUES (1, 'ADM1001', 'adminpass', 'Alan Astraeus', 1);
 
 -- 5. Insert New Manufacturer-Centric Sample Data
 
