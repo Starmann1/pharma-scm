@@ -51,9 +51,9 @@ public class GRNPanel extends JPanel {
         loadGRNData();
 
         // --- Event Handling (Fixes Problem 3) ---
-        createGrnBtn.addActionListener(_ -> handleCreateGRN());
-        viewDetailsBtn.addActionListener(_ -> handleViewDetails()); // FIX: Added View Details handler
-        refreshBtn.addActionListener(_ -> loadGRNData()); // Calls the implemented public loader
+        createGrnBtn.addActionListener(e -> handleCreateGRN());
+        viewDetailsBtn.addActionListener(e -> handleViewDetails()); // FIX: Added View Details handler
+        refreshBtn.addActionListener(e -> loadGRNData()); // Calls the implemented public loader
     }
 
     /**

@@ -77,8 +77,8 @@ public class CreateGRNDialog extends JDialog {
         JButton saveButton = new JButton("Save GRN");
         JButton cancelButton = new JButton("CANCEL");
 
-        saveButton.addActionListener(_ -> saveGRN());
-        cancelButton.addActionListener(_ -> dispose());
+        saveButton.addActionListener(e -> saveGRN());
+        cancelButton.addActionListener(e -> dispose());
 
         buttonPanel.add(saveButton);
         buttonPanel.add(cancelButton);

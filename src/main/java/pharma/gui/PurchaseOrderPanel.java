@@ -68,11 +68,11 @@ public class PurchaseOrderPanel extends JPanel {
         }
 
         // Button event handlers
-        refreshBtn.addActionListener(_ -> loadOrderData());
-        viewDetailsBtn.addActionListener(_ -> handleViewEditOrder());
-        receiveShipmentBtn.addActionListener(_ -> handleReceiveShipment());
-        deleteOrderBtn.addActionListener(_ -> handleDeleteOrder());
-        createOrderBtn.addActionListener(_ -> openOrderCreationDialog());
+        refreshBtn.addActionListener(e -> loadOrderData());
+        viewDetailsBtn.addActionListener(e -> handleViewEditOrder());
+        receiveShipmentBtn.addActionListener(e -> handleReceiveShipment());
+        deleteOrderBtn.addActionListener(e -> handleDeleteOrder());
+        createOrderBtn.addActionListener(e -> openOrderCreationDialog());
     }
 
     void loadOrderData() {

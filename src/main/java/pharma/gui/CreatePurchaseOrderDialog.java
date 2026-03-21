@@ -128,7 +128,7 @@ public class CreatePurchaseOrderDialog extends JDialog {
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton cancelButton = new JButton("CANCEL");
-        cancelButton.addActionListener(_ -> dispose());
+        cancelButton.addActionListener(e -> dispose());
 
         buttonPanel.add(cancelButton);
         buttonPanel.add(saveButton);
@@ -170,7 +170,7 @@ public class CreatePurchaseOrderDialog extends JDialog {
         });
         searchPanel.add(drugSearchField);
         JButton clearSearchBtn = new JButton("Clear");
-        clearSearchBtn.addActionListener(_ -> {
+        clearSearchBtn.addActionListener(e -> {
             drugSearchField.setText("");
             filterDrugDropdown("");
         });

@@ -52,10 +52,10 @@ public class InventoryPanel extends JPanel {
         loadInventoryData();
 
         // --- Event Handling (Placeholders) ---
-        refreshBtn.addActionListener(_ -> loadInventoryData());
-        searchBtn.addActionListener(_ -> filterInventory(searchField.getText()));
-        lowStockBtn.addActionListener(_ -> filterLowStock());
-        expiredBtn.addActionListener(_ -> filterExpired());
+        refreshBtn.addActionListener(e -> loadInventoryData());
+        searchBtn.addActionListener(e -> filterInventory(searchField.getText()));
+        lowStockBtn.addActionListener(e -> filterLowStock());
+        expiredBtn.addActionListener(e -> filterExpired());
     }
 
     private void loadInventoryData() {
@@ -140,13 +140,13 @@ public class InventoryPanel extends JPanel {
         });
 
         JButton clearSearchBtn = new JButton("Clear Search");
-        clearSearchBtn.addActionListener(_ -> {
+        clearSearchBtn.addActionListener(e -> {
             searchField.clearSelection();
             sorter.setRowFilter(null); // Show all rows
         });
 
         JButton refreshButton = new JButton("Refresh Data");
-        refreshButton.addActionListener(_ -> loadInventoryData());
+        refreshButton.addActionListener(e -> loadInventoryData());
 
         buttonPanel.add(searchLabel);
         buttonPanel.add(searchField);

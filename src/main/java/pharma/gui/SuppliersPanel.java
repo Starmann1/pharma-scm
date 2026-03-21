@@ -56,9 +56,9 @@ public class SuppliersPanel extends JPanel {
         add(controlPanel, BorderLayout.SOUTH);
 
         // Action Listeners
-        refreshButton.addActionListener(_ -> loadSuppliers());
-        addButton.addActionListener(_ -> showAddEditDialog(null));
-        editButton.addActionListener(_ -> {
+        refreshButton.addActionListener(e -> loadSuppliers());
+        addButton.addActionListener(e -> showAddEditDialog(null));
+        editButton.addActionListener(e -> {
             int selectedRow = supplierTable.getSelectedRow();
             if (selectedRow != -1) {
                 Supplier selectedSupplier = getSupplierFromSelectedRow(selectedRow);
@@ -68,7 +68,7 @@ public class SuppliersPanel extends JPanel {
                         "Selection Error", JOptionPane.WARNING_MESSAGE);
             }
         });
-        deleteButton.addActionListener(_ -> deleteSelectedSupplier());
+        deleteButton.addActionListener(e -> deleteSelectedSupplier());
 
         loadSuppliers();
     }

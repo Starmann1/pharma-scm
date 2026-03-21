@@ -9,6 +9,13 @@
             "name": "App",
             "request": "launch",
             "mainClass": "pharma.App",
+            "projectName": "pharma-scm"
+        },
+        {
+            "type": "java",
+            "name": "App",
+            "request": "launch",
+            "mainClass": "pharma.App",
             "projectName": "pharma-ims_75f097f"
         },
         {

@@ -106,7 +106,7 @@ public class LoginGUI extends JFrame {
         showPasswordBtn.setToolTipText("Show or Hide Password");
         showPasswordBtn.setFocusPainted(false);
         char defaultEchoChar = passwordField.getEchoChar();
-        showPasswordBtn.addActionListener(_ -> {
+        showPasswordBtn.addActionListener(e -> {
             if (showPasswordBtn.isSelected()) {
                 passwordField.setEchoChar((char) 0); // Show
             } else {
@@ -173,8 +173,8 @@ public class LoginGUI extends JFrame {
         loginPanel.add(loginButton, gbc);
 
         // --- Event Listener ---
-        loginButton.addActionListener(_ -> attemptLogin());
-        passwordField.addActionListener(_ -> attemptLogin());
+        loginButton.addActionListener(e -> attemptLogin());
+        passwordField.addActionListener(e -> attemptLogin());
 
         // Add login panel to the frame center
         getContentPane().setBackground(Color.WHITE); // Surround background

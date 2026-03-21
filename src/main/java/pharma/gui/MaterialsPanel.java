@@ -59,7 +59,7 @@ public class MaterialsPanel extends JPanel {
         });
 
         JButton clearSearchBtn = new JButton("Clear Search");
-        clearSearchBtn.addActionListener(_ -> {
+        clearSearchBtn.addActionListener(e -> {
             searchField.clearSelection();
             sorter.setRowFilter(null); // Show all rows
         });
@@ -69,10 +69,10 @@ public class MaterialsPanel extends JPanel {
         JButton deleteButton = new JButton("Delete Material");
         JButton refreshButton = new JButton("Refresh Data");
 
-        addButton.addActionListener(_ -> showDrugFormDialog(null)); // Pass null for ADD mode
+        addButton.addActionListener(e -> showDrugFormDialog(null)); // Pass null for ADD mode
 
         // --- EDIT BUTTON IMPLEMENTATION ---
-        editButton.addActionListener(_ -> {
+        editButton.addActionListener(e -> {
             int selectedRow = drugsTable.getSelectedRow();
             if (selectedRow == -1) {
                 JOptionPane.showMessageDialog(MaterialsPanel.this, "Please select a material to edit.", "Selection Error",
@@ -96,7 +96,7 @@ public class MaterialsPanel extends JPanel {
         });
 
         // --- DELETE BUTTON IMPLEMENTATION ---
-        deleteButton.addActionListener(_ -> {
+        deleteButton.addActionListener(e -> {
             int selectedRow = drugsTable.getSelectedRow();
             if (selectedRow == -1) {
                 JOptionPane.showMessageDialog(MaterialsPanel.this, "Please select a material to delete.", "Selection Error",
@@ -128,7 +128,7 @@ public class MaterialsPanel extends JPanel {
         });
 
         // --- REFRESH BUTTON IMPLEMENTATION ---
-        refreshButton.addActionListener(_ -> {
+        refreshButton.addActionListener(e -> {
             refreshDrugList();
             JOptionPane.showMessageDialog(MaterialsPanel.this, "Material list refreshed.", "Info",
                     JOptionPane.INFORMATION_MESSAGE);
@@ -347,7 +347,7 @@ public class MaterialsPanel extends JPanel {
             materialTypeComboBox = new JComboBox<>(
                     new String[] { "RAW_MATERIAL", "EXCIPIENT", "PACKAGING", "INTERMEDIATE", "FINISHED_GOOD" });
 
-            materialTypeComboBox.addActionListener(_ -> {
+            materialTypeComboBox.addActionListener(e -> {
                 if (reorderLevelField.getText().trim().isEmpty() || reorderLevelField.getText().trim().equals("0")) {
                     String type = (String) materialTypeComboBox.getSelectedItem();
                     if ("RAW_MATERIAL".equals(type)) {
@@ -384,11 +384,11 @@ public class MaterialsPanel extends JPanel {
             JButton saveButton = new JButton(drugToEdit == null ? "ADD" : "SAVE");
             JButton cancelButton = new JButton("CANCEL");
 
-            saveButton.addActionListener(_ -> {
+            saveButton.addActionListener(e -> {
                 saveDrug();
             });
 
-            cancelButton.addActionListener(_ -> dispose()); // Close dialog
+            cancelButton.addActionListener(e -> dispose()); // Close dialog
 
             buttonPanel.add(saveButton);
             buttonPanel.add(cancelButton);

@@ -73,8 +73,8 @@ public class LocationDialog extends JDialog {
         saveButton = new JButton(locationToEdit == null ? "ADD" : "SAVE");
         JButton cancelButton = new JButton("CANCEL");
 
-        saveButton.addActionListener(_ -> saveLocation());
-        cancelButton.addActionListener(_ -> dispose());
+        saveButton.addActionListener(e -> saveLocation());
+        cancelButton.addActionListener(e -> dispose());
 
         buttonPanel.add(saveButton);
         buttonPanel.add(cancelButton);

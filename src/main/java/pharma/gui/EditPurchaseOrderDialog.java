@@ -89,7 +89,7 @@ public class EditPurchaseOrderDialog extends JDialog {
         JButton saveButton = new JButton("SAVE");
         saveButton.addActionListener(this::savePoAction);
         JButton cancelButton = new JButton("CANCEL");
-        cancelButton.addActionListener(_ -> dispose());
+        cancelButton.addActionListener(e -> dispose());
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(cancelButton);
@@ -126,7 +126,7 @@ public class EditPurchaseOrderDialog extends JDialog {
         JButton addItemButton = new JButton("Add/Replace Item");
         addItemButton.addActionListener(this::addItemAction);
         JButton removeItemButton = new JButton("Remove Selected");
-        removeItemButton.addActionListener(_ -> {
+        removeItemButton.addActionListener(e -> {
             int row = itemTable.getSelectedRow();
             if(row >= 0) {
                 itemTableModel.removeRow(row);
@@ -344,7 +344,7 @@ public class EditPurchaseOrderDialog extends JDialog {
         JButton saveButton = new JButton("SAVE");
         saveButton.addActionListener(this::savePoAction);
         JButton cancelButton = new JButton("CANCEL");
-        cancelButton.addActionListener(_ -> dispose());
+        cancelButton.addActionListener(e -> dispose());
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(cancelButton);
@@ -381,7 +381,7 @@ public class EditPurchaseOrderDialog extends JDialog {
         JButton addItemButton = new JButton("Add/Replace Item");
         addItemButton.addActionListener(this::addItemAction);
         JButton removeItemButton = new JButton("Remove Selected");
-        removeItemButton.addActionListener(_ -> {
+        removeItemButton.addActionListener(e -> {
             int row = itemTable.getSelectedRow();
             if (row >= 0) {
                 itemTableModel.removeRow(row);

@@ -84,7 +84,7 @@ public class InventoryGUI extends JFrame {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 10));
 
-        button.addActionListener(_ -> {
+        button.addActionListener(e -> {
             cardLayout.show(mainContentPanel, text);
             System.out.println("Switched to: " + text); 
         });
@@ -275,7 +275,7 @@ public class InventoryGUI extends JFrame {
         darkModeToggle.setFocusPainted(false);
         darkModeToggle.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 10));
         darkModeToggle.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        darkModeToggle.addActionListener(_ -> toggleDarkMode(darkModeToggle.isSelected()));
+        darkModeToggle.addActionListener(e -> toggleDarkMode(darkModeToggle.isSelected()));
         sideNavPanel.add(darkModeToggle);
 
         sideNavPanel.add(Box.createVerticalStrut(20));
@@ -351,7 +351,7 @@ public class InventoryGUI extends JFrame {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 10));
 
-        button.addActionListener(_ -> {
+        button.addActionListener(e -> {
             cardLayout.show(mainContentPanel, text);
             System.out.println("Switched to: " + text);
         });

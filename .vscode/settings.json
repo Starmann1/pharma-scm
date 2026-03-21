@@ -1,14 +1,10 @@
 {
-  "java.project.sourcePaths": ["src"],
-  "java.project.outputPath": "bin",
-  "java.project.referencedLibraries": [
-    "lib/**/*.jar"
-  ],
   "files.exclude": {
     "**/.classpath": true,
     "**/.project": true,
     "**/.settings": true,
     "**/.factorypath": true
   },
-  "chatgpt.runCodexInWindowsSubsystemForLinux": false
+  "chatgpt.runCodexInWindowsSubsystemForLinux": false,
+  "java.debug.settings.onBuildFailureProceed": true
 }
