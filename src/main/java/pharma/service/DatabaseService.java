@@ -15,10 +15,13 @@ import java.util.List;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.cdimascio.dotenv.Dotenv;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 //import java.util.Date;
 
 public class DatabaseService {
 
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseService.class);
     private static DatabaseService instance = null;
     private static HikariDataSource ds;
 
@@ -689,8 +692,7 @@ public class DatabaseService {
 
             } catch (SQLException e) {
                 conn.rollback(); // Rollback on error
-                System.err.println("Transaction Rollback due to SQL Error: " + e.getMessage());
-                e.printStackTrace();
+                logger.error("Transaction Rollback due to SQL Error: {}", e.getMessage(), e);
                 // Re-throw if a serious unrecoverable error occurred (like invalid SQL or
                 // constraint violation)
                 return false;
@@ -1757,13 +1759,20 @@ public class DatabaseService {
         String sql = "INSERT INTO System_Audit_Trail (user_id, action_type, table_name, record_id, old_value, new_value) VALUES (?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, userId);
+            if (userId <= 0) {
+                pstmt.setNull(1, java.sql.Types.INTEGER);
+            } else {
+                pstmt.setInt(1, userId);
+            }
             pstmt.setString(2, actionType);
             pstmt.setString(3, tableName);
             pstmt.setString(4, recordId);
             pstmt.setString(5, oldValue);
             pstmt.setString(6, newValue);
             pstmt.executeUpdate();
+        } catch (SQLException e) {
+            logger.error("Error logging audit trail: {}", e.getMessage(), e);
+            throw e; // Re-throw to ensure transaction rollback if within one
         }
     }
 
