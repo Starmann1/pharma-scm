@@ -18,3 +18,5 @@ maven.zip
 
 # JDBC Driver (optional to ignore, but usually kept if small or specific)
 # lib/mysql-connector-j-9.4.0.jar
+
+.env

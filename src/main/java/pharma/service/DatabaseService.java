@@ -12,26 +12,38 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import io.github.cdimascio.dotenv.Dotenv;
 //import java.util.Date;
 
 public class DatabaseService {
 
     private static DatabaseService instance = null;
+    private static HikariDataSource ds;
 
-    private static final String JDBC_URL = "jdbc:mysql://localhost:3306/pharma_ims?allowPublicKeyRetrieval=true&useSSL=false";
-    // OR, if you use a newer connector and still have issues:
-    // "jdbc:mysql://localhost:3306/pharma_ims?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
-    private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "SiriusBlack@369";
-    private static final String JDBC_DRIVER = "com.mysql.cj.jdbc.Driver";
+    static {
+        Dotenv env = Dotenv.load();
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(env.get("DB_URL"));
+        config.setUsername(env.get("DB_USER"));
+        config.setPassword(env.get("DB_PASS"));
+
+        config.setMaximumPoolSize(10);
+        config.setMinimumIdle(2);
+        config.setIdleTimeout(30000);
+        config.setMaxLifetime(1800000);
+        config.setConnectionTimeout(30000);
+
+        ds = new HikariDataSource(config);
+    }
 
     // *** FIX: Removed 'private Connection connection = null;' - connections should
     // not be long-lived fields.
 
     // Helper method to establish a fresh, single-use connection
     Connection getConnection() throws SQLException, ClassNotFoundException {
-        Class.forName(JDBC_DRIVER);
-        return DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
+        return ds.getConnection();
     }
 
     public boolean connect() {
@@ -63,6 +75,12 @@ public class DatabaseService {
             instance = new DatabaseService();
         }
         return instance;
+    }
+
+    public static void closePool() {
+        if (ds != null && !ds.isClosed()) {
+            ds.close();
+        }
     }
 
     // =======================================================
