@@ -679,9 +679,11 @@ public class DatabaseService {
                     }
                 }
 
-                conn.commit(); // Commit Transaction
+                // 3. Log Audit Trail (Inside Transaction)
                 logAuditTrail(conn, 0, "CREATE_PO", "Purchase_Order", String.valueOf(newPoId), null,
                         "Total: " + po.getTotalAmount());
+
+                conn.commit(); // Commit Transaction
                 System.out.println("Purchase Order created successfully with ID: " + newPoId);
                 return true;
 

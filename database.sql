@@ -116,6 +116,19 @@ CREATE TABLE IF NOT EXISTS User_Master (
     FOREIGN KEY (role_id) REFERENCES Role_Master(role_id) ON DELETE RESTRICT
 );
 
+-- 10. Audit Trail Table
+CREATE TABLE IF NOT EXISTS System_Audit_Trail (
+    audit_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    action_type VARCHAR(100) NOT NULL,
+    table_name VARCHAR(100),
+    record_id VARCHAR(100),
+    old_value TEXT,
+    new_value TEXT,
+    action_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES User_Master(user_id) ON DELETE SET NULL
+);
+
 -- ---------------------------------------------------------------------
 -- TRANSACTIONAL & INVENTORY TABLES (Fixed Unimplemented Features)
 -- ---------------------------------------------------------------------
