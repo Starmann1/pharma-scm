@@ -23,7 +23,7 @@ public class LoginGUI extends JFrame {
         this.dbService = dbService;
         this.authService = new AuthService(dbService);
 
-        setTitle("Pharma IMS - Login");
+        setTitle("Pharma SCM - Login");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
         setLayout(new BorderLayout());
@@ -48,7 +48,7 @@ public class LoginGUI extends JFrame {
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         // Title/Logo
-        JLabel titleLabel = new JLabel("Pharma IMS Login", SwingConstants.CENTER);
+        JLabel titleLabel = new JLabel("Pharma SCM Login", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
         titleLabel.setForeground(Color.decode("#0F766E")); // Primary Color
         gbc.gridx = 0;
