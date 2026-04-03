@@ -327,6 +327,20 @@ public class CreatePurchaseOrderDialog extends JDialog {
             return;
         }
 
+        try {
+            Supplier selectedSupplier = dbService.getSupplierById(supplierId);
+            if (selectedSupplier != null
+                    && !Supplier.STATUS_APPROVED.equalsIgnoreCase(selectedSupplier.getSupplierStatus())) {
+                JOptionPane.showMessageDialog(this, "Supplier is not approved.", "Approval Required",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        } catch (ClassNotFoundException ex) {
+            JOptionPane.showMessageDialog(this, "Database Driver Error: " + ex.getMessage(), "Configuration Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         // 2. Build the List of PurchaseOrderItems
         List<PurchaseOrderItem> poItems = new ArrayList<>();
         for (int i = 0; i < itemTableModel.getRowCount(); i++) {
@@ -370,6 +384,8 @@ public class CreatePurchaseOrderDialog extends JDialog {
             JOptionPane.showMessageDialog(this, "Database Driver Error: " + ex.getMessage(), "Configuration Error",
                     JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
+        } catch (RuntimeException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 

@@ -1,23 +1,28 @@
 package pharma.gui;
 
 import pharma.model.Supplier;
+import pharma.model.User;
 import pharma.service.DatabaseService;
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.List;
 
 public class SuppliersPanel extends JPanel {
     private DatabaseService dbService;
+    private User currentUser;
     private JTable supplierTable;
     private DefaultTableModel tableModel;
 
     private final String[] COLUMN_NAMES = {
-            "ID", "Name", "Contact Person", "Address", "Email", "Phone", "GSTIN", "License No.", "Payment Terms"
+            "ID", "Name", "Contact Person", "Address", "Email", "Phone", "GSTIN", "License No.", "Payment Terms",
+            "Supplier Status"
     };
 
-    public SuppliersPanel(DatabaseService dbService) {
+    public SuppliersPanel(DatabaseService dbService, User currentUser) {
         this.dbService = dbService;
+        this.currentUser = currentUser;
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -36,6 +41,30 @@ public class SuppliersPanel extends JPanel {
         supplierTable = new JTable(tableModel);
         supplierTable.setRowHeight(25);
         supplierTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+        supplierTable.getColumnModel().getColumn(9).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                    boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                String status = value != null ? value.toString() : "";
+                if (!isSelected) {
+                    if (Supplier.STATUS_APPROVED.equalsIgnoreCase(status)) {
+                        c.setBackground(new Color(200, 255, 200));
+                        c.setForeground(Color.BLACK);
+                    } else if (Supplier.STATUS_PENDING.equalsIgnoreCase(status)) {
+                        c.setBackground(new Color(255, 255, 200));
+                        c.setForeground(Color.BLACK);
+                    } else if (Supplier.STATUS_REJECTED.equalsIgnoreCase(status)) {
+                        c.setBackground(new Color(255, 200, 200));
+                        c.setForeground(Color.BLACK);
+                    } else {
+                        c.setBackground(table.getBackground());
+                        c.setForeground(table.getForeground());
+                    }
+                }
+                return c;
+            }
+        });
 
         JScrollPane scrollPane = new JScrollPane(supplierTable);
         add(scrollPane, BorderLayout.CENTER);
@@ -46,11 +75,15 @@ public class SuppliersPanel extends JPanel {
         JButton refreshButton = new JButton("Refresh Data");
         JButton addButton = new JButton("Add Supplier");
         JButton editButton = new JButton("Edit Selected");
+        JButton approveButton = new JButton("Approve Supplier");
+        JButton rejectButton = new JButton("Reject Supplier");
         JButton deleteButton = new JButton("Delete Selected");
 
         controlPanel.add(refreshButton);
         controlPanel.add(addButton);
         controlPanel.add(editButton);
+        controlPanel.add(approveButton);
+        controlPanel.add(rejectButton);
         controlPanel.add(deleteButton);
 
         add(controlPanel, BorderLayout.SOUTH);
@@ -68,6 +101,8 @@ public class SuppliersPanel extends JPanel {
                         "Selection Error", JOptionPane.WARNING_MESSAGE);
             }
         });
+        approveButton.addActionListener(e -> approveSelectedSupplier());
+        rejectButton.addActionListener(e -> rejectSelectedSupplier());
         deleteButton.addActionListener(e -> deleteSelectedSupplier());
 
         loadSuppliers();
@@ -87,7 +122,8 @@ public class SuppliersPanel extends JPanel {
                         s.getPhoneNumber(),
                         s.getGstin(),
                         s.getDrugLicenseNumber(),
-                        s.getPaymentTerms()
+                        s.getPaymentTerms(),
+                        s.getSupplierStatus()
                 };
                 tableModel.addRow(rowData);
             }
@@ -165,7 +201,60 @@ public class SuppliersPanel extends JPanel {
         s.setGstin((String) tableModel.getValueAt(row, 6));
         s.setDrugLicenseNumber((String) tableModel.getValueAt(row, 7));
         s.setPaymentTerms((String) tableModel.getValueAt(row, 8));
+        s.setSupplierStatus((String) tableModel.getValueAt(row, 9));
         return s;
+    }
+
+    private void approveSelectedSupplier() {
+        int selectedRow = supplierTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a supplier to approve.",
+                    "Selection Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Supplier supplier = getSupplierFromSelectedRow(selectedRow);
+        String remarks = JOptionPane.showInputDialog(this, "Approval remarks (optional):",
+                "Approve Supplier", JOptionPane.PLAIN_MESSAGE);
+        if (remarks == null) {
+            return;
+        }
+
+        try {
+            dbService.approveSupplier(supplier.getSupplierId(), remarks, getPerformedBy());
+            JOptionPane.showMessageDialog(this, "Supplier approved successfully.",
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+            loadSuppliers();
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, e.getMessage(),
+                    "Approval Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void rejectSelectedSupplier() {
+        int selectedRow = supplierTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a supplier to reject.",
+                    "Selection Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Supplier supplier = getSupplierFromSelectedRow(selectedRow);
+        String remarks = JOptionPane.showInputDialog(this, "Rejection remarks (optional):",
+                "Reject Supplier", JOptionPane.PLAIN_MESSAGE);
+        if (remarks == null) {
+            return;
+        }
+
+        try {
+            dbService.rejectSupplier(supplier.getSupplierId(), remarks, getPerformedBy());
+            JOptionPane.showMessageDialog(this, "Supplier rejected successfully.",
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+            loadSuppliers();
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, e.getMessage(),
+                    "Rejection Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void deleteSelectedSupplier() {
@@ -179,20 +268,20 @@ public class SuppliersPanel extends JPanel {
         int supplierId = (int) tableModel.getValueAt(selectedRow, 0);
         String supplierName = (String) tableModel.getValueAt(selectedRow, 1);
 
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to delete supplier: " + supplierName + "?\nThis action cannot be undone.",
-                "Confirm Deletion", JOptionPane.YES_NO_OPTION);
+        JOptionPane.showMessageDialog(this,
+                "Hard delete is disabled for suppliers to preserve GMP audit history.\nUse Reject Supplier for disqualification instead.\nSupplier: "
+                        + supplierName + " (ID " + supplierId + ")",
+                "Deletion Blocked",
+                JOptionPane.WARNING_MESSAGE);
+    }
 
-        if (confirm == JOptionPane.YES_OPTION) {
-            if (dbService.deleteSupplier(supplierId)) {
-                JOptionPane.showMessageDialog(this, "Supplier deleted successfully.",
-                        "Success", JOptionPane.INFORMATION_MESSAGE);
-                loadSuppliers();
-            } else {
-                JOptionPane.showMessageDialog(this,
-                        "Failed to delete supplier. Check database constraints.",
-                        "Deletion Error", JOptionPane.ERROR_MESSAGE);
-            }
+    private String getPerformedBy() {
+        if (currentUser == null) {
+            return "system";
         }
+        if (currentUser.getUsername() != null && !currentUser.getUsername().isBlank()) {
+            return currentUser.getUsername();
+        }
+        return "system";
     }
 }

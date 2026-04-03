@@ -253,8 +253,8 @@ public class InventoryGUI extends JFrame {
         // JFrame)
         mainContentPanel.add(new LocationsPanel(this, dbService), LOCATIONS);
 
-        // SuppliersPanel: Assumed signature: SuppliersPanel(DatabaseService)
-        mainContentPanel.add(new SuppliersPanel(dbService), SUPPLIERS);
+        // SuppliersPanel: now receives the active user for supplier approval audit logging.
+        mainContentPanel.add(new SuppliersPanel(dbService, activeUser), SUPPLIERS);
 
         // FIX for PurchaseOrderPanel (Problem 1): Corrected signature is (JFrame,
         // DatabaseService)

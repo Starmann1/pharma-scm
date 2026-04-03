@@ -1,6 +1,7 @@
 package pharma.gui;
 
 import pharma.model.PurchaseOrder;
+import pharma.model.Supplier;
 import pharma.service.DatabaseService;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -93,6 +94,19 @@ public class CreateGRNDialog extends JDialog {
         // call DatabaseService.createGRN(purchaseOrder, grnDetails);
 
         System.out.println("DEBUG: Attempting to save GRN for PO ID: " + purchaseOrder.getId());
+
+        try {
+            Supplier supplier = DatabaseService.getInstance().getSupplierById(purchaseOrder.getSupplierId());
+            if (supplier != null && !Supplier.STATUS_APPROVED.equalsIgnoreCase(supplier.getSupplierStatus())) {
+                JOptionPane.showMessageDialog(this, "Cannot create GRN for unapproved supplier.", "Approval Required",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error validating supplier approval: " + ex.getMessage(), "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
         // Placeholder save logic:
         boolean success = DatabaseService.getInstance().createGRNFromPO(purchaseOrder);

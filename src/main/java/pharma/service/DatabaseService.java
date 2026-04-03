@@ -44,6 +44,10 @@ public class DatabaseService {
     // *** FIX: Removed 'private Connection connection = null;' - connections should
     // not be long-lived fields.
 
+    public DatabaseService() {
+        ensureOptionalSchema();
+    }
+
     // Helper method to establish a fresh, single-use connection
     Connection getConnection() throws SQLException, ClassNotFoundException {
         return ds.getConnection();
@@ -80,6 +84,63 @@ public class DatabaseService {
         return instance;
     }
 
+    private void ensureOptionalSchema() {
+        try (Connection conn = getConnection()) {
+            ensureSupplierApprovalSchema(conn);
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.warn("Failed to auto-apply optional schema updates: {}", e.getMessage());
+        }
+    }
+
+    private void ensureSupplierApprovalSchema(Connection conn) throws SQLException {
+        boolean hadSupplierStatusColumn = hasColumn(conn, "Supplier_Master", "supplier_status");
+
+        try (Statement stmt = conn.createStatement()) {
+            if (!hadSupplierStatusColumn) {
+                stmt.executeUpdate(
+                        "ALTER TABLE Supplier_Master ADD COLUMN supplier_status VARCHAR(20) DEFAULT 'PENDING'");
+            }
+            if (!hasColumn(conn, "Supplier_Master", "approved_at")) {
+                stmt.executeUpdate(
+                        "ALTER TABLE Supplier_Master ADD COLUMN approved_at TIMESTAMP NULL");
+            }
+            if (!hasColumn(conn, "Supplier_Master", "rejected_at")) {
+                stmt.executeUpdate(
+                        "ALTER TABLE Supplier_Master ADD COLUMN rejected_at TIMESTAMP NULL");
+            }
+            if (!hasColumn(conn, "Supplier_Master", "remarks")) {
+                stmt.executeUpdate(
+                        "ALTER TABLE Supplier_Master ADD COLUMN remarks TEXT NULL");
+            }
+
+            stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS supplier_audit_log (" +
+                            "id INT AUTO_INCREMENT PRIMARY KEY," +
+                            "supplier_id INT NOT NULL," +
+                            "action VARCHAR(20)," +
+                            "remarks TEXT," +
+                            "performed_by VARCHAR(50)," +
+                            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                            "FOREIGN KEY (supplier_id) REFERENCES Supplier_Master(supplier_id) " +
+                            "ON DELETE RESTRICT ON UPDATE CASCADE" +
+                            ")");
+
+            if (!hadSupplierStatusColumn) {
+                stmt.executeUpdate(
+                        "UPDATE Supplier_Master SET supplier_status = 'APPROVED', " +
+                                "approved_at = COALESCE(approved_at, CURRENT_TIMESTAMP) " +
+                                "WHERE supplier_status IS NULL OR supplier_status = 'PENDING'");
+            }
+        }
+    }
+
+    private boolean hasColumn(Connection conn, String tableName, String columnName) throws SQLException {
+        DatabaseMetaData metaData = conn.getMetaData();
+        try (ResultSet rs = metaData.getColumns(conn.getCatalog(), null, tableName, columnName)) {
+            return rs.next();
+        }
+    }
+
     public static void closePool() {
         if (ds != null && !ds.isClosed()) {
             ds.close();
@@ -100,17 +161,7 @@ public class DatabaseService {
                 ResultSet rs = pstmt.executeQuery()) {
 
             while (rs.next()) {
-                Supplier supplier = new Supplier(
-                        rs.getInt("supplier_id"),
-                        rs.getString("supplier_name"),
-                        rs.getString("contact_person"),
-                        rs.getString("address"),
-                        rs.getString("email"),
-                        rs.getString("phone_number"),
-                        rs.getString("gstin"),
-                        rs.getString("drug_license_number"),
-                        rs.getString("payment_terms"));
-                suppliers.add(supplier);
+                suppliers.add(mapResultSetToSupplier(rs));
             }
         } catch (SQLException | ClassNotFoundException e) { // Combined catch block
             System.err.println("Error fetching all suppliers: " + e.getMessage());
@@ -142,6 +193,7 @@ public class DatabaseService {
                     if (generatedKeys.next()) {
                         newId = generatedKeys.getInt(1);
                         supplier.setSupplierId(newId);
+                        supplier.setSupplierStatus(Supplier.STATUS_PENDING);
                         logAuditTrail(conn, 0, "ADD_SUPPLIER", "Supplier_Master", String.valueOf(newId), null,
                                 supplier.getSupplierName());
                         System.out.println("New supplier added with ID: " + newId);
@@ -194,18 +246,9 @@ public class DatabaseService {
 
     // method to deleteSupplier.
     public boolean deleteSupplier(int supplierId) {
-        String sql = "DELETE FROM Supplier_Master WHERE supplier_id = ?";
-        // *** FIX: Use try-with-resources on the Connection (conn) and
-        // PreparedStatement.
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, supplierId);
-            int affectedRows = pstmt.executeUpdate();
-            if (affectedRows > 0) {
-                logAuditTrail(conn, 0, "DELETE_SUPPLIER", "Supplier_Master", String.valueOf(supplierId), null,
-                        "DELETED");
-                return true;
-            }
+        try (Connection conn = getConnection()) {
+            logAuditTrail(conn, 0, "DELETE_SUPPLIER_BLOCKED", "Supplier_Master", String.valueOf(supplierId), null,
+                    "Deletion blocked by supplier approval workflow");
             return false;
         } catch (SQLException e) {
             System.err.println("Error deleting supplier: " + e.getMessage());
@@ -234,6 +277,187 @@ public class DatabaseService {
             e.printStackTrace();
         }
         return supplierNames;
+    }
+
+    public boolean approveSupplier(int supplierId, String remarks, String performedBy) throws SQLException, ClassNotFoundException {
+        String selectSql = "SELECT supplier_name, gstin, drug_license_number, supplier_status FROM Supplier_Master WHERE supplier_id = ?";
+        String updateSql = "UPDATE Supplier_Master SET supplier_status = 'APPROVED', approved_at = CURRENT_TIMESTAMP, rejected_at = NULL, remarks = ? WHERE supplier_id = ?";
+
+        try (Connection conn = getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Supplier supplier = null;
+                try (PreparedStatement pstmt = conn.prepareStatement(selectSql)) {
+                    pstmt.setInt(1, supplierId);
+                    try (ResultSet rs = pstmt.executeQuery()) {
+                        if (rs.next()) {
+                            supplier = new Supplier();
+                            supplier.setSupplierId(supplierId);
+                            supplier.setSupplierName(rs.getString("supplier_name"));
+                            supplier.setGstin(rs.getString("gstin"));
+                            supplier.setDrugLicenseNumber(rs.getString("drug_license_number"));
+                            supplier.setSupplierStatus(normalizeSupplierStatus(readOptionalString(rs, "supplier_status")));
+                        }
+                    }
+                }
+
+                if (supplier == null) {
+                    throw new SQLException("Supplier not found.");
+                }
+                if (Supplier.STATUS_REJECTED.equalsIgnoreCase(supplier.getSupplierStatus())) {
+                    throw new SQLException("Rejected suppliers cannot be approved again.");
+                }
+                if (Supplier.STATUS_APPROVED.equalsIgnoreCase(supplier.getSupplierStatus())) {
+                    throw new SQLException("Supplier is already approved.");
+                }
+                if (isBlank(supplier.getDrugLicenseNumber())) {
+                    throw new SQLException("License number required for approval.");
+                }
+                if (isBlank(supplier.getGstin())) {
+                    throw new SQLException("GSTIN required for approval.");
+                }
+
+                try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
+                    pstmt.setString(1, normalizeRemarks(remarks));
+                    pstmt.setInt(2, supplierId);
+                    pstmt.executeUpdate();
+                }
+
+                insertSupplierAuditLog(conn, supplierId, "APPROVED", remarks, performedBy);
+                logAuditTrail(conn, 0, "APPROVE_SUPPLIER", "Supplier_Master", String.valueOf(supplierId),
+                        Supplier.STATUS_PENDING, Supplier.STATUS_APPROVED);
+                conn.commit();
+                return true;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    public boolean rejectSupplier(int supplierId, String remarks, String performedBy) throws SQLException, ClassNotFoundException {
+        String selectSql = "SELECT supplier_status FROM Supplier_Master WHERE supplier_id = ?";
+        String updateSql = "UPDATE Supplier_Master SET supplier_status = 'REJECTED', rejected_at = CURRENT_TIMESTAMP, remarks = ? WHERE supplier_id = ?";
+
+        try (Connection conn = getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String oldStatus = null;
+                try (PreparedStatement pstmt = conn.prepareStatement(selectSql)) {
+                    pstmt.setInt(1, supplierId);
+                    try (ResultSet rs = pstmt.executeQuery()) {
+                        if (rs.next()) {
+                            oldStatus = normalizeSupplierStatus(readOptionalString(rs, "supplier_status"));
+                        }
+                    }
+                }
+
+                if (oldStatus == null) {
+                    throw new SQLException("Supplier not found.");
+                }
+                if (Supplier.STATUS_REJECTED.equalsIgnoreCase(oldStatus)) {
+                    throw new SQLException("Supplier is already rejected.");
+                }
+
+                try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
+                    pstmt.setString(1, normalizeRemarks(remarks));
+                    pstmt.setInt(2, supplierId);
+                    pstmt.executeUpdate();
+                }
+
+                insertSupplierAuditLog(conn, supplierId, "REJECTED", remarks, performedBy);
+                logAuditTrail(conn, 0, "REJECT_SUPPLIER", "Supplier_Master", String.valueOf(supplierId), oldStatus,
+                        Supplier.STATUS_REJECTED);
+                conn.commit();
+                return true;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    private void insertSupplierAuditLog(Connection conn, int supplierId, String action, String remarks, String performedBy)
+            throws SQLException {
+        String sql = "INSERT INTO supplier_audit_log (supplier_id, action, remarks, performed_by) VALUES (?, ?, ?, ?)";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, supplierId);
+            pstmt.setString(2, action);
+            pstmt.setString(3, normalizeRemarks(remarks));
+            pstmt.setString(4, isBlank(performedBy) ? "system" : performedBy);
+            pstmt.executeUpdate();
+        }
+    }
+
+    private Supplier mapResultSetToSupplier(ResultSet rs) throws SQLException {
+        return new Supplier(
+                rs.getInt("supplier_id"),
+                rs.getString("supplier_name"),
+                rs.getString("contact_person"),
+                rs.getString("address"),
+                rs.getString("email"),
+                rs.getString("phone_number"),
+                rs.getString("gstin"),
+                rs.getString("drug_license_number"),
+                rs.getString("payment_terms"),
+                normalizeSupplierStatus(readOptionalString(rs, "supplier_status")),
+                readOptionalTimestamp(rs, "approved_at"),
+                readOptionalTimestamp(rs, "rejected_at"),
+                readOptionalString(rs, "remarks"));
+    }
+
+    private String normalizeSupplierStatus(String status) {
+        return isBlank(status) ? Supplier.STATUS_APPROVED : status.trim().toUpperCase();
+    }
+
+    private boolean isSupplierApproved(Connection conn, int supplierId) throws SQLException {
+        String sql = "SELECT supplier_status FROM Supplier_Master WHERE supplier_id = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, supplierId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("Supplier not found.");
+                }
+                return Supplier.STATUS_APPROVED.equalsIgnoreCase(
+                        normalizeSupplierStatus(readOptionalString(rs, "supplier_status")));
+            }
+        }
+    }
+
+    private void validateSupplierApprovedForProcurement(Connection conn, int supplierId, String action)
+            throws SQLException {
+        if (!isSupplierApproved(conn, supplierId)) {
+            throw new SQLException(action);
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private String normalizeRemarks(String remarks) {
+        return isBlank(remarks) ? null : remarks.trim();
+    }
+
+    private String readOptionalString(ResultSet rs, String columnName) throws SQLException {
+        try {
+            return rs.getString(columnName);
+        } catch (SQLException ex) {
+            return null;
+        }
+    }
+
+    private LocalDateTime readOptionalTimestamp(ResultSet rs, String columnName) throws SQLException {
+        try {
+            Timestamp timestamp = rs.getTimestamp(columnName);
+            return timestamp != null ? timestamp.toLocalDateTime() : null;
+        } catch (SQLException ex) {
+            return null;
+        }
     }
 
     // =======================================================
@@ -642,6 +866,7 @@ public class DatabaseService {
         try (Connection conn = getConnection()) {
             conn.setAutoCommit(false); // Start Transaction
             try (PreparedStatement pstmt = conn.prepareStatement(sqlHeader, Statement.RETURN_GENERATED_KEYS)) {
+                validateSupplierApprovedForProcurement(conn, po.getSupplierId(), "Supplier is not approved.");
 
                 // 1. Insert PO Header
                 pstmt.setInt(1, po.getSupplierId());
@@ -814,6 +1039,9 @@ public class DatabaseService {
             conn.setAutoCommit(false); // Start transaction
 
             try {
+                validateSupplierApprovedForProcurement(conn, po.getSupplierId(),
+                        "Cannot create GRN for unapproved supplier.");
+
                 // 1. Create GRN Header
                 int grnId;
                 try (PreparedStatement pstmt = conn.prepareStatement(insertGrnSql, Statement.RETURN_GENERATED_KEYS)) {
@@ -1016,16 +1244,7 @@ public class DatabaseService {
             pstmt.setInt(1, supplierId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
-                    return new Supplier(
-                            rs.getInt("supplier_id"),
-                            rs.getString("supplier_name"),
-                            rs.getString("contact_person"),
-                            rs.getString("address"),
-                            rs.getString("email"),
-                            rs.getString("phone_number"),
-                            rs.getString("gstin"),
-                            rs.getString("drug_license_number"),
-                            rs.getString("payment_terms"));
+                    return mapResultSetToSupplier(rs);
                 }
             }
         } catch (SQLException e) {
@@ -1165,6 +1384,7 @@ public class DatabaseService {
                     PreparedStatement headerStmt = conn.prepareStatement(updateHeaderSql);
                     PreparedStatement deleteItemsStmt = conn.prepareStatement(deleteItemsSql);
                     PreparedStatement insertItemStmt = conn.prepareStatement(insertItemSql)) {
+                validateSupplierApprovedForProcurement(conn, updatedPo.getSupplierId(), "Supplier is not approved.");
                 // Update PO Header
                 headerStmt.setInt(1, updatedPo.getSupplierId());
                 headerStmt.setDate(2, java.sql.Date.valueOf(updatedPo.getOrderDate()));

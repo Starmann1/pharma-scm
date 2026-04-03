@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS PurchaseOrder_Item;
 DROP TABLE IF EXISTS Purchase_Order;
 DROP TABLE IF EXISTS Stock_Inventory;
 DROP TABLE IF EXISTS Material_Master;
+DROP TABLE IF EXISTS supplier_audit_log;
 DROP TABLE IF EXISTS Supplier_Master;
 DROP TABLE IF EXISTS Location_Master;
 DROP TABLE IF EXISTS Role_Permission;
@@ -39,8 +40,24 @@ CREATE TABLE IF NOT EXISTS Supplier_Master (
     gstin VARCHAR(50),
     drug_license_number VARCHAR(100),
     payment_terms VARCHAR(255),
+    supplier_status VARCHAR(20) DEFAULT 'PENDING',
+    approved_at TIMESTAMP NULL,
+    rejected_at TIMESTAMP NULL,
+    remarks TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS supplier_audit_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    supplier_id INT NOT NULL,
+    action VARCHAR(20),
+    remarks TEXT,
+    performed_by VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (supplier_id) REFERENCES Supplier_Master(supplier_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
 );
 
 -- 4. Material Master Table (Includes Foreign Key to Supplier)
@@ -958,6 +975,13 @@ INSERT INTO grn_item (grn_id, drug_id, batch_number, quantity_received, expiry_d
 
 INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
 ('PM-BOTTLE-200', 'PACKAGING_WAREHOUSE', 'BATCH-PM-B200-001', 10000.00, 0, 0.50, '2026-02-01', '2030-03-01', 'APPROVED');
+
+-- Existing seeded suppliers are treated as qualified so legacy sample procurement remains functional.
+UPDATE supplier_master
+SET supplier_status = 'APPROVED',
+    approved_at = COALESCE(approved_at, CURRENT_TIMESTAMP)
+WHERE supplier_status IS NULL
+   OR supplier_status = 'PENDING';
 
 -- 6. Enable Foreign Key Checks
 SET FOREIGN_KEY_CHECKS = 1;
