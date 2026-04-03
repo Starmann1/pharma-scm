@@ -1350,7 +1350,7 @@ public class DatabaseService {
         for (BOMDetail ingredient : ingredients) {
             double requiredQty = ingredient.getRequiredQty() * plannedQty;
 
-            String sql = "SELECT SUM(quantity) as available FROM Stock_Inventory WHERE material_code = ? AND qc_status = 'RELEASED'";
+            String sql = "SELECT SUM(quantity) as available FROM Stock_Inventory WHERE material_code = ? AND qc_status = 'APPROVED'";
 
             try (Connection conn = getConnection();
                     PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -1492,7 +1492,7 @@ public class DatabaseService {
             for (BOMDetail ingredient : ingredients) {
                 double qtyNeeded = ingredient.getRequiredQty() * order.getPlannedQty();
 
-                String selectSql = "SELECT stock_id, batch_number, quantity, exp_date FROM Stock_Inventory WHERE material_code = ? AND qc_status = 'RELEASED' AND quantity > 0 ORDER BY exp_date ASC, stock_id ASC";
+                String selectSql = "SELECT stock_id, batch_number, quantity, exp_date FROM Stock_Inventory WHERE material_code = ? AND qc_status = 'APPROVED' AND quantity > 0 ORDER BY exp_date ASC, stock_id ASC";
 
                 try (PreparedStatement selectStmt = conn.prepareStatement(selectSql)) {
                     selectStmt.setString(1, ingredient.getIngredientMaterialCode());

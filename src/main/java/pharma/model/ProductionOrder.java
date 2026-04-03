@@ -29,7 +29,7 @@ public class ProductionOrder {
         PLANNED("Planned"),
         IN_PRODUCTION("In-Production"),
         QUALITY_TESTING("Quality-Testing"),
-        RELEASED("Released"),
+        APPROVED("Approved"),
         REJECTED("Rejected");
 
         private final String displayName;

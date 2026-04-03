@@ -95,6 +95,7 @@ import pharma.model.Stock;
 import pharma.service.DatabaseService;
 import pharma.gui.components.MaterialSearchField;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableRowSorter;
 import javax.swing.RowFilter;
 import java.awt.*;
@@ -129,6 +130,31 @@ public class InventoryPanel extends JPanel {
 
         // 3. Control Panel with Search
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+
+        // --- Custom Cell Renderer for QC Status ---
+        inventoryTable.getColumnModel().getColumn(7).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (value != null) {
+                    String status = value.toString();
+                    if (status.equalsIgnoreCase("APPROVED")) {
+                        c.setBackground(new Color(200, 255, 200)); // Light Green
+                        c.setForeground(Color.BLACK);
+                    } else if (status.equalsIgnoreCase("QUARANTINE")) {
+                        c.setBackground(new Color(255, 255, 200)); // Light Yellow
+                        c.setForeground(Color.BLACK);
+                    } else if (status.equalsIgnoreCase("REJECTED")) {
+                        c.setBackground(new Color(255, 200, 200)); // Light Red
+                        c.setForeground(Color.BLACK);
+                    } else {
+                        c.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+                        c.setForeground(isSelected ? table.getSelectionForeground() : table.getForeground());
+                    }
+                }
+                return c;
+            }
+        });
 
         // Search Field with Autocomplete
         JLabel searchLabel = new JLabel("Search:");

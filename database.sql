@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS Stock_Inventory (
     unit_cost DECIMAL(10, 2),
     mfg_date DATE,
     exp_date DATE,
-    qc_status VARCHAR(50) DEFAULT 'RELEASED',
+    qc_status VARCHAR(50) DEFAULT 'APPROVED',
     parent_batch_id TEXT,
     production_order_id INT,
     
@@ -653,7 +653,7 @@ INSERT INTO location_master (location_code, location_name, description, capacity
 ('PACKAGING_WAREHOUSE', 'PM Warehouse', 'Storage for packaging materials', 2000),
 ('PRODUCTION_FLOOR', 'Production Area', 'Active manufacturing area', 1000),
 ('QC_HOLD', 'Quality Control Hold', 'Quarantine area for tests', 500),
-('FINISHED_GOODS_WAREHOUSE', 'FG Warehouse', 'Released finished goods storage', 5000);
+('FINISHED_GOODS_WAREHOUSE', 'FG Warehouse', 'APPROVED finished goods storage', 5000);
 
 -- Suppliers
 INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address, email, phone_number, gstin, payment_terms) VALUES
@@ -718,14 +718,14 @@ INSERT INTO purchaseorder_item (po_id, drug_id, quantity, unit_price) VALUES
 -- We insert raw materials & packaging into RAW_MATERIAL_WAREHOUSE and PACKAGING_WAREHOUSE
 -- Note: available_quantity is auto-generated as (quantity - reserved_quantity)
 INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
-('RM-PARA-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-PARA-001', 500.0000, 0, 15.00, '2025-08-01', '2028-08-01', 'RELEASED'),
-('RM-STARCH', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-STARCH-001', 1000.0000, 0, 2.50, '2025-09-01', '2027-09-01', 'RELEASED'),
-('RM-MAGNESIUM', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-MAG-001', 200.0000, 0, 5.00, '2025-09-15', '2027-09-15', 'RELEASED'),
-('PM-ALU-FOIL', 'PACKAGING_WAREHOUSE', 'BATCH-PM-ALU-001', 1000.0000, 0, 12.00, '2025-09-20', '2030-09-20', 'RELEASED'),
-('PM-CARTON', 'PACKAGING_WAREHOUSE', 'BATCH-PM-CRT-001', 50000.0000, 0, 0.10, '2025-09-25', '2030-09-25', 'RELEASED'),
-('RM-AMOX-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-AMOX-001', 400.0000, 0, 25.00, '2025-08-10', '2027-08-10', 'RELEASED'),
-('RM-LACTOSE', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-LAC-001', 800.0000, 0, 3.50, '2025-09-01', '2028-09-01', 'RELEASED'),
-('PM-PVC-FILM', 'PACKAGING_WAREHOUSE', 'BATCH-PM-PVC-001', 500.0000, 0, 8.00, '2025-09-21', '2030-09-21', 'RELEASED');
+('RM-PARA-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-PARA-001', 500.0000, 0, 15.00, '2025-08-01', '2028-08-01', 'APPROVED'),
+('RM-STARCH', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-STARCH-001', 1000.0000, 0, 2.50, '2025-09-01', '2027-09-01', 'APPROVED'),
+('RM-MAGNESIUM', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-MAG-001', 200.0000, 0, 5.00, '2025-09-15', '2027-09-15', 'APPROVED'),
+('PM-ALU-FOIL', 'PACKAGING_WAREHOUSE', 'BATCH-PM-ALU-001', 1000.0000, 0, 12.00, '2025-09-20', '2030-09-20', 'APPROVED'),
+('PM-CARTON', 'PACKAGING_WAREHOUSE', 'BATCH-PM-CRT-001', 50000.0000, 0, 0.10, '2025-09-25', '2030-09-25', 'APPROVED'),
+('RM-AMOX-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-AMOX-001', 400.0000, 0, 25.00, '2025-08-10', '2027-08-10', 'APPROVED'),
+('RM-LACTOSE', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-LAC-001', 800.0000, 0, 3.50, '2025-09-01', '2028-09-01', 'APPROVED'),
+('PM-PVC-FILM', 'PACKAGING_WAREHOUSE', 'BATCH-PM-PVC-001', 500.0000, 0, 8.00, '2025-09-21', '2030-09-21', 'APPROVED');
 
 -- Insert Initial Transactions representing the opening stock entry
 INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES
@@ -737,8 +737,8 @@ INSERT INTO inventory_transaction (material_code, batch_number, location_code, t
 
 -- Finished Goods (to simulate previously completed production)
 INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
-('DRG001', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-PARA500-001', 50000.0000, 0, 0.40, '2025-11-01', '2027-10-31', 'RELEASED'),
-('DRG002', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-AMOX250-001', 20000.0000, 0, 0.85, '2025-11-15', '2027-11-14', 'RELEASED');
+('DRG001', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-PARA500-001', 50000.0000, 0, 0.40, '2025-11-01', '2027-10-31', 'APPROVED'),
+('DRG002', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-AMOX250-001', 20000.0000, 0, 0.85, '2025-11-15', '2027-11-14', 'APPROVED');
 
 -- Insert events for the initial setup
 INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES
@@ -782,10 +782,10 @@ INSERT INTO purchaseorder_item (po_id, drug_id, quantity, unit_price) VALUES
 
 -- Additional Stock Inventory
 INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
-('RM-IBU-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-IBU-001', 300.0000, 0, 20.00, '2025-09-01', '2028-09-01', 'RELEASED'),
-('RM-MCC', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-MCC-001', 500.0000, 0, 4.00, '2025-09-15', '2027-09-15', 'RELEASED'),
-('PM-BOTTLE-100', 'PACKAGING_WAREHOUSE', 'BATCH-PM-BOT-001', 2000.0000, 0, 0.50, '2025-09-10', '2030-09-10', 'RELEASED'),
-('DRG004', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-IBU400-001', 10000.0000, 0, 0.60, '2025-11-20', '2027-11-19', 'RELEASED');
+('RM-IBU-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-IBU-001', 300.0000, 0, 20.00, '2025-09-01', '2028-09-01', 'APPROVED'),
+('RM-MCC', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-MCC-001', 500.0000, 0, 4.00, '2025-09-15', '2027-09-15', 'APPROVED'),
+('PM-BOTTLE-100', 'PACKAGING_WAREHOUSE', 'BATCH-PM-BOT-001', 2000.0000, 0, 0.50, '2025-09-10', '2030-09-10', 'APPROVED'),
+('DRG004', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-IBU400-001', 10000.0000, 0, 0.60, '2025-11-20', '2027-11-19', 'APPROVED');
 
 -- Additional Inventory Transactions
 INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES
@@ -850,14 +850,14 @@ INSERT INTO purchaseorder_item (po_id, drug_id, quantity, unit_price) VALUES
 
 -- 6. Stock Inventory (Adding inventory for the new components)
 INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
-('RM-VITC-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-VITC-001', 500.0000, 0, 15.00, '2025-09-10', '2027-09-10', 'RELEASED'),
-('RM-ZINC-OX', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-ZINC-001', 200.0000, 0, 10.00, '2025-09-12', '2028-09-12', 'RELEASED'),
-('RM-SUCROSE', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-SUCR-001', 1000.0000, 0, 2.00, '2025-08-01', '2026-08-01', 'RELEASED'),
-('RM-COLORANT', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-COL-001', 50.0000, 0, 25.00, '2025-09-01', '2027-09-01', 'RELEASED'),
-('PM-BOTTLE-60', 'PACKAGING_WAREHOUSE', 'BATCH-PM-BOT60-001', 10000.0000, 0, 0.40, '2025-09-05', '2030-09-05', 'RELEASED'),
-('PM-BOTTLE-CAP', 'PACKAGING_WAREHOUSE', 'BATCH-PM-CAP-001', 10000.0000, 0, 0.15, '2025-09-06', '2030-09-06', 'RELEASED'),
-('PM-LABEL-VIT', 'PACKAGING_WAREHOUSE', 'BATCH-PM-LBLVIT-001', 200.0000, 0, 3.00, '2025-09-15', '2030-09-15', 'RELEASED'),
-('DRG005', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-VITC-001', 5000.0000, 0, 0.70, '2025-11-25', '2027-11-24', 'RELEASED');
+('RM-VITC-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-VITC-001', 500.0000, 0, 15.00, '2025-09-10', '2027-09-10', 'APPROVED'),
+('RM-ZINC-OX', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-ZINC-001', 200.0000, 0, 10.00, '2025-09-12', '2028-09-12', 'APPROVED'),
+('RM-SUCROSE', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-SUCR-001', 1000.0000, 0, 2.00, '2025-08-01', '2026-08-01', 'APPROVED'),
+('RM-COLORANT', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-COL-001', 50.0000, 0, 25.00, '2025-09-01', '2027-09-01', 'APPROVED'),
+('PM-BOTTLE-60', 'PACKAGING_WAREHOUSE', 'BATCH-PM-BOT60-001', 10000.0000, 0, 0.40, '2025-09-05', '2030-09-05', 'APPROVED'),
+('PM-BOTTLE-CAP', 'PACKAGING_WAREHOUSE', 'BATCH-PM-CAP-001', 10000.0000, 0, 0.15, '2025-09-06', '2030-09-06', 'APPROVED'),
+('PM-LABEL-VIT', 'PACKAGING_WAREHOUSE', 'BATCH-PM-LBLVIT-001', 200.0000, 0, 3.00, '2025-09-15', '2030-09-15', 'APPROVED'),
+('DRG005', 'FINISHED_GOODS_WAREHOUSE', 'BATCH-VITC-001', 5000.0000, 0, 0.70, '2025-11-25', '2027-11-24', 'APPROVED');
 
 -- 7. Inventory Transactions for these new stocks
 INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES
@@ -946,7 +946,7 @@ INSERT INTO grn_item (grn_id, drug_id, batch_number, quantity_received, expiry_d
 (@grn1, 'RM-ASPIRIN-API', 'BATCH-RM-ASP-001', 1000.00, '2028-03-01');
 
 INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
-('RM-ASPIRIN-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-ASP-001', 1000.00, 0, 10.00, '2026-01-01', '2028-03-01', 'RELEASED');
+('RM-ASPIRIN-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-ASP-001', 1000.00, 0, 10.00, '2026-01-01', '2028-03-01', 'APPROVED');
 
 
 INSERT INTO goods_received_note (po_id, received_date, received_by, status) VALUES
@@ -957,7 +957,7 @@ INSERT INTO grn_item (grn_id, drug_id, batch_number, quantity_received, expiry_d
 (@grn2, 'PM-BOTTLE-200', 'BATCH-PM-B200-001', 10000.00, '2030-03-01');
 
 INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
-('PM-BOTTLE-200', 'PACKAGING_WAREHOUSE', 'BATCH-PM-B200-001', 10000.00, 0, 0.50, '2026-02-01', '2030-03-01', 'RELEASED');
+('PM-BOTTLE-200', 'PACKAGING_WAREHOUSE', 'BATCH-PM-B200-001', 10000.00, 0, 0.50, '2026-02-01', '2030-03-01', 'APPROVED');
 
 -- 6. Enable Foreign Key Checks
 SET FOREIGN_KEY_CHECKS = 1;

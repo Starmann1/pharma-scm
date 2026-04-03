@@ -51,7 +51,7 @@ public class QualityDashboard extends JPanel {
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         filterPanel.add(new JLabel("Filter:"));
 
-        filterComboBox = new JComboBox<>(new String[] { "All", "QUARANTINE Only", "RELEASED Only", "REJECTED Only" });
+        filterComboBox = new JComboBox<>(new String[] { "All", "QUARANTINE Only", "APPROVED Only", "REJECTED Only" });
         filterComboBox.addActionListener(e -> {
             String filter = (String) filterComboBox.getSelectedItem();
             String status = filter.replace(" Only", "");
@@ -103,7 +103,7 @@ public class QualityDashboard extends JPanel {
                 if ("QUARANTINE".equals(status)) {
                     c.setBackground(new Color(255, 255, 200)); // Yellow
                     c.setForeground(Color.BLACK);
-                } else if ("RELEASED".equals(status)) {
+                } else if ("APPROVED".equals(status)) {
                     c.setBackground(new Color(200, 255, 200)); // Green
                     c.setForeground(Color.BLACK);
                 } else if ("REJECTED".equals(status)) {
@@ -140,10 +140,10 @@ public class QualityDashboard extends JPanel {
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
-        releaseButton = new JButton("Release Batch");
+        releaseButton = new JButton("Approve Batch");
         releaseButton.setBackground(new Color(144, 238, 144));
         releaseButton.setForeground(Color.BLACK);
-        releaseButton.addActionListener(e -> updateQCStatus("RELEASED"));
+        releaseButton.addActionListener(e -> updateQCStatus("APPROVED"));
         releaseButton.setEnabled(authService.hasPermission(currentUser, "RELEASE_BATCH"));
         buttonPanel.add(releaseButton);
 
@@ -327,7 +327,7 @@ public class QualityDashboard extends JPanel {
             return;
         }
 
-        boolean isRelease = "RELEASED".equals(newStatus);
+        boolean isRelease = "APPROVED".equals(newStatus);
         boolean isReject = "REJECTED".equals(newStatus);
         boolean hasPerm = (isRelease && authService.hasPermission(currentUser, "RELEASE_BATCH")) ||
                 (isReject && authService.hasPermission(currentUser, "REJECT_BATCH")) ||
