@@ -138,7 +138,10 @@ public class InventoryPanel extends JPanel {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                 if (value != null) {
                     String status = value.toString();
-                    if (status.equalsIgnoreCase("APPROVED")) {
+                    if (status.equalsIgnoreCase("QI")) {
+                        c.setBackground(new Color(255, 204, 153)); // Orange/Amber
+                        c.setForeground(Color.BLACK);
+                    } else if (status.equalsIgnoreCase("APPROVED")) {
                         c.setBackground(new Color(200, 255, 200)); // Light Green
                         c.setForeground(Color.BLACK);
                     } else if (status.equalsIgnoreCase("QUARANTINE")) {

@@ -1,5 +1,6 @@
 package pharma.gui;
 
+import pharma.model.Stock;
 import pharma.model.User;
 import pharma.service.AuthService;
 import pharma.service.DatabaseService;
@@ -7,7 +8,6 @@ import pharma.service.DatabaseService;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.sql.*;
 import java.util.List;
 
 /**
@@ -22,6 +22,7 @@ public class QualityDashboard extends JPanel {
     private JTable batchTable;
     private DefaultTableModel batchTableModel;
     private JTextArea detailsArea;
+    private JButton sampleButton;
     private JButton releaseButton;
     private JButton rejectButton;
     private JButton genealogyButton;
@@ -51,11 +52,10 @@ public class QualityDashboard extends JPanel {
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         filterPanel.add(new JLabel("Filter:"));
 
-        filterComboBox = new JComboBox<>(new String[] { "All", "QUARANTINE Only", "APPROVED Only", "REJECTED Only" });
+        filterComboBox = new JComboBox<>(
+                new String[] { "All", "QI Only", "QUARANTINE Only", "APPROVED Only", "REJECTED Only" });
         filterComboBox.addActionListener(e -> {
-            String filter = (String) filterComboBox.getSelectedItem();
-            String status = filter.replace(" Only", "");
-            loadBatches(status);
+            loadBatches(getSelectedStatusFilter());
         });
         filterPanel.add(filterComboBox);
 
@@ -100,7 +100,10 @@ public class QualityDashboard extends JPanel {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                 String status = (String) table.getValueAt(row, 3);
 
-                if ("QUARANTINE".equals(status)) {
+                if ("QI".equals(status)) {
+                    c.setBackground(new Color(255, 204, 153)); // Orange/Amber
+                    c.setForeground(Color.BLACK);
+                } else if ("QUARANTINE".equals(status)) {
                     c.setBackground(new Color(255, 255, 200)); // Yellow
                     c.setForeground(Color.BLACK);
                 } else if ("APPROVED".equals(status)) {
@@ -140,18 +143,22 @@ public class QualityDashboard extends JPanel {
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
+        sampleButton = new JButton("Take Sample");
+        sampleButton.setBackground(new Color(255, 235, 156));
+        sampleButton.setForeground(Color.BLACK);
+        sampleButton.addActionListener(e -> takeSample());
+        buttonPanel.add(sampleButton);
+
         releaseButton = new JButton("Approve Batch");
         releaseButton.setBackground(new Color(144, 238, 144));
         releaseButton.setForeground(Color.BLACK);
         releaseButton.addActionListener(e -> updateQCStatus("APPROVED"));
-        releaseButton.setEnabled(authService.hasPermission(currentUser, "RELEASE_BATCH"));
         buttonPanel.add(releaseButton);
 
         rejectButton = new JButton("Reject Batch");
         rejectButton.setBackground(new Color(255, 160, 160));
         rejectButton.setForeground(Color.BLACK);
         rejectButton.addActionListener(e -> updateQCStatus("REJECTED"));
-        rejectButton.setEnabled(authService.hasPermission(currentUser, "REJECT_BATCH"));
         buttonPanel.add(rejectButton);
 
         genealogyButton = new JButton("View Genealogy");
@@ -160,163 +167,128 @@ public class QualityDashboard extends JPanel {
 
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
+        updateActionButtons();
+
         return panel;
     }
 
     private void loadBatches(String statusFilter) {
         try {
             batchTableModel.setRowCount(0);
+            List<Stock> batches = dbService.getQCBatches(statusFilter);
 
-            // Use a custom query method
-            java.util.List<BatchInfo> batches = getBatchesForQC(statusFilter);
-
-            for (BatchInfo batch : batches) {
+            for (Stock batch : batches) {
                 batchTableModel.addRow(new Object[] {
-                        batch.batchNumber,
-                        batch.brandName,
-                        batch.quantity,
-                        batch.qcStatus,
-                        batch.mfgDate,
-                        batch.expDate
+                        batch.getBatchNumber(),
+                        batch.getBrandName(),
+                        batch.getQuantity(),
+                        batch.getQcStatus(),
+                        batch.getMfgDate(),
+                        batch.getExpDate()
                 });
             }
+            detailsArea.setText("");
+            updateActionButtons();
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Error loading batches: " + e.getMessage(), "Error",
                     JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private java.util.List<BatchInfo> getBatchesForQC(String statusFilter) throws Exception {
-        java.util.List<BatchInfo> batches = new java.util.ArrayList<>();
-
-        String sql = "SELECT si.batch_number, dm.brand_name, si.quantity, si.qc_status, si.mfg_date, si.exp_date " +
-                "FROM Stock_Inventory si " +
-                "JOIN Material_Master dm ON si.material_code = dm.material_code ";
-
-        if (!"All".equals(statusFilter)) {
-            sql += "WHERE si.qc_status = ? ";
-        }
-
-        sql += "ORDER BY si.mfg_date DESC";
-
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
-
-        try {
-            conn = DriverManager.getConnection(
-                    "jdbc:mysql://localhost:3306/pharma_ims?allowPublicKeyRetrieval=true&useSSL=false",
-                    "root",
-                    "SiriusBlack@369");
-
-            pstmt = conn.prepareStatement(sql);
-
-            if (!"All".equals(statusFilter)) {
-                pstmt.setString(1, statusFilter);
-            }
-
-            rs = pstmt.executeQuery();
-            while (rs.next()) {
-                BatchInfo batch = new BatchInfo();
-                batch.batchNumber = rs.getString("batch_number");
-                batch.brandName = rs.getString("brand_name");
-                batch.quantity = rs.getDouble("quantity");
-                batch.qcStatus = rs.getString("qc_status");
-                batch.mfgDate = rs.getDate("mfg_date");
-                batch.expDate = rs.getDate("exp_date");
-                batches.add(batch);
-            }
-        } finally {
-            if (rs != null)
-                rs.close();
-            if (pstmt != null)
-                pstmt.close();
-            if (conn != null)
-                conn.close();
-        }
-
-        return batches;
-    }
-
-    private static class BatchInfo {
-        String batchNumber;
-        String brandName;
-        double quantity;
-        String qcStatus;
-        java.sql.Date mfgDate;
-        java.sql.Date expDate;
-    }
-
     private void showBatchDetails() {
         int selectedRow = batchTable.getSelectedRow();
-        if (selectedRow < 0)
+        if (selectedRow < 0) {
+            detailsArea.setText("");
+            updateActionButtons();
             return;
+        }
 
         try {
             String batchNumber = (String) batchTable.getValueAt(selectedRow, 0);
+            Stock stock = dbService.getStockByBatchNumber(batchNumber);
+            if (stock == null) {
+                detailsArea.setText("Batch details not found.");
+            } else {
+                StringBuilder details = new StringBuilder();
+                details.append("=== BATCH INFORMATION ===\n\n");
+                details.append("Batch Number:     ").append(stock.getBatchNumber()).append("\n");
+                details.append("Material Code:    ").append(stock.getMaterialCode()).append("\n");
+                details.append("Brand Name:       ").append(stock.getBrandName()).append("\n");
+                details.append("Generic Name:     ").append(stock.getGenericName()).append("\n");
+                details.append("Manufacturer:     ").append(stock.getManufacturer()).append("\n\n");
 
-            String sql = "SELECT si.*, dm.brand_name, dm.generic_name, dm.manufacturer " +
-                    "FROM Stock_Inventory si " +
-                    "JOIN Material_Master dm ON si.material_code = dm.material_code " +
-                    "WHERE si.batch_number = ?";
+                details.append("=== QUANTITY & LOCATION ===\n\n");
+                details.append("Quantity:         ").append(stock.getQuantity()).append("\n");
+                details.append("Location:         ").append(stock.getLocationCode()).append("\n");
+                details.append("Unit Cost:        $").append(stock.getUnitCost()).append("\n\n");
 
-            Connection conn = null;
-            PreparedStatement pstmt = null;
-            ResultSet rs = null;
+                details.append("=== DATES ===\n\n");
+                details.append("Mfg Date:         ").append(stock.getMfgDate()).append("\n");
+                details.append("Exp Date:         ").append(stock.getExpDate()).append("\n\n");
 
-            try {
-                conn = DriverManager.getConnection(
-                        "jdbc:mysql://localhost:3306/pharma_ims?allowPublicKeyRetrieval=true&useSSL=false",
-                        "root",
-                        "SiriusBlack@369");
+                details.append("=== QC STATUS ===\n\n");
+                details.append("Status:           ").append(stock.getQcStatus()).append("\n\n");
 
-                pstmt = conn.prepareStatement(sql);
-                pstmt.setString(1, batchNumber);
-                rs = pstmt.executeQuery();
+                details.append("=== TRACEABILITY ===\n\n");
+                String parentBatches = stock.getParentBatchId();
+                details.append("Parent Batches:   ").append(parentBatches != null ? parentBatches : "None").append("\n");
 
-                if (rs.next()) {
-                    StringBuilder details = new StringBuilder();
-                    details.append("=== BATCH INFORMATION ===\n\n");
-                    details.append("Batch Number:     ").append(rs.getString("batch_number")).append("\n");
-                    details.append("Material Code:    ").append(rs.getString("material_code")).append("\n");
-                    details.append("Brand Name:       ").append(rs.getString("brand_name")).append("\n");
-                    details.append("Generic Name:     ").append(rs.getString("generic_name")).append("\n");
-                    details.append("Manufacturer:     ").append(rs.getString("manufacturer")).append("\n\n");
-
-                    details.append("=== QUANTITY & LOCATION ===\n\n");
-                    details.append("Quantity:         ").append(rs.getDouble("quantity")).append("\n");
-                    details.append("Location:         ").append(rs.getString("location_code")).append("\n");
-                    details.append("Unit Cost:        $").append(rs.getDouble("unit_cost")).append("\n\n");
-
-                    details.append("=== DATES ===\n\n");
-                    details.append("Mfg Date:         ").append(rs.getDate("mfg_date")).append("\n");
-                    details.append("Exp Date:         ").append(rs.getDate("exp_date")).append("\n\n");
-
-                    details.append("=== QC STATUS ===\n\n");
-                    details.append("Status:           ").append(rs.getString("qc_status")).append("\n\n");
-
-                    details.append("=== TRACEABILITY ===\n\n");
-                    String parentBatches = rs.getString("parent_batch_id");
-                    details.append("Parent Batches:   ").append(parentBatches != null ? parentBatches : "None")
-                            .append("\n");
-
-                    int productionOrderId = rs.getInt("production_order_id");
-                    if (!rs.wasNull()) {
-                        details.append("Production Order: ").append(productionOrderId).append("\n");
-                    }
-
-                    detailsArea.setText(details.toString());
+                if (stock.getProductionOrderId() > 0) {
+                    details.append("Production Order: ").append(stock.getProductionOrderId()).append("\n");
                 }
-            } finally {
-                if (rs != null)
-                    rs.close();
-                if (pstmt != null)
-                    pstmt.close();
-                if (conn != null)
-                    conn.close();
+
+                detailsArea.setText(details.toString());
             }
+            updateActionButtons();
         } catch (Exception e) {
             detailsArea.setText("Error loading details: " + e.getMessage());
+            updateActionButtons();
+        }
+    }
+
+    private void takeSample() {
+        int selectedRow = batchTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this, "Please select a batch", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            String batchNumber = (String) batchTable.getValueAt(selectedRow, 0);
+            String currentStatus = (String) batchTable.getValueAt(selectedRow, 3);
+
+            if (!"QUARANTINE".equalsIgnoreCase(currentStatus)) {
+                JOptionPane.showMessageDialog(this, "Only quarantined batches can be sampled.", "Invalid Action",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            if (!authService.hasPermission(currentUser, "UPDATE_QC_STATUS")) {
+                JOptionPane.showMessageDialog(this,
+                        "You don't have permission to take samples for QC.\nRequired Role: Quality Analyst",
+                        "Permission Denied",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Take QC sample for batch: " + batchNumber + "\n" +
+                            "From: QUARANTINE\n" +
+                            "To: QI\n\n" +
+                            "This action will be logged in the audit trail.",
+                    "Confirm Sample Collection",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                dbService.takeSampleForQC(batchNumber, currentUser.getUserId());
+                JOptionPane.showMessageDialog(this, "Batch moved to QI successfully.", "Success",
+                        JOptionPane.INFORMATION_MESSAGE);
+                refreshCurrentFilter();
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error taking QC sample: " + e.getMessage(), "Error",
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -345,6 +317,12 @@ public class QualityDashboard extends JPanel {
             String batchNumber = (String) batchTable.getValueAt(selectedRow, 0);
             String currentStatus = (String) batchTable.getValueAt(selectedRow, 3);
 
+            if (!"QI".equalsIgnoreCase(currentStatus)) {
+                JOptionPane.showMessageDialog(this, "Only QI batches can be approved or rejected.", "Invalid Action",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
             int confirm = JOptionPane.showConfirmDialog(this,
                     "Update QC status for batch: " + batchNumber + "\n" +
                             "From: " + currentStatus + "\n" +
@@ -358,10 +336,7 @@ public class QualityDashboard extends JPanel {
                 dbService.updateQCStatus(batchNumber, newStatus, currentUser.getUserId());
                 JOptionPane.showMessageDialog(this, "QC status updated successfully!", "Success",
                         JOptionPane.INFORMATION_MESSAGE);
-
-                String currentFilter = (String) filterComboBox.getSelectedItem();
-                String status = currentFilter.replace(" Only", "");
-                loadBatches(status);
+                refreshCurrentFilter();
             }
 
         } catch (Exception e) {
@@ -409,5 +384,49 @@ public class QualityDashboard extends JPanel {
             JOptionPane.showMessageDialog(this, "Error viewing genealogy: " + e.getMessage(), "Error",
                     JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void refreshCurrentFilter() {
+        loadBatches(getSelectedStatusFilter());
+    }
+
+    private String getSelectedStatusFilter() {
+        String filter = (String) filterComboBox.getSelectedItem();
+        if (filter == null) {
+            return "All";
+        }
+        return filter.replace(" Only", "");
+    }
+
+    private void updateActionButtons() {
+        String filter = getSelectedStatusFilter();
+        int selectedRow = batchTable.getSelectedRow();
+        String currentStatus = selectedRow >= 0 ? String.valueOf(batchTable.getValueAt(selectedRow, 3)) : null;
+
+        boolean canSample = selectedRow >= 0
+                && "QUARANTINE".equalsIgnoreCase(currentStatus)
+                && "QUARANTINE".equalsIgnoreCase(filter)
+                && authService.hasPermission(currentUser, "UPDATE_QC_STATUS");
+
+        boolean canApprove = selectedRow >= 0
+                && "QI".equalsIgnoreCase(currentStatus)
+                && "QI".equalsIgnoreCase(filter)
+                && authService.hasPermission(currentUser, "RELEASE_BATCH");
+
+        boolean canReject = selectedRow >= 0
+                && "QI".equalsIgnoreCase(currentStatus)
+                && "QI".equalsIgnoreCase(filter)
+                && authService.hasPermission(currentUser, "REJECT_BATCH");
+
+        sampleButton.setVisible("QUARANTINE".equalsIgnoreCase(filter));
+        sampleButton.setEnabled(canSample);
+
+        releaseButton.setVisible("QI".equalsIgnoreCase(filter));
+        releaseButton.setEnabled(canApprove);
+
+        rejectButton.setVisible("QI".equalsIgnoreCase(filter));
+        rejectButton.setEnabled(canReject);
+
+        genealogyButton.setEnabled(selectedRow >= 0);
     }
 }

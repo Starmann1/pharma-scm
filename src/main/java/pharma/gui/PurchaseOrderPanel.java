@@ -136,6 +136,17 @@ public class PurchaseOrderPanel extends JPanel {
         int selectedRow = ordersTable.getSelectedRow();
         if (selectedRow >= 0) {
             int orderId = (int) tableModel.getValueAt(selectedRow, 0);
+            String status = String.valueOf(tableModel.getValueAt(selectedRow, 5));
+
+            if ("Received".equalsIgnoreCase(status)) {
+                JOptionPane.showMessageDialog(this,
+                        "Order ID " + orderId
+                                + " cannot be deleted because it already has received stock. Delete is only allowed before the GRN is created.",
+                        "Delete Not Allowed",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
             int confirm = JOptionPane.showConfirmDialog(this,
                     "Are you sure you want to delete Order ID " + orderId + "?", "Confirm Delete",
                     JOptionPane.YES_NO_OPTION);

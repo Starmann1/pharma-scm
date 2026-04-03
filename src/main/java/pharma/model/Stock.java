@@ -7,6 +7,7 @@ public class Stock {
     private String materialCode;
     private String brandName;
     private String genericName;
+    private String manufacturer;
     private String locationCode;
     private String batchNumber;
     private double quantity;
@@ -17,6 +18,7 @@ public class Stock {
     private LocalDate expDate;
     private String qcStatus;
     private String parentBatchId;
+    private int productionOrderId;
 
     public Stock() {
     }
@@ -51,6 +53,14 @@ public class Stock {
 
     public void setGenericName(String genericName) {
         this.genericName = genericName;
+    }
+
+    public String getManufacturer() {
+        return manufacturer;
+    }
+
+    public void setManufacturer(String manufacturer) {
+        this.manufacturer = manufacturer;
     }
 
     public String getLocationCode() {
@@ -131,5 +141,13 @@ public class Stock {
 
     public void setParentBatchId(String parentBatchId) {
         this.parentBatchId = parentBatchId;
+    }
+
+    public int getProductionOrderId() {
+        return productionOrderId;
+    }
+
+    public void setProductionOrderId(int productionOrderId) {
+        this.productionOrderId = productionOrderId;
     }
 }
