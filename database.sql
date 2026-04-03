@@ -662,20 +662,20 @@ INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address
 (3, 'Zenith Meds', 'Alex Roe', '78 API Hub, TX', 'info@zenithmeds.com', '1122334455', 'GST11223', 'Net 60');
 
 -- Materials / Materials (Strict material_type: RAW_MATERIAL, PACKAGING, INTERMEDIATE, FINISHED_GOOD)
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
-('RM-PARA-API', 'Paracetamol API', 'Paracetamol', 'Zenith Meds', 3, 'RAW_MATERIAL', 'KG', 1),
-('RM-STARCH', 'Corn Starch', 'Starch Excipient', 'MedSupply Corp', 1, 'RAW_MATERIAL', 'KG', 1),
-('RM-MAGNESIUM', 'Magnesium Stearate', 'Magnesium Stearate', 'MedSupply Corp', 1, 'RAW_MATERIAL', 'KG', 1),
-('RM-LACTOSE', 'Lactose Monohydrate', 'Lactose', 'HealthCare Supplies', 2, 'RAW_MATERIAL', 'KG', 1),
-('RM-AMOX-API', 'Amoxicillin API', 'Amoxicillin Trihydrate', 'Zenith Meds', 3, 'RAW_MATERIAL', 'KG', 1),
-('RM-CET-API', 'Cetirizine API', 'Cetirizine HCl', 'Zenith Meds', 3, 'RAW_MATERIAL', 'KG', 1),
-('PM-ALU-FOIL', 'Alu-Alu Blister Foil', 'Primary Packaging Foil', 'HealthCare Supplies', 2, 'PACKAGING', 'ROLL', 1),
-('PM-PVC-FILM', 'PVC Blister Film', 'Primary Packaging Film', 'HealthCare Supplies', 2, 'PACKAGING', 'ROLL', 1),
-('PM-CARTON', 'Printed Cartons', 'Secondary Packaging Cartons', 'MedSupply Corp', 1, 'PACKAGING', 'NOS', 1),
-('INT-PARA-GRANULES', 'Paracetamol Granules', 'Paracetamol 500mg Granules blend', 'Internal', NULL, 'INTERMEDIATE', 'KG', 1),
-('DRG001', 'Paracetamol 500mg Tablet', 'Paracetamol', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
-('DRG002', 'Amoxicillin 250mg Capsule', 'Amoxicillin', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
-('DRG003', 'Cetirizine 10mg Tablet', 'Cetirizine HCl', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('RM-PARA-API', 'Paracetamol API', 'Paracetamol', 'Zenith Meds', 'API', '100%', 3, 'RAW_MATERIAL', 'KG', 1),
+('RM-STARCH', 'Corn Starch', 'Starch Excipient', 'MedSupply Corp', 'Powder', '99%', 1, 'RAW_MATERIAL', 'KG', 1),
+('RM-MAGNESIUM', 'Magnesium Stearate', 'Magnesium Stearate', 'MedSupply Corp', 'Powder', '99%', 1, 'RAW_MATERIAL', 'KG', 1),
+('RM-LACTOSE', 'Lactose Monohydrate', 'Lactose', 'HealthCare Supplies', 'Powder', '99%', 2, 'RAW_MATERIAL', 'KG', 1),
+('RM-AMOX-API', 'Amoxicillin API', 'Amoxicillin Trihydrate', 'Zenith Meds', 'API', '100%', 3, 'RAW_MATERIAL', 'KG', 1),
+('RM-CET-API', 'Cetirizine API', 'Cetirizine HCl', 'Zenith Meds', 'API', '100%', 3, 'RAW_MATERIAL', 'KG', 1),
+('PM-ALU-FOIL', 'Alu-Alu Blister Foil', 'Primary Packaging Foil', 'HealthCare Supplies', 'Foil', '25mic', 2, 'PACKAGING', 'UNIT', 1),
+('PM-PVC-FILM', 'PVC Blister Film', 'Primary Packaging Film', 'HealthCare Supplies', 'Film', '250mic', 2, 'PACKAGING', 'UNIT', 1),
+('PM-CARTON', 'Printed Cartons', 'Secondary Packaging Cartons', 'MedSupply Corp', 'Carton', 'Mono', 1, 'PACKAGING', 'UNIT', 1),
+('INT-PARA-GRANULES', 'Paracetamol Granules', 'Paracetamol 500mg Granules blend', 'Internal', 'Granules', '500mg', NULL, 'FINISHED_GOOD', 'KG', 1),
+('DRG001', 'Paracetamol 500mg Tablet', 'Paracetamol', 'Internal', 'Tablet', '500mg', NULL, 'FINISHED_GOOD', 'UNIT', 1),
+('DRG002', 'Amoxicillin 250mg Capsule', 'Amoxicillin', 'Internal', 'Capsule', '250mg', NULL, 'FINISHED_GOOD', 'UNIT', 1),
+('DRG003', 'Cetirizine 10mg Tablet', 'Cetirizine HCl', 'Internal', 'Tablet', '10mg', NULL, 'FINISHED_GOOD', 'UNIT', 1);
 
 -- Bill of Materials Header
 INSERT INTO bom_header (bom_id, material_code, version_number, is_active, effective_date, description) VALUES
@@ -754,11 +754,11 @@ INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address
 (5, 'EuroPharma Packaging', 'Sophie Laurent', '22 Rue Pasteur, Paris', 's.laurent@europharma.eu', '3319876543', 'GST55667', 'Net 45');
 
 -- Additional Materials/Materials
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
-('RM-IBU-API', 'Ibuprofen API', 'Ibuprofen', 'Global APIs Inc.', 4, 'RAW_MATERIAL', 'KG', 1),
-('RM-MCC', 'Microcrystalline Cellulose', 'MCC Excipient', 'EuroPharma Packaging', 5, 'RAW_MATERIAL', 'KG', 1),
-('PM-BOTTLE-100', 'HDPE Bottle 100ml', 'Packaging Bottle', 'EuroPharma Packaging', 5, 'PACKAGING', 'NOS', 1),
-('DRG004', 'Ibuprofen 400mg Tablet', 'Ibuprofen', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('RM-IBU-API', 'Ibuprofen API', 'Ibuprofen', 'Global APIs Inc.', 'API', '100%', 4, 'RAW_MATERIAL', 'KG', 1),
+('RM-MCC', 'Microcrystalline Cellulose', 'MCC Excipient', 'EuroPharma Packaging', 'Powder', '98%', 5, 'RAW_MATERIAL', 'KG', 1),
+('PM-BOTTLE-100', 'HDPE Bottle 100ml', 'Packaging Bottle', 'EuroPharma Packaging', 'Bottle', '100ml', 5, 'PACKAGING', 'UNIT', 1),
+('DRG004', 'Ibuprofen 400mg Tablet', 'Ibuprofen', 'Internal', 'Tablet', '400mg', NULL, 'FINISHED_GOOD', 'UNIT', 1);
 
 -- Additional Bill of Materials
 INSERT INTO bom_header (bom_id, material_code, version_number, is_active, effective_date, description) VALUES
@@ -803,16 +803,16 @@ INSERT INTO supplier_master (supplier_id, supplier_name, contact_person, address
 (7, 'Alpha Blisters Ltd', 'Karen O Connor', '99 Packaging Way, UK', 'karen@alphablister.co.uk', '441234567', 'GST44556', 'Net 60');
 
 -- 2. New Materials/Materials (Raw Materials, Packaging, Excipients, Finished Goods)
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
-('RM-VITC-API', 'Ascorbic Acid API', 'Vitamin C', 'Kemico Industries', 6, 'RAW_MATERIAL', 'KG', 1),
-('RM-ZINC-OX', 'Zinc Oxide', 'Zinc Supplement', 'Kemico Industries', 6, 'RAW_MATERIAL', 'KG', 1),
-('RM-SUCROSE', 'Sucrose Excipient', 'Sucrose', 'HealthCare Supplies', 2, 'RAW_MATERIAL', 'KG', 1),
-('RM-COLORANT', 'Orange Colorant', 'Food Color', 'Zenith Meds', 3, 'RAW_MATERIAL', 'KG', 1),
-('PM-BOTTLE-60', 'HDPE Bottle 60ml', 'Packaging Bottle', 'Alpha Blisters Ltd', 7, 'PACKAGING', 'NOS', 1),
-('PM-BOTTLE-CAP', 'Child-restant Cap', 'Cap Closure', 'Alpha Blisters Ltd', 7, 'PACKAGING', 'NOS', 1),
-('PM-LABEL-VIT', 'Vitamin C Label', 'Printed Label', 'MedSupply Corp', 1, 'PACKAGING', 'ROLL', 1),
-('DRG005', 'Vit-C Orange Chewable', 'Vitamin C 500mg', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
-('DRG006', 'Zinc Boost 50mg', 'Zinc Oxide', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('RM-VITC-API', 'Ascorbic Acid API', 'Vitamin C', 'Kemico Industries', 'API', '100%', 6, 'RAW_MATERIAL', 'KG', 1),
+('RM-ZINC-OX', 'Zinc Oxide', 'Zinc Supplement', 'Kemico Industries', 'API', '100%', 6, 'RAW_MATERIAL', 'KG', 1),
+('RM-SUCROSE', 'Sucrose Excipient', 'Sucrose', 'HealthCare Supplies', 'Powder', '99%', 2, 'RAW_MATERIAL', 'KG', 1),
+('RM-COLORANT', 'Orange Colorant', 'Food Color', 'Zenith Meds', 'Liquid', '100%', 3, 'RAW_MATERIAL', 'KG', 1),
+('PM-BOTTLE-60', 'HDPE Bottle 60ml', 'Packaging Bottle', 'Alpha Blisters Ltd', 'Bottle', '60ml', 7, 'PACKAGING', 'UNIT', 1),
+('PM-BOTTLE-CAP', 'Child-restant Cap', 'Cap Closure', 'Alpha Blisters Ltd', 'Cap', '28mm', 7, 'PACKAGING', 'UNIT', 1),
+('PM-LABEL-VIT', 'Vitamin C Label', 'Printed Label', 'MedSupply Corp', 'Label', '50x30mm', 1, 'PACKAGING', 'UNIT', 1),
+('DRG005', 'Vit-C Orange Chewable', 'Vitamin C 500mg', 'Internal', 'Chewable Tablet', '500mg', NULL, 'FINISHED_GOOD', 'UNIT', 1),
+('DRG006', 'Zinc Boost 50mg', 'Zinc Oxide', 'Internal', 'Tablet', '50mg', NULL, 'FINISHED_GOOD', 'UNIT', 1);
 
 -- 3. Bill of Materials
 INSERT INTO bom_header (bom_id, material_code, version_number, is_active, effective_date, description) VALUES
@@ -881,34 +881,34 @@ INSERT INTO supplier_master (supplier_name, contact_person, address, email, phon
 ('Global Excipients', 'Bruce Wayne', '90 Gotham Ave, NJ', 'bruce@globalexcipients.com', '7778889999', 'GST66778', 'Net 45');
 
 -- 10 New Materials / Materials
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
-SELECT 'RM-ASPIRIN-API', 'Aspirin API', 'Acetylsalicylic acid', 'Apex Pharma', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Apex Pharma';
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'RM-ASPIRIN-API', 'Aspirin API', 'Acetylsalicylic acid', 'Apex Pharma', 'API', '100%', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Apex Pharma';
 
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
-SELECT 'RM-MAIZE', 'Maize Starch', 'Maize Starch Excipient', 'Global Excipients', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Global Excipients';
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'RM-MAIZE', 'Maize Starch', 'Maize Starch Excipient', 'Global Excipients', 'Powder', '99%', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Global Excipients';
 
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
-SELECT 'PM-BOTTLE-200', 'HDPE Bottle 200ml', 'Packaging Bottle', 'Prime Packaging', supplier_id, 'PACKAGING', 'NOS', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'PM-BOTTLE-200', 'HDPE Bottle 200ml', 'Packaging Bottle', 'Prime Packaging', 'Bottle', '200ml', supplier_id, 'PACKAGING', 'UNIT', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
 
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
-SELECT 'PM-CAP-200', 'Bottle Cap 200ml', 'Bottle Cap', 'Prime Packaging', supplier_id, 'PACKAGING', 'NOS', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'PM-CAP-200', 'Bottle Cap 200ml', 'Bottle Cap', 'Prime Packaging', 'Cap', '28mm', supplier_id, 'PACKAGING', 'UNIT', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
 
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
-SELECT 'PM-LABEL-ASP', 'Aspirin Label', 'Printed Label', 'Prime Packaging', supplier_id, 'PACKAGING', 'ROLL', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'PM-LABEL-ASP', 'Aspirin Label', 'Printed Label', 'Prime Packaging', 'Label', '100x50mm', supplier_id, 'PACKAGING', 'UNIT', 1 FROM supplier_master WHERE supplier_name = 'Prime Packaging';
 
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
-('DRG-061', 'Aspirin 300mg Tablet', 'Aspirin', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
-('DRG-062', 'Aspirin 500mg Tablet', 'Aspirin', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('DRG007', 'Aspirin 300mg Tablet', 'Aspirin', 'Internal', 'Tablet', '300mg', NULL, 'FINISHED_GOOD', 'UNIT', 1),
+('DRG008', 'Aspirin 500mg Tablet', 'Aspirin', 'Internal', 'Tablet', '500mg', NULL, 'FINISHED_GOOD', 'UNIT', 1);
 
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
-SELECT 'RM-TRAMADOL', 'Tramadol API', 'Tramadol HCl', 'Giga APIs', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Giga APIs';
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'RM-TRAMADOL', 'Tramadol API', 'Tramadol HCl', 'Giga APIs', 'API', '100%', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Giga APIs';
 
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active)
-SELECT 'RM-DICLOFENAC', 'Diclofenac API', 'Diclofenac Sodium', 'Nova Meds', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Nova Meds';
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active)
+SELECT 'RM-DICLOFENAC', 'Diclofenac API', 'Diclofenac Sodium', 'Nova Meds', 'API', '100%', supplier_id, 'RAW_MATERIAL', 'KG', 1 FROM supplier_master WHERE supplier_name = 'Nova Meds';
 
-INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
-('DRG-063', 'Tramadol 50mg Capsule', 'Tramadol', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1),
-('DRG-064', 'Diclofenac 50mg Tablet', 'Diclofenac', 'Internal', NULL, 'FINISHED_GOOD', 'NOS', 1);
+INSERT INTO material_master (material_code, brand_name, generic_name, manufacturer, formulation, strength, preferred_supplier_id, material_type, unit_of_measure, is_active) VALUES
+('DRG009', 'Tramadol 50mg Capsule', 'Tramadol', 'Internal', 'Capsule', '50mg', NULL, 'FINISHED_GOOD', 'UNIT', 1),
+('DRG010', 'Diclofenac 50mg Tablet', 'Diclofenac', 'Internal', 'Tablet', '50mg', NULL, 'FINISHED_GOOD', 'UNIT', 1);
 
 
 -- 3 New Purchase Orders
