@@ -42,6 +42,11 @@ public class QualityDashboard extends JPanel {
         loadBatches("All");
     }
 
+    public void refreshData() {
+        refreshCurrentFilter();
+        showBatchDetails();
+    }
+
     private JPanel createHeaderPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -53,7 +58,8 @@ public class QualityDashboard extends JPanel {
         filterPanel.add(new JLabel("Filter:"));
 
         filterComboBox = new JComboBox<>(
-                new String[] { "All", "QI Only", "QUARANTINE Only", "APPROVED Only", "REJECTED Only" });
+                new String[] { "All", "QI Only", "QUARANTINE Only", "IN_PRODUCTION", "APPROVED Only",
+                        "REJECTED Only" });
         filterComboBox.addActionListener(e -> {
             loadBatches(getSelectedStatusFilter());
         });
@@ -100,7 +106,16 @@ public class QualityDashboard extends JPanel {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                 String status = (String) table.getValueAt(row, 3);
 
-                if ("QI".equals(status)) {
+                if ("IN_PRODUCTION".equals(status)) {
+                    c.setBackground(new Color(204, 229, 255)); // Light blue
+                    c.setForeground(Color.BLACK);
+                } else if ("IN_PROCESS_SAMPLE".equals(status)) {
+                    c.setBackground(new Color(255, 230, 204)); // Peach
+                    c.setForeground(Color.BLACK);
+                } else if ("UNDER_TEST".equals(status)) {
+                    c.setBackground(new Color(221, 221, 255)); // Soft violet-blue
+                    c.setForeground(Color.BLACK);
+                } else if ("QI".equals(status)) {
                     c.setBackground(new Color(255, 204, 153)); // Orange/Amber
                     c.setForeground(Color.BLACK);
                 } else if ("QUARANTINE".equals(status)) {
@@ -108,6 +123,9 @@ public class QualityDashboard extends JPanel {
                     c.setForeground(Color.BLACK);
                 } else if ("APPROVED".equals(status)) {
                     c.setBackground(new Color(200, 255, 200)); // Green
+                    c.setForeground(Color.BLACK);
+                } else if ("RELEASED".equals(status)) {
+                    c.setBackground(new Color(180, 255, 200)); // Green with stronger release cue
                     c.setForeground(Color.BLACK);
                 } else if ("REJECTED".equals(status)) {
                     c.setBackground(new Color(255, 200, 200)); // Red
@@ -257,12 +275,6 @@ public class QualityDashboard extends JPanel {
             String batchNumber = (String) batchTable.getValueAt(selectedRow, 0);
             String currentStatus = (String) batchTable.getValueAt(selectedRow, 3);
 
-            if (!"QUARANTINE".equalsIgnoreCase(currentStatus)) {
-                JOptionPane.showMessageDialog(this, "Only quarantined batches can be sampled.", "Invalid Action",
-                        JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
             if (!authService.hasPermission(currentUser, "UPDATE_QC_STATUS")) {
                 JOptionPane.showMessageDialog(this,
                         "You don't have permission to take samples for QC.\nRequired Role: Quality Analyst",
@@ -271,10 +283,29 @@ public class QualityDashboard extends JPanel {
                 return;
             }
 
+            String nextStatus;
+            String actionLabel;
+            if ("IN_PRODUCTION".equalsIgnoreCase(currentStatus)) {
+                nextStatus = "IN_PROCESS_SAMPLE";
+                actionLabel = "Take IPQC Sample";
+            } else if ("IN_PROCESS_SAMPLE".equalsIgnoreCase(currentStatus)) {
+                nextStatus = "UNDER_TEST";
+                actionLabel = "Start IPQC Testing";
+            } else if ("QUARANTINE".equalsIgnoreCase(currentStatus)) {
+                nextStatus = "QI";
+                actionLabel = "Take QC Sample";
+            } else {
+                JOptionPane.showMessageDialog(this,
+                        "Only IN_PRODUCTION, IN_PROCESS_SAMPLE, or QUARANTINE batches can use this action.",
+                        "Invalid Action",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
             int confirm = JOptionPane.showConfirmDialog(this,
-                    "Take QC sample for batch: " + batchNumber + "\n" +
-                            "From: QUARANTINE\n" +
-                            "To: QI\n\n" +
+                    actionLabel + " for batch: " + batchNumber + "\n" +
+                            "From: " + currentStatus + "\n" +
+                            "To: " + nextStatus + "\n\n" +
                             "This action will be logged in the audit trail.",
                     "Confirm Sample Collection",
                     JOptionPane.YES_NO_OPTION,
@@ -282,7 +313,7 @@ public class QualityDashboard extends JPanel {
 
             if (confirm == JOptionPane.YES_OPTION) {
                 dbService.takeSampleForQC(batchNumber, currentUser.getUserId());
-                JOptionPane.showMessageDialog(this, "Batch moved to QI successfully.", "Success",
+                JOptionPane.showMessageDialog(this, "Batch moved to " + nextStatus + " successfully.", "Success",
                         JOptionPane.INFORMATION_MESSAGE);
                 refreshCurrentFilter();
             }
@@ -317,8 +348,10 @@ public class QualityDashboard extends JPanel {
             String batchNumber = (String) batchTable.getValueAt(selectedRow, 0);
             String currentStatus = (String) batchTable.getValueAt(selectedRow, 3);
 
-            if (!"QI".equalsIgnoreCase(currentStatus)) {
-                JOptionPane.showMessageDialog(this, "Only QI batches can be approved or rejected.", "Invalid Action",
+            if (!"QI".equalsIgnoreCase(currentStatus) && !"UNDER_TEST".equalsIgnoreCase(currentStatus)) {
+                JOptionPane.showMessageDialog(this,
+                        "Only QI or UNDER_TEST batches can be approved or rejected.",
+                        "Invalid Action",
                         JOptionPane.WARNING_MESSAGE);
                 return;
             }
@@ -404,27 +437,38 @@ public class QualityDashboard extends JPanel {
         String currentStatus = selectedRow >= 0 ? String.valueOf(batchTable.getValueAt(selectedRow, 3)) : null;
 
         boolean canSample = selectedRow >= 0
-                && "QUARANTINE".equalsIgnoreCase(currentStatus)
-                && "QUARANTINE".equalsIgnoreCase(filter)
+                && ("IN_PRODUCTION".equalsIgnoreCase(currentStatus)
+                        || "IN_PROCESS_SAMPLE".equalsIgnoreCase(currentStatus)
+                        || "QUARANTINE".equalsIgnoreCase(currentStatus))
                 && authService.hasPermission(currentUser, "UPDATE_QC_STATUS");
 
         boolean canApprove = selectedRow >= 0
-                && "QI".equalsIgnoreCase(currentStatus)
-                && "QI".equalsIgnoreCase(filter)
+                && ("QI".equalsIgnoreCase(currentStatus) || "UNDER_TEST".equalsIgnoreCase(currentStatus))
                 && authService.hasPermission(currentUser, "RELEASE_BATCH");
 
         boolean canReject = selectedRow >= 0
-                && "QI".equalsIgnoreCase(currentStatus)
-                && "QI".equalsIgnoreCase(filter)
+                && ("QI".equalsIgnoreCase(currentStatus) || "UNDER_TEST".equalsIgnoreCase(currentStatus))
                 && authService.hasPermission(currentUser, "REJECT_BATCH");
 
-        sampleButton.setVisible("QUARANTINE".equalsIgnoreCase(filter));
+        sampleButton.setVisible(selectedRow >= 0
+                && ("IN_PRODUCTION".equalsIgnoreCase(currentStatus)
+                        || "IN_PROCESS_SAMPLE".equalsIgnoreCase(currentStatus)
+                        || "QUARANTINE".equalsIgnoreCase(currentStatus)));
         sampleButton.setEnabled(canSample);
+        if ("IN_PROCESS_SAMPLE".equalsIgnoreCase(currentStatus)) {
+            sampleButton.setText("Start Testing");
+        } else if ("IN_PRODUCTION".equalsIgnoreCase(currentStatus)) {
+            sampleButton.setText("Take IPQC Sample");
+        } else {
+            sampleButton.setText("Take Sample");
+        }
 
-        releaseButton.setVisible("QI".equalsIgnoreCase(filter));
+        releaseButton.setVisible(selectedRow >= 0
+                && ("QI".equalsIgnoreCase(currentStatus) || "UNDER_TEST".equalsIgnoreCase(currentStatus)));
         releaseButton.setEnabled(canApprove);
 
-        rejectButton.setVisible("QI".equalsIgnoreCase(filter));
+        rejectButton.setVisible(selectedRow >= 0
+                && ("QI".equalsIgnoreCase(currentStatus) || "UNDER_TEST".equalsIgnoreCase(currentStatus)));
         rejectButton.setEnabled(canReject);
 
         genealogyButton.setEnabled(selectedRow >= 0);

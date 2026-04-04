@@ -138,11 +138,23 @@ public class InventoryPanel extends JPanel {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                 if (value != null) {
                     String status = value.toString();
-                    if (status.equalsIgnoreCase("QI")) {
+                    if (status.equalsIgnoreCase("IN_PRODUCTION")) {
+                        c.setBackground(new Color(204, 229, 255)); // Light blue
+                        c.setForeground(Color.BLACK);
+                    } else if (status.equalsIgnoreCase("IN_PROCESS_SAMPLE")) {
+                        c.setBackground(new Color(255, 230, 204)); // Peach
+                        c.setForeground(Color.BLACK);
+                    } else if (status.equalsIgnoreCase("UNDER_TEST")) {
+                        c.setBackground(new Color(221, 221, 255)); // Soft violet-blue
+                        c.setForeground(Color.BLACK);
+                    } else if (status.equalsIgnoreCase("QI")) {
                         c.setBackground(new Color(255, 204, 153)); // Orange/Amber
                         c.setForeground(Color.BLACK);
                     } else if (status.equalsIgnoreCase("APPROVED")) {
                         c.setBackground(new Color(200, 255, 200)); // Light Green
+                        c.setForeground(Color.BLACK);
+                    } else if (status.equalsIgnoreCase("RELEASED")) {
+                        c.setBackground(new Color(180, 255, 200)); // Released finished goods
                         c.setForeground(Color.BLACK);
                     } else if (status.equalsIgnoreCase("QUARANTINE")) {
                         c.setBackground(new Color(255, 255, 200)); // Light Yellow

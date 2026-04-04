@@ -51,6 +51,11 @@ public class ProductionPanel extends JPanel {
         loadProductionOrders();
     }
 
+    public void refreshData() {
+        loadProductionOrders();
+        showOrderDetails();
+    }
+
     private JPanel createHeaderPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -423,8 +428,8 @@ public class ProductionPanel extends JPanel {
             int confirm = JOptionPane.showConfirmDialog(this,
                     "Execute production run for Order ID: " + orderId + "?\n\nThis will:\n" +
                             "- Consume raw materials (FEFO)\n" +
-                            "- Create finished goods in QUARANTINE\n" +
-                            "- Update order status to Quality-Testing\n" +
+                            "- Create finished goods in IN_PRODUCTION\n" +
+                            "- Update order status to In-Production\n" +
                             "- Log audit trail\n\nThis action cannot be undone!",
                     "Confirm Production Run",
                     JOptionPane.YES_NO_OPTION,

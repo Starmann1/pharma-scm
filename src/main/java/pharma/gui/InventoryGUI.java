@@ -16,6 +16,8 @@ public class InventoryGUI extends JFrame {
     private DatabaseService dbService;
     private AuthService authService;
     private User activeUser; // Field to hold the logged-in user
+    private ProductionPanel productionPanel;
+    private QualityDashboard qualityDashboard;
 
     // REMOVED DASHBOARD :private final String DASHBOARD = "Dashboard";
     private final String MATERIALS = "Materials";
@@ -228,6 +230,7 @@ public class InventoryGUI extends JFrame {
 
         button.addActionListener(e -> {
             cardLayout.show(mainContentPanel, text);
+            refreshPanelForNavigation(text);
             System.out.println("Switched to: " + text);
         });
 
@@ -265,14 +268,24 @@ public class InventoryGUI extends JFrame {
         mainContentPanel.add(new GRNPanel(this, dbService), GRN);
 
         // Manufacturing panels - Now using actual implementations
-        mainContentPanel.add(new ProductionPanel(dbService, authService, activeUser), PRODUCTION);
-        mainContentPanel.add(new QualityDashboard(dbService, authService, activeUser), QUALITY);
+        productionPanel = new ProductionPanel(dbService, authService, activeUser);
+        qualityDashboard = new QualityDashboard(dbService, authService, activeUser);
+        mainContentPanel.add(productionPanel, PRODUCTION);
+        mainContentPanel.add(qualityDashboard, QUALITY);
 
         // ReportsPanel: Assumed signature: ReportsPanel(DatabaseService)
         mainContentPanel.add(new ReportsPanel(dbService), REPORTS);
 
         if (authService.hasPermission(activeUser, "MANAGE_USERS")) {
             mainContentPanel.add(new AdminRBACPanel(new pharma.service.RoleService(dbService), activeUser), ADMIN);
+        }
+    }
+
+    private void refreshPanelForNavigation(String panelName) {
+        if (PRODUCTION.equals(panelName) && productionPanel != null) {
+            productionPanel.refreshData();
+        } else if (QUALITY.equals(panelName) && qualityDashboard != null) {
+            qualityDashboard.refreshData();
         }
     }
 

@@ -927,6 +927,48 @@ INSERT INTO material_master (material_code, brand_name, generic_name, manufactur
 ('DRG009', 'Tramadol 50mg Capsule', 'Tramadol', 'Internal', 'Capsule', '50mg', NULL, 'FINISHED_GOOD', 'UNIT', 1),
 ('DRG010', 'Diclofenac 50mg Tablet', 'Diclofenac', 'Internal', 'Tablet', '50mg', NULL, 'FINISHED_GOOD', 'UNIT', 1);
 
+-- 3. Bill of Materials for previously unavailable finished goods
+INSERT INTO bom_header (bom_id, material_code, version_number, is_active, effective_date, description) VALUES
+(6, 'DRG003', 1, 1, '2026-04-04', 'BOM for Cetirizine 10mg Tablet (per 1000 tablets)'),
+(7, 'DRG007', 1, 1, '2026-04-04', 'BOM for Aspirin 300mg Tablet (per 1000 tablets)'),
+(8, 'DRG008', 1, 1, '2026-04-04', 'BOM for Aspirin 500mg Tablet (per 1000 tablets)'),
+(9, 'DRG009', 1, 1, '2026-04-04', 'BOM for Tramadol 50mg Capsule (per 1000 capsules)'),
+(10, 'DRG010', 1, 1, '2026-04-04', 'BOM for Diclofenac 50mg Tablet (per 1000 tablets)');
+
+INSERT INTO bom_details (bom_id, ingredient_material_code, required_qty, uom, sequence_number) VALUES
+-- Cetirizine 10mg Tablet
+(6, 'RM-CET-API', 0.0100, 'KG', 10),
+(6, 'RM-LACTOSE', 0.1400, 'KG', 20),
+(6, 'RM-MAGNESIUM', 0.0050, 'KG', 30),
+(6, 'PM-ALU-FOIL', 1.0000, 'ROLL', 40),
+(6, 'PM-CARTON', 100.0000, 'NOS', 50),
+-- Aspirin 300mg Tablet
+(7, 'RM-ASPIRIN-API', 0.3000, 'KG', 10),
+(7, 'RM-MAIZE', 0.1800, 'KG', 20),
+(7, 'RM-MAGNESIUM', 0.0200, 'KG', 30),
+(7, 'PM-BOTTLE-200', 10.0000, 'NOS', 40),
+(7, 'PM-CAP-200', 10.0000, 'NOS', 50),
+(7, 'PM-LABEL-ASP', 10.0000, 'NOS', 60),
+-- Aspirin 500mg Tablet
+(8, 'RM-ASPIRIN-API', 0.5000, 'KG', 10),
+(8, 'RM-MAIZE', 0.1500, 'KG', 20),
+(8, 'RM-MAGNESIUM', 0.0200, 'KG', 30),
+(8, 'PM-BOTTLE-200', 10.0000, 'NOS', 40),
+(8, 'PM-CAP-200', 10.0000, 'NOS', 50),
+(8, 'PM-LABEL-ASP', 10.0000, 'NOS', 60),
+-- Tramadol 50mg Capsule
+(9, 'RM-TRAMADOL', 0.0500, 'KG', 10),
+(9, 'RM-LACTOSE', 0.1200, 'KG', 20),
+(9, 'PM-PVC-FILM', 1.0000, 'ROLL', 30),
+(9, 'PM-ALU-FOIL', 1.0000, 'ROLL', 40),
+(9, 'PM-CARTON', 100.0000, 'NOS', 50),
+-- Diclofenac 50mg Tablet
+(10, 'RM-DICLOFENAC', 0.0500, 'KG', 10),
+(10, 'RM-MCC', 0.1800, 'KG', 20),
+(10, 'RM-MAGNESIUM', 0.0100, 'KG', 30),
+(10, 'PM-ALU-FOIL', 1.0000, 'ROLL', 40),
+(10, 'PM-CARTON', 100.0000, 'NOS', 50);
+
 
 -- 3 New Purchase Orders
 INSERT INTO purchase_order (supplier_id, order_date, expected_date, status)
@@ -975,6 +1017,23 @@ INSERT INTO grn_item (grn_id, drug_id, batch_number, quantity_received, expiry_d
 
 INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
 ('PM-BOTTLE-200', 'PACKAGING_WAREHOUSE', 'BATCH-PM-B200-001', 10000.00, 0, 0.50, '2026-02-01', '2030-03-01', 'APPROVED');
+
+-- 8. Opening stock for BOM ingredients that were missing inventory
+INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, reserved_quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES
+('RM-CET-API', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-CET-001', 50.0000, 0, 85.00, '2026-01-10', '2028-01-10', 'APPROVED'),
+('RM-MAIZE', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-MAIZE-001', 600.0000, 0, 2.80, '2026-01-15', '2028-01-15', 'APPROVED'),
+('PM-CAP-200', 'PACKAGING_WAREHOUSE', 'BATCH-PM-CAP200-001', 10000.0000, 0, 0.10, '2026-02-05', '2030-02-05', 'APPROVED'),
+('PM-LABEL-ASP', 'PACKAGING_WAREHOUSE', 'BATCH-PM-LBLASP-001', 10000.0000, 0, 0.08, '2026-02-05', '2030-02-05', 'APPROVED'),
+('RM-TRAMADOL', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-TRAM-001', 150.0000, 0, 32.00, '2026-01-20', '2028-01-20', 'APPROVED'),
+('RM-DICLOFENAC', 'RAW_MATERIAL_WAREHOUSE', 'BATCH-RM-DICLO-001', 500.0000, 0, 20.00, '2026-01-12', '2028-01-12', 'APPROVED');
+
+INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES
+('RM-CET-API', 'BATCH-RM-CET-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 50.0000, 'INITIAL', 'OP_BAL', 1, 'Opening balance for DRG003 BOM'),
+('RM-MAIZE', 'BATCH-RM-MAIZE-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 600.0000, 'INITIAL', 'OP_BAL', 1, 'Opening balance for Aspirin BOMs'),
+('PM-CAP-200', 'BATCH-PM-CAP200-001', 'PACKAGING_WAREHOUSE', 'GRN_RECEIPT', 10000.0000, 'INITIAL', 'OP_BAL', 1, 'Opening balance for Aspirin BOMs'),
+('PM-LABEL-ASP', 'BATCH-PM-LBLASP-001', 'PACKAGING_WAREHOUSE', 'GRN_RECEIPT', 10000.0000, 'INITIAL', 'OP_BAL', 1, 'Opening balance for Aspirin BOMs'),
+('RM-TRAMADOL', 'BATCH-RM-TRAM-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 150.0000, 'INITIAL', 'OP_BAL', 1, 'Opening balance for DRG009 BOM'),
+('RM-DICLOFENAC', 'BATCH-RM-DICLO-001', 'RAW_MATERIAL_WAREHOUSE', 'GRN_RECEIPT', 500.0000, 'INITIAL', 'OP_BAL', 1, 'Opening balance for DRG010 BOM');
 
 -- Existing seeded suppliers are treated as qualified so legacy sample procurement remains functional.
 UPDATE supplier_master

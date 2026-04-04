@@ -87,6 +87,7 @@ public class DatabaseService {
     private void ensureOptionalSchema() {
         try (Connection conn = getConnection()) {
             ensureSupplierApprovalSchema(conn);
+            ensureInventoryStatusLocationConsistency(conn);
         } catch (SQLException | ClassNotFoundException e) {
             logger.warn("Failed to auto-apply optional schema updates: {}", e.getMessage());
         }
@@ -138,6 +139,46 @@ public class DatabaseService {
         DatabaseMetaData metaData = conn.getMetaData();
         try (ResultSet rs = metaData.getColumns(conn.getCatalog(), null, tableName, columnName)) {
             return rs.next();
+        }
+    }
+
+    private void ensureInventoryStatusLocationConsistency(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate(
+                    "UPDATE Stock_Inventory si " +
+                            "JOIN Material_Master mm ON mm.material_code = si.material_code " +
+                            "SET si.qc_status = CASE " +
+                            "        WHEN si.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'RELEASED' " +
+                            "        ELSE si.qc_status " +
+                            "    END, " +
+                            "    si.location_code = CASE " +
+                            "        WHEN si.qc_status = 'REJECTED' THEN 'REJECTED_AREA' " +
+                            "        WHEN si.qc_status = 'IN_PRODUCTION' THEN 'PRODUCTION_FLOOR' " +
+                            "        WHEN si.qc_status IN ('QUARANTINE', 'QI', 'IN_PROCESS_SAMPLE', 'UNDER_TEST') THEN 'QC_HOLD' " +
+                            "        WHEN si.qc_status = 'RELEASED' THEN 'FINISHED_GOODS_WAREHOUSE' " +
+                            "        WHEN si.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'FINISHED_GOODS_WAREHOUSE' " +
+                            "        WHEN si.qc_status = 'APPROVED' AND mm.material_type = 'PACKAGING' THEN 'PACKAGING_WAREHOUSE' " +
+                            "        WHEN si.qc_status = 'APPROVED' AND mm.material_type IN ('RAW_MATERIAL', 'INTERMEDIATE') THEN 'RAW_MATERIAL_WAREHOUSE' " +
+                            "        ELSE si.location_code " +
+                            "    END");
+
+            stmt.executeUpdate(
+                    "UPDATE production_batch pb " +
+                            "JOIN Material_Master mm ON mm.material_code = pb.material_code " +
+                            "SET pb.qc_status = CASE " +
+                            "        WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'RELEASED' " +
+                            "        ELSE pb.qc_status " +
+                            "    END, " +
+                            "    pb.location_code = CASE " +
+                            "        WHEN pb.qc_status = 'REJECTED' THEN 'REJECTED_AREA' " +
+                            "        WHEN pb.qc_status = 'IN_PRODUCTION' THEN 'PRODUCTION_FLOOR' " +
+                            "        WHEN pb.qc_status IN ('QUARANTINE', 'QI', 'IN_PROCESS_SAMPLE', 'UNDER_TEST') THEN 'QC_HOLD' " +
+                            "        WHEN pb.qc_status = 'RELEASED' THEN 'FINISHED_GOODS_WAREHOUSE' " +
+                            "        WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'FINISHED_GOODS_WAREHOUSE' " +
+                            "        WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'PACKAGING' THEN 'PACKAGING_WAREHOUSE' " +
+                            "        WHEN pb.qc_status = 'APPROVED' AND mm.material_type IN ('RAW_MATERIAL', 'INTERMEDIATE') THEN 'RAW_MATERIAL_WAREHOUSE' " +
+                            "        ELSE pb.location_code " +
+                            "    END");
         }
     }
 
@@ -279,7 +320,8 @@ public class DatabaseService {
         return supplierNames;
     }
 
-    public boolean approveSupplier(int supplierId, String remarks, String performedBy) throws SQLException, ClassNotFoundException {
+    public boolean approveSupplier(int supplierId, String remarks, String performedBy)
+            throws SQLException, ClassNotFoundException {
         String selectSql = "SELECT supplier_name, gstin, drug_license_number, supplier_status FROM Supplier_Master WHERE supplier_id = ?";
         String updateSql = "UPDATE Supplier_Master SET supplier_status = 'APPROVED', approved_at = CURRENT_TIMESTAMP, rejected_at = NULL, remarks = ? WHERE supplier_id = ?";
 
@@ -296,7 +338,8 @@ public class DatabaseService {
                             supplier.setSupplierName(rs.getString("supplier_name"));
                             supplier.setGstin(rs.getString("gstin"));
                             supplier.setDrugLicenseNumber(rs.getString("drug_license_number"));
-                            supplier.setSupplierStatus(normalizeSupplierStatus(readOptionalString(rs, "supplier_status")));
+                            supplier.setSupplierStatus(
+                                    normalizeSupplierStatus(readOptionalString(rs, "supplier_status")));
                         }
                     }
                 }
@@ -337,7 +380,8 @@ public class DatabaseService {
         }
     }
 
-    public boolean rejectSupplier(int supplierId, String remarks, String performedBy) throws SQLException, ClassNotFoundException {
+    public boolean rejectSupplier(int supplierId, String remarks, String performedBy)
+            throws SQLException, ClassNotFoundException {
         String selectSql = "SELECT supplier_status FROM Supplier_Master WHERE supplier_id = ?";
         String updateSql = "UPDATE Supplier_Master SET supplier_status = 'REJECTED', rejected_at = CURRENT_TIMESTAMP, remarks = ? WHERE supplier_id = ?";
 
@@ -381,7 +425,8 @@ public class DatabaseService {
         }
     }
 
-    private void insertSupplierAuditLog(Connection conn, int supplierId, String action, String remarks, String performedBy)
+    private void insertSupplierAuditLog(Connection conn, int supplierId, String action, String remarks,
+            String performedBy)
             throws SQLException {
         String sql = "INSERT INTO supplier_audit_log (supplier_id, action, remarks, performed_by) VALUES (?, ?, ?, ?)";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -1816,11 +1861,11 @@ public class DatabaseService {
                 }
             }
 
-            String insertStockSql = "INSERT INTO Stock_Inventory (material_code, location_code, batch_number, quantity, unit_cost, mfg_date, exp_date, qc_status, parent_batch_id, production_order_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'QUARANTINE', ?, ?)";
+            String insertStockSql = "INSERT INTO Stock_Inventory (material_code, location_code, batch_number, quantity, unit_cost, mfg_date, exp_date, qc_status, parent_batch_id, production_order_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'IN_PRODUCTION', ?, ?)";
 
             try (PreparedStatement pstmt = conn.prepareStatement(insertStockSql)) {
                 pstmt.setString(1, bom.getMaterialCode());
-                pstmt.setString(2, "QC_HOLD"); // Finished goods go to QC_HOLD initially
+                pstmt.setString(2, "PRODUCTION_FLOOR"); // In-production batches remain on the production floor
                 pstmt.setString(3, order.getBatchNumber());
                 pstmt.setDouble(4, order.getPlannedQty());
                 pstmt.setDouble(5, 0.0);
@@ -1832,7 +1877,7 @@ public class DatabaseService {
             }
 
             // 4. Production Batch Record
-            String insertPbSql = "INSERT INTO production_batch (production_order_id, material_code, batch_number, quantity, mfg_date, expiry_date, qc_status, location_code) VALUES (?, ?, ?, ?, ?, ?, 'QUARANTINE', 'QC_HOLD')";
+            String insertPbSql = "INSERT INTO production_batch (production_order_id, material_code, batch_number, quantity, mfg_date, expiry_date, qc_status, location_code) VALUES (?, ?, ?, ?, ?, ?, 'IN_PRODUCTION', 'PRODUCTION_FLOOR')";
             try (PreparedStatement pbStmt = conn.prepareStatement(insertPbSql)) {
                 pbStmt.setInt(1, orderId);
                 pbStmt.setString(2, bom.getMaterialCode());
@@ -1844,7 +1889,7 @@ public class DatabaseService {
             }
 
             // 5. Inventory Transaction (Finished Good Receipt)
-            String insertTxFGSql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES (?, ?, 'QC_HOLD', 'PRODUCTION_RECEIPT', ?, 'PRODUCTION_ORDER', ?, ?, ?)";
+            String insertTxFGSql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES (?, ?, 'PRODUCTION_FLOOR', 'PRODUCTION_RECEIPT', ?, 'PRODUCTION_ORDER', ?, ?, ?)";
             try (PreparedStatement txFgStmt = conn.prepareStatement(insertTxFGSql)) {
                 txFgStmt.setString(1, bom.getMaterialCode());
                 txFgStmt.setString(2, order.getBatchNumber());
@@ -1864,7 +1909,7 @@ public class DatabaseService {
                 evStmt.executeUpdate();
             }
 
-            String updateOrderSql = "UPDATE Production_Order SET status = 'Quality-Testing', actual_qty = ?, completed_date = CURDATE() WHERE order_id = ?";
+            String updateOrderSql = "UPDATE Production_Order SET status = 'In-Production', actual_qty = ?, completed_date = CURDATE() WHERE order_id = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(updateOrderSql)) {
                 pstmt.setDouble(1, order.getPlannedQty());
                 pstmt.setInt(2, orderId);
@@ -1872,7 +1917,7 @@ public class DatabaseService {
             }
 
             logAuditTrail(conn, userId, "PRODUCTION_RUN", "Production_Order", String.valueOf(orderId), "Planned",
-                    "Quality-Testing");
+                    "In-Production");
 
             conn.commit();
             System.out.println("Production run executed successfully for order: " + orderId);
@@ -1907,7 +1952,8 @@ public class DatabaseService {
             // Fetch old status and material type
             String oldStatus = null;
             String materialType = null;
-            String typeSql = "SELECT si.qc_status, mm.material_type FROM Stock_Inventory si " +
+            Integer productionOrderId = null;
+            String typeSql = "SELECT si.qc_status, si.production_order_id, mm.material_type FROM Stock_Inventory si " +
                     "JOIN Material_Master mm ON si.material_code = mm.material_code " +
                     "WHERE si.batch_number = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(typeSql)) {
@@ -1916,6 +1962,9 @@ public class DatabaseService {
                     if (rs.next()) {
                         oldStatus = rs.getString("qc_status");
                         materialType = rs.getString("material_type");
+                        productionOrderId = rs.getObject("production_order_id") != null
+                                ? rs.getInt("production_order_id")
+                                : null;
                     }
                 }
             }
@@ -1924,21 +1973,23 @@ public class DatabaseService {
                 throw new SQLException("Batch not found: " + batchNumber);
             }
 
-            if (!"QI".equalsIgnoreCase(oldStatus)) {
+            if (!"QI".equalsIgnoreCase(oldStatus) && !"UNDER_TEST".equalsIgnoreCase(oldStatus)) {
                 throw new SQLException(
-                        "Batch " + batchNumber + " must be in QI before it can be " + newStatus + ".");
+                        "Batch " + batchNumber + " must be in QI or UNDER_TEST before it can be " + newStatus + ".");
             }
 
             if (!"APPROVED".equalsIgnoreCase(newStatus) && !"REJECTED".equalsIgnoreCase(newStatus)) {
                 throw new SQLException("Only APPROVED or REJECTED are valid QC decisions.");
             }
 
-            // Determine target location based on new status and material type
+            // Determine target location and stored batch status based on the QC decision.
+            String finalBatchStatus = newStatus;
             String targetLocation = null;
             if ("REJECTED".equals(newStatus)) {
                 targetLocation = "REJECTED_AREA";
             } else if ("APPROVED".equals(newStatus)) {
                 if ("FINISHED_GOOD".equals(materialType)) {
+                    finalBatchStatus = "RELEASED";
                     targetLocation = "FINISHED_GOODS_WAREHOUSE";
                 } else if ("PACKAGING".equals(materialType)) {
                     targetLocation = "PACKAGING_WAREHOUSE";
@@ -1956,35 +2007,40 @@ public class DatabaseService {
                     (targetLocation != null ? ", location_code = ? " : "") +
                     "WHERE batch_number = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
-                pstmt.setString(1, newStatus);
-                if (targetLocation != null) {
-                    pstmt.setString(2, targetLocation);
-                    pstmt.setString(3, batchNumber);
-                } else {
-                    pstmt.setString(2, batchNumber);
-                }
+                pstmt.setString(1, finalBatchStatus);
+                pstmt.setString(2, targetLocation);
+                pstmt.setString(3, batchNumber);
                 pstmt.executeUpdate();
             }
 
             // Keep any production_batch mirror row aligned with the stock record.
             String updatePbSql = "UPDATE production_batch SET qc_status = ?, location_code = ? WHERE batch_number = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(updatePbSql)) {
-                pstmt.setString(1, newStatus);
+                pstmt.setString(1, finalBatchStatus);
                 pstmt.setString(2, targetLocation);
                 pstmt.setString(3, batchNumber);
                 pstmt.executeUpdate();
             }
 
+            if (productionOrderId != null && productionOrderId > 0) {
+                String updateOrderSql = "UPDATE Production_Order SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?";
+                try (PreparedStatement pstmt = conn.prepareStatement(updateOrderSql)) {
+                    pstmt.setString(1, ProductionOrder.ProductionStatus.fromString(newStatus).getDisplayName());
+                    pstmt.setInt(2, productionOrderId);
+                    pstmt.executeUpdate();
+                }
+            }
+
             // Create event log
             String insertEventSql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES (?, 'BATCH', ?, ?, 'SUCCESS')";
             try (PreparedStatement evStmt = conn.prepareStatement(insertEventSql)) {
-                evStmt.setString(1, "QC_" + newStatus.toUpperCase());
+                evStmt.setString(1, "QC_" + finalBatchStatus.toUpperCase());
                 evStmt.setString(2, batchNumber);
-                evStmt.setString(3, "QC Status updated from " + oldStatus + " to " + newStatus);
+                evStmt.setString(3, "QC Status updated from " + oldStatus + " to " + finalBatchStatus);
                 evStmt.executeUpdate();
             }
 
-            logAuditTrail(conn, userId, "QC_STATUS_UPDATE", "Stock_Inventory", batchNumber, oldStatus, newStatus);
+            logAuditTrail(conn, userId, "QC_STATUS_UPDATE", "Stock_Inventory", batchNumber, oldStatus, finalBatchStatus);
 
             conn.commit();
 
@@ -2001,10 +2057,10 @@ public class DatabaseService {
     }
 
     public void takeSampleForQC(String batchNumber, int userId) throws SQLException, ClassNotFoundException {
-        String selectSql = "SELECT qc_status, location_code FROM Stock_Inventory WHERE batch_number = ?";
-        String updateSql = "UPDATE Stock_Inventory SET qc_status = 'QI', location_code = 'QC_HOLD' WHERE batch_number = ?";
-        String updatePbSql = "UPDATE production_batch SET qc_status = 'QI', location_code = 'QC_HOLD' WHERE batch_number = ?";
-        String insertEventSql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES ('QC_SAMPLE_TAKEN', 'BATCH', ?, ?, 'SUCCESS')";
+        String selectSql = "SELECT qc_status FROM Stock_Inventory WHERE batch_number = ?";
+        String updateSql = "UPDATE Stock_Inventory SET qc_status = ?, location_code = 'QC_HOLD' WHERE batch_number = ?";
+        String updatePbSql = "UPDATE production_batch SET qc_status = ?, location_code = 'QC_HOLD' WHERE batch_number = ?";
+        String insertEventSql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES (?, 'BATCH', ?, ?, 'SUCCESS')";
 
         try (Connection conn = getConnection()) {
             conn.setAutoCommit(false);
@@ -2023,28 +2079,52 @@ public class DatabaseService {
                     throw new SQLException("Batch not found: " + batchNumber);
                 }
 
-                if (!"QUARANTINE".equalsIgnoreCase(currentStatus)) {
+                String nextStatus;
+                String eventType;
+                String details;
+                String auditAction;
+
+                if ("IN_PRODUCTION".equalsIgnoreCase(currentStatus)) {
+                    nextStatus = "IN_PROCESS_SAMPLE";
+                    eventType = "IPQC_SAMPLE_TAKEN";
+                    details = "IPQC sample taken. Batch moved from IN_PRODUCTION to IN_PROCESS_SAMPLE.";
+                    auditAction = "IPQC_SAMPLE_TAKEN";
+                } else if ("IN_PROCESS_SAMPLE".equalsIgnoreCase(currentStatus)) {
+                    nextStatus = "UNDER_TEST";
+                    eventType = "IPQC_TESTING_STARTED";
+                    details = "IPQC testing started. Batch moved from IN_PROCESS_SAMPLE to UNDER_TEST.";
+                    auditAction = "IPQC_TESTING_STARTED";
+                } else if ("QUARANTINE".equalsIgnoreCase(currentStatus)) {
+                    nextStatus = "QI";
+                    eventType = "QC_SAMPLE_TAKEN";
+                    details = "QC sample taken. Batch moved from QUARANTINE to QI.";
+                    auditAction = "QC_SAMPLE_TAKEN";
+                } else {
                     throw new SQLException(
-                            "Batch " + batchNumber + " must be in QUARANTINE before sampling can start.");
+                            "Batch " + batchNumber
+                                    + " must be in IN_PRODUCTION, IN_PROCESS_SAMPLE, or QUARANTINE before sampling/testing can continue.");
                 }
 
                 try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
-                    pstmt.setString(1, batchNumber);
+                    pstmt.setString(1, nextStatus);
+                    pstmt.setString(2, batchNumber);
                     pstmt.executeUpdate();
                 }
 
                 try (PreparedStatement pstmt = conn.prepareStatement(updatePbSql)) {
-                    pstmt.setString(1, batchNumber);
+                    pstmt.setString(1, nextStatus);
+                    pstmt.setString(2, batchNumber);
                     pstmt.executeUpdate();
                 }
 
                 try (PreparedStatement pstmt = conn.prepareStatement(insertEventSql)) {
-                    pstmt.setString(1, batchNumber);
-                    pstmt.setString(2, "QC sample taken. Batch moved from QUARANTINE to QI.");
+                    pstmt.setString(1, eventType);
+                    pstmt.setString(2, batchNumber);
+                    pstmt.setString(3, details);
                     pstmt.executeUpdate();
                 }
 
-                logAuditTrail(conn, userId, "QC_SAMPLE_TAKEN", "Stock_Inventory", batchNumber, "QUARANTINE", "QI");
+                logAuditTrail(conn, userId, auditAction, "Stock_Inventory", batchNumber, currentStatus, nextStatus);
                 conn.commit();
             } catch (SQLException ex) {
                 conn.rollback();
@@ -2540,7 +2620,4 @@ public class DatabaseService {
         return consumptions;
     }
 
-    }
-
-    
-    
+}
