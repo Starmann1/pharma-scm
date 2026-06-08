@@ -49,7 +49,7 @@ public class DatabaseService {
     }
 
     // Helper method to establish a fresh, single-use connection
-    Connection getConnection() throws SQLException, ClassNotFoundException {
+    public Connection getConnection() throws SQLException, ClassNotFoundException {
         return ds.getConnection();
     }
 
