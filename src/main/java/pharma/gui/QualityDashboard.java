@@ -432,7 +432,6 @@ public class QualityDashboard extends JPanel {
     }
 
     private void updateActionButtons() {
-        String filter = getSelectedStatusFilter();
         int selectedRow = batchTable.getSelectedRow();
         String currentStatus = selectedRow >= 0 ? String.valueOf(batchTable.getValueAt(selectedRow, 3)) : null;
 
