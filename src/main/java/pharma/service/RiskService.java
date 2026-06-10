@@ -16,4 +16,19 @@ public class RiskService {
     public List<RiskReportDTO> generateRuleBasedRiskReports() throws SQLException, ClassNotFoundException {
         return riskRepository.generateRuleBasedRiskReports();
     }
+
+    public RiskReportDTO scoreSupplierRisk(int supplierId) throws SQLException, ClassNotFoundException {
+        return riskRepository.scoreSupplierRisk(supplierId);
+    }
+
+    public RiskReportDTO scoreMaterialStockoutRisk(String materialCode) throws SQLException, ClassNotFoundException {
+        if (materialCode == null || materialCode.isBlank()) {
+            throw new IllegalArgumentException("materialCode is required.");
+        }
+        return riskRepository.scoreMaterialStockoutRisk(materialCode);
+    }
+
+    public List<RiskReportDTO> getAllRiskReports() throws SQLException, ClassNotFoundException {
+        return riskRepository.getAllRiskReports();
+    }
 }

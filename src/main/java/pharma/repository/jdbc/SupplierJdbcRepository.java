@@ -48,4 +48,26 @@ public class SupplierJdbcRepository implements SupplierRepository {
         }
         return suppliers;
     }
+
+    @Override
+    public double getSupplierCapacity(int supplierId, String materialCode)
+            throws SQLException, ClassNotFoundException {
+        String sql = "SELECT COALESCE(AVG(pod.quantity), 0) AS avg_capacity "
+                + "FROM Purchase_Order_Details pod "
+                + "JOIN Purchase_Order po ON po.po_id = pod.po_id "
+                + "WHERE po.supplier_id = ? AND pod.material_code = ? "
+                + "AND po.po_status NOT IN ('CANCELLED', 'REJECTED')";
+        try (Connection conn = databaseService.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, supplierId);
+            stmt.setString(2, materialCode);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    double avg = rs.getDouble("avg_capacity");
+                    return avg > 0 ? avg * 1.5 : 10000.0;
+                }
+            }
+        }
+        return 10000.0;
+    }
 }

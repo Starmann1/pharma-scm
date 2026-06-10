@@ -10,4 +10,6 @@ public interface InventoryRepository {
             throws SQLException, ClassNotFoundException;
 
     List<MaterialAvailabilityDTO> findLowStockMaterials() throws SQLException, ClassNotFoundException;
+
+    boolean reserveMaterial(String materialCode, double quantity) throws SQLException, ClassNotFoundException;
 }

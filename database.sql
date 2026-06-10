@@ -1042,5 +1042,41 @@ SET supplier_status = 'APPROVED',
 WHERE supplier_status IS NULL
    OR supplier_status = 'PENDING';
 
+-- =============================================================================
+-- Phase 7+ Tables (Common Layer)
+-- =============================================================================
+
+-- Supplier delivery performance tracking (Phase 8: Risk scoring)
+CREATE TABLE IF NOT EXISTS supplier_delivery_history (
+    history_id        INT AUTO_INCREMENT PRIMARY KEY,
+    supplier_id       INT NOT NULL,
+    material_code     VARCHAR(50) NOT NULL,
+    po_id             INT,
+    expected_date     DATE,
+    actual_date       DATE,
+    on_time           TINYINT(1),
+    quantity_ordered  DECIMAL(12,4),
+    quantity_received DECIMAL(12,4),
+    rejection_flag    TINYINT(1) DEFAULT 0,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (supplier_id) REFERENCES Supplier_Master(supplier_id)
+);
+
+-- AI decision audit trail (Phase 10: AIReasoningAgent)
+CREATE TABLE IF NOT EXISTS ai_decisions (
+    id                    INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id        VARCHAR(36) NOT NULL,
+    task_type             VARCHAR(50),
+    prompt_summary        TEXT,
+    confidence_score      DECIMAL(5,4),
+    raw_output            LONGTEXT,
+    requires_human_review TINYINT(1) DEFAULT 0,
+    status                VARCHAR(20) DEFAULT 'PENDING',
+    reviewed_by           INT,
+    review_reason         TEXT,
+    reviewed_at           DATETIME,
+    created_at            DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 6. Enable Foreign Key Checks
 SET FOREIGN_KEY_CHECKS = 1;

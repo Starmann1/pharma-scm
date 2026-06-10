@@ -1,5 +1,6 @@
 package pharma.config;
 
+import pharma.repository.AIDecisionRepository;
 import pharma.repository.AuditRepository;
 import pharma.repository.ComplianceRepository;
 import pharma.repository.InventoryRepository;
@@ -8,6 +9,7 @@ import pharma.repository.ProductionRepository;
 import pharma.repository.QARepository;
 import pharma.repository.RiskRepository;
 import pharma.repository.SupplierRepository;
+import pharma.repository.jdbc.AIDecisionJdbcRepository;
 import pharma.repository.jdbc.AuditJdbcRepository;
 import pharma.repository.jdbc.ComplianceJdbcRepository;
 import pharma.repository.jdbc.InventoryJdbcRepository;
@@ -16,6 +18,7 @@ import pharma.repository.jdbc.ProductionJdbcRepository;
 import pharma.repository.jdbc.QAJdbcRepository;
 import pharma.repository.jdbc.RiskJdbcRepository;
 import pharma.repository.jdbc.SupplierJdbcRepository;
+import pharma.service.AIDecisionService;
 import pharma.service.AuditService;
 import pharma.service.ComplianceService;
 import pharma.service.DatabaseService;
@@ -36,6 +39,7 @@ public class ApplicationServices {
     private final ComplianceService complianceService;
     private final RiskService riskService;
     private final AuditService auditService;
+    private final AIDecisionService aiDecisionService;
 
     public ApplicationServices(DatabaseService databaseService) {
         this.databaseService = databaseService;
@@ -46,8 +50,9 @@ public class ApplicationServices {
         ProductionRepository productionRepository = new ProductionJdbcRepository(databaseService, inventoryRepository);
         QARepository qaRepository = new QAJdbcRepository(databaseService);
         ComplianceRepository complianceRepository = new ComplianceJdbcRepository();
-        RiskRepository riskRepository = new RiskJdbcRepository(inventoryRepository);
+        RiskRepository riskRepository = new RiskJdbcRepository(databaseService);
         AuditRepository auditRepository = new AuditJdbcRepository(databaseService);
+        AIDecisionRepository aiDecisionRepository = new AIDecisionJdbcRepository(databaseService);
 
         this.materialService = new MaterialService(materialRepository);
         this.inventoryService = new InventoryService(inventoryRepository);
@@ -57,6 +62,7 @@ public class ApplicationServices {
         this.complianceService = new ComplianceService(complianceRepository);
         this.riskService = new RiskService(riskRepository);
         this.auditService = new AuditService(auditRepository);
+        this.aiDecisionService = new AIDecisionService(aiDecisionRepository);
     }
 
     public DatabaseService getDatabaseService() {
@@ -93,5 +99,9 @@ public class ApplicationServices {
 
     public AuditService getAuditService() {
         return auditService;
+    }
+
+    public AIDecisionService getAiDecisionService() {
+        return aiDecisionService;
     }
 }

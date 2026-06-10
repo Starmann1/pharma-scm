@@ -27,4 +27,15 @@ public class InventoryService {
     public List<MaterialAvailabilityDTO> findLowStockMaterials() throws SQLException, ClassNotFoundException {
         return inventoryRepository.findLowStockMaterials();
     }
+
+    public boolean reserveMaterial(String materialCode, double quantity)
+            throws SQLException, ClassNotFoundException {
+        if (materialCode == null || materialCode.isBlank()) {
+            throw new IllegalArgumentException("materialCode is required.");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity must be positive.");
+        }
+        return inventoryRepository.reserveMaterial(materialCode, quantity);
+    }
 }

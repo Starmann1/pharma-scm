@@ -7,6 +7,8 @@ public class SupplierScoreDTO {
     private String supplierStatus;
     private double score;
     private String rationale;
+    private double unitPrice;
+    private int leadTimeDays;
 
     public int getSupplierId() {
         return supplierId;
@@ -54,5 +56,21 @@ public class SupplierScoreDTO {
 
     public void setRationale(String rationale) {
         this.rationale = rationale;
+    }
+
+    public double getUnitPrice() {
+        return unitPrice;
+    }
+
+    public void setUnitPrice(double unitPrice) {
+        this.unitPrice = unitPrice;
+    }
+
+    public int getLeadTimeDays() {
+        return leadTimeDays;
+    }
+
+    public void setLeadTimeDays(int leadTimeDays) {
+        this.leadTimeDays = leadTimeDays;
     }
 }

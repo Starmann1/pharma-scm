@@ -8,4 +8,6 @@ import pharma.dto.SupplierScoreDTO;
 public interface SupplierRepository {
     List<SupplierScoreDTO> rankApprovedSuppliersForMaterial(String materialCode)
             throws SQLException, ClassNotFoundException;
+
+    double getSupplierCapacity(int supplierId, String materialCode) throws SQLException, ClassNotFoundException;
 }

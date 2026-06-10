@@ -10,6 +10,11 @@ public class RiskReportDTO {
     private String severity;
     private LocalDateTime generatedAt;
     private List<String> drivers = new ArrayList<>();
+    private String entityId;
+    private String entityType;
+    private String riskCategory;
+    private List<String> contributingFactors = new ArrayList<>();
+    private String recommendedAction;
 
     public String getRiskType() {
         return riskType;
@@ -49,5 +54,45 @@ public class RiskReportDTO {
 
     public void setDrivers(List<String> drivers) {
         this.drivers = drivers;
+    }
+
+    public String getEntityId() {
+        return entityId;
+    }
+
+    public void setEntityId(String entityId) {
+        this.entityId = entityId;
+    }
+
+    public String getEntityType() {
+        return entityType;
+    }
+
+    public void setEntityType(String entityType) {
+        this.entityType = entityType;
+    }
+
+    public String getRiskCategory() {
+        return riskCategory;
+    }
+
+    public void setRiskCategory(String riskCategory) {
+        this.riskCategory = riskCategory;
+    }
+
+    public List<String> getContributingFactors() {
+        return contributingFactors;
+    }
+
+    public void setContributingFactors(List<String> contributingFactors) {
+        this.contributingFactors = contributingFactors;
+    }
+
+    public String getRecommendedAction() {
+        return recommendedAction;
+    }
+
+    public void setRecommendedAction(String recommendedAction) {
+        this.recommendedAction = recommendedAction;
     }
 }

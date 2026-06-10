@@ -20,4 +20,12 @@ public class SupplierService {
         }
         return supplierRepository.rankApprovedSuppliersForMaterial(materialCode);
     }
+
+    public double getSupplierCapacity(int supplierId, String materialCode)
+            throws SQLException, ClassNotFoundException {
+        if (materialCode == null || materialCode.isBlank()) {
+            throw new IllegalArgumentException("materialCode is required.");
+        }
+        return supplierRepository.getSupplierCapacity(supplierId, materialCode);
+    }
 }
