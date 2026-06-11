@@ -19,9 +19,13 @@ import jade.wrapper.StaleProxyException;
 import pharma.agent.ontology.AgentNames;
 import pharma.dto.AgentRequestEnvelope;
 import pharma.dto.AgentResponseEnvelope;
+import pharma.gateway.PharmaGateway;
 
 /**
  * AgentGateway — the bridge between the Swing EDT and the JADE agent platform.
+ *
+ * <p>Implements {@link PharmaGateway} so the UI can be decoupled from the
+ * specific agent framework (V1 = JADE, V2 = LangChain4j, V3 = Google ADK).
  *
  * <p>Swing panels call {@link #submit} with a typed request envelope.
  * The gateway serialises it to JSON, fires an ACL REQUEST message to the
@@ -38,7 +42,7 @@ import pharma.dto.AgentResponseEnvelope;
  *       Swing components from within the future's {@code thenAccept}.</li>
  * </ul>
  */
-public class AgentGateway {
+public class AgentGateway implements PharmaGateway {
 
     private static final Logger log = LoggerFactory.getLogger(AgentGateway.class);
 
@@ -52,6 +56,9 @@ public class AgentGateway {
 
     /** The running CoordinatorAgent controller used to send ACL messages. */
     private AgentController coordinatorController;
+
+    /** Reference to the platform manager for shutdown delegation. */
+    private AgentPlatformManager platformManager;
 
     // -------------------------------------------------------------------------
     // Configuration
@@ -67,22 +74,25 @@ public class AgentGateway {
         log.info("AgentGateway: CoordinatorAgent controller registered.");
     }
 
+    /**
+     * Called by App to wire the platform manager for shutdown delegation.
+     *
+     * @param platformManager the JADE platform lifecycle manager
+     */
+    public void setPlatformManager(AgentPlatformManager platformManager) {
+        this.platformManager = platformManager;
+    }
+
     // -------------------------------------------------------------------------
-    // Public API (called from Swing EDT)
+    // PharmaGateway implementation
     // -------------------------------------------------------------------------
 
     /**
-     * Submits a request to the agent platform asynchronously.
+     * {@inheritDoc}
      *
-     * <ol>
-     *   <li>Stores a {@link CompletableFuture} in the pending-request map.</li>
-     *   <li>Serialises the envelope to JSON.</li>
-     *   <li>Sends an ACL REQUEST message to the CoordinatorAgent via JADE.</li>
-     * </ol>
-     *
-     * @param request the typed request envelope
-     * @return a future that will be completed with the agent's response
+     * <p>Submits a request to the JADE agent platform asynchronously.
      */
+    @Override
     public CompletableFuture<AgentResponseEnvelope<?>> submit(AgentRequestEnvelope<?> request) {
         CompletableFuture<AgentResponseEnvelope<?>> future = new CompletableFuture<>();
         pendingRequests.put(request.getTransactionId(), future);
@@ -129,6 +139,20 @@ public class AgentGateway {
         return future;
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public int pendingRequestCount() {
+        return pendingRequests.size();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void shutdown() {
+        if (platformManager != null) {
+            platformManager.shutdown();
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Called from JADE agent thread (CoordinatorAgent.ReplyBehaviour)
     // -------------------------------------------------------------------------
@@ -150,14 +174,5 @@ public class AgentGateway {
             log.warn("AgentGateway: received reply for unknown txId='{}'",
                     response.getTransactionId());
         }
-    }
-
-    // -------------------------------------------------------------------------
-    // Diagnostics
-    // -------------------------------------------------------------------------
-
-    /** Returns the number of requests awaiting a reply. */
-    public int pendingRequestCount() {
-        return pendingRequests.size();
     }
 }

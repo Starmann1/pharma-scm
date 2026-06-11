@@ -29,6 +29,16 @@ public class AIDecisionService {
         return aiDecisionRepository.findPendingReview();
     }
 
+    public List<AIReasoningResultDTO> findAll()
+            throws SQLException, ClassNotFoundException {
+        return aiDecisionRepository.findAll();
+    }
+
+    public AIReasoningResultDTO findByTransactionId(String transactionId)
+            throws SQLException, ClassNotFoundException {
+        return aiDecisionRepository.findByTransactionId(transactionId);
+    }
+
     public void approve(String transactionId, int userId)
             throws SQLException, ClassNotFoundException {
         aiDecisionRepository.updateStatus(transactionId, "APPROVED", userId, null);

@@ -16,6 +16,9 @@ public interface AIDecisionRepository {
     List<AIReasoningResultDTO> findPendingReview()
             throws SQLException, ClassNotFoundException;
 
+    List<AIReasoningResultDTO> findAll()
+            throws SQLException, ClassNotFoundException;
+
     void updateStatus(String transactionId, String status, int reviewedBy, String reason)
             throws SQLException, ClassNotFoundException;
 }

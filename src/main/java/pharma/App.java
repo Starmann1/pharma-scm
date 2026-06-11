@@ -9,23 +9,24 @@ import org.slf4j.LoggerFactory;
 import pharma.agent.platform.AgentGateway;
 import pharma.agent.platform.AgentPlatformManager;
 import pharma.config.ApplicationServices;
+import pharma.gateway.PharmaGateway;
 import pharma.gui.LoginGUI;
 import pharma.service.DatabaseService;
 
 /**
- * Application entry point — Agentic Pharma SCM.
+ * Application entry point — Agentic Pharma SCM (V1: JADE + LangChain4j).
  *
  * <p>Startup sequence:
  * <ol>
  *   <li>Register a JVM shutdown hook to close HikariCP and JADE cleanly.</li>
  *   <li>Test the database connection (fail-fast with a dialog if unreachable).</li>
  *   <li>Build the {@link ApplicationServices} composition root.</li>
- *   <li>Create the {@link AgentGateway} and {@link AgentPlatformManager}.</li>
- *   <li>Start all Phase-6 operational JADE agents.</li>
+ *   <li>Create the {@link AgentGateway} (implements {@link PharmaGateway}).</li>
+ *   <li>Start all JADE agents (Phase 6 core + V1 additions).</li>
  *   <li>Launch the Swing {@link LoginGUI} on the EDT.</li>
  * </ol>
  *
- * <p>Architecture rule: {@link ApplicationServices}, {@link AgentGateway}, and
+ * <p>Architecture rule: {@link ApplicationServices}, {@link PharmaGateway}, and
  * {@link AgentPlatformManager} are created once here and injected down into
  * panels that need them. No static singletons.
  */
@@ -33,11 +34,17 @@ public class App {
 
     private static final Logger log = LoggerFactory.getLogger(App.class);
 
-    /** Shared gateway — injected into UI panels that need async agent calls. */
+    /** Shared gateway — the ONLY interface between UI and agent layer. */
+    private static PharmaGateway gateway;
+
+    /** The V1 JADE-specific gateway instance (for complete() callback access). */
     private static AgentGateway agentGateway;
 
     /** Platform manager — exposed so panels can query platform state if needed. */
     private static AgentPlatformManager platformManager;
+
+    /** Application services — the composition root. */
+    private static ApplicationServices appServices;
 
     public static void main(String[] args) {
         // ------------------------------------------------------------------
@@ -45,9 +52,9 @@ public class App {
         // ------------------------------------------------------------------
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Shutdown hook triggered — cleaning up resources...");
-            if (platformManager != null) {
-                platformManager.shutdown();
-                log.info("JADE agent platform stopped.");
+            if (gateway != null) {
+                gateway.shutdown();
+                log.info("Agent platform stopped via PharmaGateway.shutdown().");
             }
             DatabaseService.closePool();
             log.info("HikariCP connection pool closed.");
@@ -70,21 +77,22 @@ public class App {
         // ------------------------------------------------------------------
         // 3. Build ApplicationServices (single composition root)
         // ------------------------------------------------------------------
-        ApplicationServices appServices = new ApplicationServices(dbService);
+        appServices = new ApplicationServices(dbService);
         log.info("ApplicationServices composition root initialised.");
 
         // ------------------------------------------------------------------
-        // 4. Create the AgentGateway (Swing ↔ JADE bridge)
+        // 4. Create the AgentGateway (V1: JADE + LangChain4j)
         // ------------------------------------------------------------------
         agentGateway = new AgentGateway();
+        gateway = agentGateway; // PharmaGateway interface reference
 
         // ------------------------------------------------------------------
-        // 5. Start the JADE platform and all Phase-6 operational agents
+        // 5. Start the JADE platform and all V1 operational agents
         // ------------------------------------------------------------------
         platformManager = new AgentPlatformManager(appServices);
         try {
             platformManager.startAllOperationalAgents(agentGateway);
-            log.info("All Phase-6 operational agents started successfully.");
+            log.info("All V1 operational agents started successfully.");
         } catch (Exception e) {
             log.error("Failed to start JADE agent platform: {}", e.getMessage(), e);
             JOptionPane.showMessageDialog(null,
@@ -110,8 +118,16 @@ public class App {
     // -------------------------------------------------------------------------
 
     /**
-     * Returns the shared {@link AgentGateway} for submitting async agent requests.
+     * Returns the shared {@link PharmaGateway} for submitting async agent requests.
      * May return {@code null} if the agent platform failed to start (degraded mode).
+     */
+    public static PharmaGateway getGateway() {
+        return gateway;
+    }
+
+    /**
+     * Returns the V1-specific {@link AgentGateway} for JADE-specific operations.
+     * Prefer using {@link #getGateway()} for version-independent code.
      */
     public static AgentGateway getAgentGateway() {
         return agentGateway;
@@ -122,5 +138,13 @@ public class App {
      */
     public static AgentPlatformManager getPlatformManager() {
         return platformManager;
+    }
+
+    /**
+     * Returns the {@link ApplicationServices} composition root.
+     * Used by GUI panels that need direct service access (e.g., AI Decision Dashboard).
+     */
+    public static ApplicationServices getAppServices() {
+        return appServices;
     }
 }

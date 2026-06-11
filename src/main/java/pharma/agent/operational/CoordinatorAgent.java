@@ -140,6 +140,9 @@ public class CoordinatorAgent extends BasePharmaAgent {
                 case AgentActions.QA_REVIEW               -> AgentNames.QA;
                 case AgentActions.COMPLIANCE_VALIDATE     -> AgentNames.COMPLIANCE;
                 case AgentActions.RISK_ANALYSIS           -> AgentNames.RISK;
+                case AgentActions.PROCUREMENT_WORKFLOW    -> AgentNames.PROCUREMENT;
+                case AgentActions.AI_REASONING            -> AgentNames.AI_REASONING;
+                case AgentActions.KNOWLEDGE_QUERY         -> AgentNames.KNOWLEDGE;
                 default -> null;
             };
         }

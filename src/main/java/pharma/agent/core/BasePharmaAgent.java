@@ -19,6 +19,24 @@ public abstract class BasePharmaAgent extends Agent {
         logger.info("{} started.", getLocalName());
     }
 
+    /**
+     * Returns the application services available to this agent.
+     *
+     * @return the application services, or {@code null} if not yet initialized
+     */
+    public ApplicationServices getServices() {
+        return services;
+    }
+
+    /**
+     * Returns the agent's SLF4J logger.
+     *
+     * @return the logger
+     */
+    public Logger getLogger() {
+        return logger;
+    }
+
     @Override
     protected void takeDown() {
         logger.info("{} stopped.", getLocalName());

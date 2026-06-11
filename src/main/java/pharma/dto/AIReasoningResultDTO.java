@@ -1,15 +1,21 @@
 package pharma.dto;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 public class AIReasoningResultDTO {
+    private String transactionId;
+    private String taskType;
+    private String status = "PENDING";
+    private LocalDateTime createdAt;
     private Object extractedData;
     private double confidenceScore;
     private String modelUsed;
     private String promptSummary;
     private boolean requiresHumanReview;
     private List<CitationDTO> citations = new ArrayList<>();
+    private List<String> agentTrace = new ArrayList<>();
 
     public AIReasoningResultDTO() {
     }
@@ -70,5 +76,45 @@ public class AIReasoningResultDTO {
 
     public void setCitations(List<CitationDTO> citations) {
         this.citations = citations;
+    }
+
+    public List<String> getAgentTrace() {
+        return agentTrace;
+    }
+
+    public void setAgentTrace(List<String> agentTrace) {
+        this.agentTrace = agentTrace;
+    }
+
+    public String getTransactionId() {
+        return transactionId;
+    }
+
+    public void setTransactionId(String transactionId) {
+        this.transactionId = transactionId;
+    }
+
+    public String getTaskType() {
+        return taskType;
+    }
+
+    public void setTaskType(String taskType) {
+        this.taskType = taskType;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

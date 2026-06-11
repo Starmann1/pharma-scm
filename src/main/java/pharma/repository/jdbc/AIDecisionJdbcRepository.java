@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -69,6 +70,21 @@ public class AIDecisionJdbcRepository implements AIDecisionRepository {
     }
 
     @Override
+    public List<AIReasoningResultDTO> findAll()
+            throws SQLException, ClassNotFoundException {
+        String sql = "SELECT * FROM ai_decisions ORDER BY created_at DESC";
+        List<AIReasoningResultDTO> results = new ArrayList<>();
+        try (Connection conn = databaseService.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                results.add(mapResultSet(rs));
+            }
+        }
+        return results;
+    }
+
+    @Override
     public void updateStatus(String transactionId, String status, int reviewedBy, String reason)
             throws SQLException, ClassNotFoundException {
         String sql = "UPDATE ai_decisions SET status = ?, reviewed_by = ?, review_reason = ?, "
@@ -85,10 +101,17 @@ public class AIDecisionJdbcRepository implements AIDecisionRepository {
 
     private AIReasoningResultDTO mapResultSet(ResultSet rs) throws SQLException {
         AIReasoningResultDTO dto = new AIReasoningResultDTO();
+        dto.setTransactionId(rs.getString("transaction_id"));
+        dto.setTaskType(rs.getString("task_type"));
         dto.setPromptSummary(rs.getString("prompt_summary"));
         dto.setConfidenceScore(rs.getDouble("confidence_score"));
         dto.setExtractedData(rs.getString("raw_output"));
         dto.setRequiresHumanReview(rs.getBoolean("requires_human_review"));
+        dto.setStatus(rs.getString("status"));
+        Timestamp ts = rs.getTimestamp("created_at");
+        if (ts != null) {
+            dto.setCreatedAt(ts.toLocalDateTime());
+        }
         return dto;
     }
 }

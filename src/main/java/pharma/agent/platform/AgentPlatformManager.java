@@ -16,6 +16,10 @@ import pharma.agent.operational.InventoryAgent;
 import pharma.agent.operational.ProductionAgent;
 import pharma.agent.operational.QAAgent;
 import pharma.agent.operational.SupplierAgent;
+import pharma.agent.operational.ProcurementWorkflowAgent;
+import pharma.agent.operational.RiskAnalysisAgent;
+import pharma.agent.operational.AIReasoningAgent;
+import pharma.agent.operational.KnowledgeAgent;
 import pharma.config.ApplicationServices;
 
 /**
@@ -24,8 +28,8 @@ import pharma.config.ApplicationServices;
  * <p>Responsibilities:
  * <ul>
  *   <li>Start and stop the JADE main container in headless mode.</li>
- *   <li>Create and start all Phase-6 operational agents, injecting
- *       {@link ApplicationServices} as arg[0] so agents can call services.</li>
+ *   <li>Create and start all operational agents (Phase 6 + V1 additions),
+ *       injecting {@link ApplicationServices} as arg[0].</li>
  *   <li>Wire the {@link AgentGateway} to the started {@code CoordinatorAgent}.</li>
  * </ul>
  *
@@ -85,11 +89,11 @@ public class AgentPlatformManager {
     }
 
     // -------------------------------------------------------------------------
-    // Agent bootstrap — Phase 6
+    // Agent bootstrap — V1: JADE + LangChain4j
     // -------------------------------------------------------------------------
 
     /**
-     * Starts all Phase-6 operational agents and wires the gateway to the
+     * Starts all operational agents and wires the gateway to the
      * CoordinatorAgent.
      *
      * <p>Agent argument convention:
@@ -106,12 +110,24 @@ public class AgentPlatformManager {
         }
 
         try {
-            // --- Sub-agents first (Coordinator routes to them) ---
+            // --- Phase 6: Core sub-agents (Coordinator routes to them) ---
             startAgent(AgentNames.INVENTORY,   InventoryAgent.class,   new Object[]{appServices});
             startAgent(AgentNames.SUPPLIER,    SupplierAgent.class,    new Object[]{appServices});
             startAgent(AgentNames.PRODUCTION,  ProductionAgent.class,  new Object[]{appServices});
             startAgent(AgentNames.QA,          QAAgent.class,          new Object[]{appServices});
             startAgent(AgentNames.COMPLIANCE,  ComplianceAgent.class,  new Object[]{appServices});
+
+            // --- V1 Phase 7: Procurement Workflow Agent ---
+            startAgent(AgentNames.PROCUREMENT, ProcurementWorkflowAgent.class, new Object[]{appServices});
+
+            // --- V1 Phase 8: Risk Analysis Agent ---
+            startAgent(AgentNames.RISK,        RiskAnalysisAgent.class, new Object[]{appServices});
+
+            // --- V1 Phase 10: AI Reasoning Agent (Gemini + LangChain4j) ---
+            startAgent(AgentNames.AI_REASONING, AIReasoningAgent.class, new Object[]{appServices});
+
+            // --- V1 Phase 11: Knowledge Agent (RAG) ---
+            startAgent(AgentNames.KNOWLEDGE,   KnowledgeAgent.class,   new Object[]{appServices});
 
             // --- CoordinatorAgent last (receives gateway reference) ---
             AgentController coordinator = startAgent(
@@ -121,8 +137,9 @@ public class AgentPlatformManager {
 
             // Wire the gateway so submit() can send ACL messages to Coordinator
             gateway.setCoordinatorController(coordinator);
+            gateway.setPlatformManager(this);
 
-            log.info("AgentPlatformManager: All Phase-6 operational agents started successfully.");
+            log.info("AgentPlatformManager: All V1 operational agents started successfully.");
 
         } catch (StaleProxyException e) {
             log.error("AgentPlatformManager: Failed to start operational agents: {}", e.getMessage(), e);
