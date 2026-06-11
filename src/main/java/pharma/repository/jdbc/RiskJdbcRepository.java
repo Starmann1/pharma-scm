@@ -56,10 +56,10 @@ public class RiskJdbcRepository implements RiskRepository {
         // Rule 2: Suppliers with high late delivery rate (last 90 days)
         String lateDeliverySql = "SELECT po.supplier_id, sm.supplier_name, "
                 + "COUNT(*) AS total_deliveries, "
-                + "SUM(CASE WHEN po.actual_delivery_date > po.expected_delivery_date THEN 1 ELSE 0 END) AS late_deliveries "
+                + "SUM(CASE WHEN po.actual_delivery_date > po.expected_date THEN 1 ELSE 0 END) AS late_deliveries "
                 + "FROM Purchase_Order po "
                 + "JOIN Supplier_Master sm ON sm.supplier_id = po.supplier_id "
-                + "WHERE po.po_status IN ('DELIVERED', 'COMPLETED', 'CLOSED') "
+                + "WHERE po.status IN ('DELIVERED', 'COMPLETED', 'CLOSED') "
                 + "AND po.order_date >= DATE_SUB(CURRENT_DATE, INTERVAL 90 DAY) "
                 + "GROUP BY po.supplier_id, sm.supplier_name "
                 + "HAVING late_deliveries > 0";
@@ -93,8 +93,8 @@ public class RiskJdbcRepository implements RiskRepository {
     public RiskReportDTO scoreSupplierRisk(int supplierId) throws SQLException, ClassNotFoundException {
         String sql = "SELECT "
                 + "COUNT(*) AS total_deliveries, "
-                + "SUM(CASE WHEN po.actual_delivery_date > po.expected_delivery_date THEN 1 ELSE 0 END) AS late_deliveries, "
-                + "SUM(CASE WHEN po.po_status = 'REJECTED' THEN 1 ELSE 0 END) AS rejections "
+                + "SUM(CASE WHEN po.actual_delivery_date > po.expected_date THEN 1 ELSE 0 END) AS late_deliveries, "
+                + "SUM(CASE WHEN po.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejections "
                 + "FROM Purchase_Order po "
                 + "WHERE po.supplier_id = ? "
                 + "AND po.order_date >= DATE_SUB(CURRENT_DATE, INTERVAL 365 DAY)";
@@ -212,9 +212,9 @@ public class RiskJdbcRepository implements RiskRepository {
     @Override
     public List<Map<String, Object>> getSupplierDeliveryHistory(int supplierId, int days)
             throws SQLException, ClassNotFoundException {
-        String sql = "SELECT po.po_id, po.order_date, po.expected_delivery_date, "
-                + "po.actual_delivery_date, po.po_status, "
-                + "CASE WHEN po.actual_delivery_date > po.expected_delivery_date THEN 'LATE' "
+        String sql = "SELECT po.po_id, po.order_date, po.expected_date AS expected_delivery_date, "
+                + "po.actual_delivery_date, po.status AS po_status, "
+                + "CASE WHEN po.actual_delivery_date > po.expected_date THEN 'LATE' "
                 + "     WHEN po.actual_delivery_date IS NULL THEN 'PENDING' "
                 + "     ELSE 'ON_TIME' END AS delivery_status "
                 + "FROM Purchase_Order po "
