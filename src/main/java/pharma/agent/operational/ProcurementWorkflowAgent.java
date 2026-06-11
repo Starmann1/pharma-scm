@@ -1,15 +1,9 @@
 package pharma.agent.operational;
 
-import java.util.ArrayList;
 import java.util.List;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import jade.core.AID;
 import jade.lang.acl.ACLMessage;
-import jade.lang.acl.MessageTemplate;
 import pharma.agent.behaviour.LowStockMonitorBehaviour;
 import pharma.agent.behaviour.ProcurementInitiatorBehaviour;
 import pharma.agent.behaviour.RequestHandlerBehaviour;
@@ -18,7 +12,6 @@ import pharma.agent.ontology.AgentActions;
 import pharma.agent.ontology.AgentNames;
 import pharma.dto.AgentRequestEnvelope;
 import pharma.dto.AgentResponseEnvelope;
-import pharma.dto.MaterialAvailabilityDTO;
 import pharma.dto.ProcurementRequestDTO;
 import pharma.dto.SupplierScoreDTO;
 
@@ -42,12 +35,8 @@ import pharma.dto.SupplierScoreDTO;
  */
 public class ProcurementWorkflowAgent extends BasePharmaAgent {
 
-    /** Low-stock scan interval: 30 minutes. */
-    private static final long MONITOR_PERIOD_MS = 1_800_000L;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    /** Low-stock scan interval: 15 seconds (for live testing). */
+    private static final long MONITOR_PERIOD_MS = 15_000L;
 
     @Override
     protected void setup() {
@@ -86,6 +75,7 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
                         "ProcurementWorkflowAgent: unsupported action '" + request.getAction() + "'");
             }
 
+            @SuppressWarnings("null")
             ProcurementRequestDTO procReq = MAPPER.convertValue(
                     request.getPayload(), ProcurementRequestDTO.class);
 
