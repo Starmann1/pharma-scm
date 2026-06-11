@@ -50,6 +50,15 @@ public class KnowledgeAgent extends BasePharmaAgent {
 
         String apiKey = System.getenv("GEMINI_API_KEY");
         if (apiKey == null || apiKey.isBlank()) {
+            try {
+                io.github.cdimascio.dotenv.Dotenv dotenv = io.github.cdimascio.dotenv.Dotenv.configure().ignoreIfMissing().load();
+                apiKey = dotenv.get("GEMINI_API_KEY");
+            } catch (Exception e) {
+                // Ignore .env loading errors silently
+            }
+        }
+
+        if (apiKey == null || apiKey.isBlank()) {
             logger.error("[KnowledgeAgent] GEMINI_API_KEY environment variable is not set. "
                     + "RAG pipeline will be unavailable.");
             ragReady = false;

@@ -50,6 +50,17 @@ public class AIReasoningAgent extends BasePharmaAgent {
         String modelName = System.getenv("GEMINI_MODEL");
         String temperatureStr = System.getenv("GEMINI_TEMPERATURE");
 
+        if (apiKey == null || apiKey.isBlank()) {
+            try {
+                io.github.cdimascio.dotenv.Dotenv dotenv = io.github.cdimascio.dotenv.Dotenv.configure().ignoreIfMissing().load();
+                apiKey = dotenv.get("GEMINI_API_KEY");
+                if (modelName == null || modelName.isBlank()) modelName = dotenv.get("GEMINI_MODEL");
+                if (temperatureStr == null || temperatureStr.isBlank()) temperatureStr = dotenv.get("GEMINI_TEMPERATURE");
+            } catch (Exception e) {
+                // Ignore .env loading errors silently
+            }
+        }
+
         if (modelName == null || modelName.isBlank()) {
             modelName = DEFAULT_MODEL;
         }
