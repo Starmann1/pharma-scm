@@ -249,11 +249,11 @@ public class RiskJdbcRepository implements RiskRepository {
     public List<Map<String, Object>> getStockConsumptionTrend(String materialCode, int days)
             throws SQLException, ClassNotFoundException {
         String sql = "SELECT si.batch_number, si.quantity, si.reserved_quantity, "
-                + "si.qc_status, si.location_code, si.exp_date, si.received_date "
+                + "si.qc_status, si.location_code, si.exp_date, si.created_at AS received_date "
                 + "FROM Stock_Inventory si "
                 + "WHERE si.material_code = ? "
-                + "AND si.received_date >= DATE_SUB(CURRENT_DATE, INTERVAL ? DAY) "
-                + "ORDER BY si.received_date DESC";
+                + "AND si.created_at >= DATE_SUB(CURRENT_DATE, INTERVAL ? DAY) "
+                + "ORDER BY si.created_at DESC";
         List<Map<String, Object>> trend = new ArrayList<>();
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -283,7 +283,7 @@ public class RiskJdbcRepository implements RiskRepository {
         String sql = "SELECT COALESCE(SUM(si.reserved_quantity), 0) / 30.0 AS avg_daily "
                 + "FROM Stock_Inventory si "
                 + "WHERE si.material_code = ? "
-                + "AND si.received_date >= DATE_SUB(CURRENT_DATE, INTERVAL 30 DAY)";
+                + "AND si.created_at >= DATE_SUB(CURRENT_DATE, INTERVAL 30 DAY)";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, materialCode);
