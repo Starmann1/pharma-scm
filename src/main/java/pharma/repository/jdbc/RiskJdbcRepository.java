@@ -46,6 +46,10 @@ public class RiskJdbcRepository implements RiskRepository {
                 report.setRiskType("STOCKOUT");
                 report.setRiskScore(score);
                 report.setSeverity(classifySeverity(score));
+                report.setEntityType("MATERIAL");
+                report.setEntityId(materialCode);
+                report.setRiskCategory("SUPPLY_RISK");
+                report.setRecommendedAction("Expedite open orders or seek alternative supplier");
                 report.setGeneratedAt(LocalDateTime.now());
                 report.getDrivers().add("Material " + materialCode + " is below reorder level. "
                         + "Available: " + available + ", Reorder Level: " + reorderLevel);
@@ -79,6 +83,10 @@ public class RiskJdbcRepository implements RiskRepository {
                 report.setRiskType("SUPPLIER_RELIABILITY");
                 report.setRiskScore(score);
                 report.setSeverity(classifySeverity(score));
+                report.setEntityType("SUPPLIER");
+                report.setEntityId(String.valueOf(supplierId));
+                report.setRiskCategory("PERFORMANCE_RISK");
+                report.setRecommendedAction("Review supplier performance or source alternatives");
                 report.setGeneratedAt(LocalDateTime.now());
                 report.getDrivers().add("Supplier " + supplierName + " (ID: " + supplierId + ") has "
                         + late + "/" + total + " late deliveries in the last 90 days.");
@@ -128,6 +136,10 @@ public class RiskJdbcRepository implements RiskRepository {
         report.setRiskType("SUPPLIER_RISK");
         report.setRiskScore(riskScore);
         report.setSeverity(classifySeverity(riskScore));
+        report.setEntityType("SUPPLIER");
+        report.setEntityId(String.valueOf(supplierId));
+        report.setRiskCategory("PERFORMANCE_RISK");
+        report.setRecommendedAction(riskScore > 0.7 ? "Find alternative supplier immediately" : "Monitor supplier performance");
         report.setGeneratedAt(LocalDateTime.now());
         report.getDrivers().add("Late delivery rate: " + String.format("%.2f", lateDeliveryRate * 100) + "%");
         report.getDrivers().add("Rejection rate: " + String.format("%.2f", rejectionRate * 100) + "%");
@@ -173,6 +185,10 @@ public class RiskJdbcRepository implements RiskRepository {
         report.setRiskType("MATERIAL_STOCKOUT");
         report.setRiskScore(riskScore);
         report.setSeverity(classifySeverity(riskScore));
+        report.setEntityType("MATERIAL");
+        report.setEntityId(materialCode);
+        report.setRiskCategory("SUPPLY_RISK");
+        report.setRecommendedAction(riskScore > 0.7 ? "Reorder material immediately" : "Maintain current stock levels");
         report.setGeneratedAt(LocalDateTime.now());
         report.getDrivers().add("Current stock: " + currentStock + ", Reorder level: " + reorderLevel);
         report.getDrivers().add("Estimated days until stockout: " + String.format("%.1f", daysUntilStockout));
