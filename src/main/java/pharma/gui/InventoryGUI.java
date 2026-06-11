@@ -22,6 +22,10 @@ public class InventoryGUI extends JFrame {
     // REMOVED DASHBOARD :private final String DASHBOARD = "Dashboard";
     private final String MATERIALS = "Materials";
     private final String SUPPLIERS = "Suppliers";
+
+    // REMOVED DASHBOARD :private final String DASHBOARD = "Dashboard";
+    private final String MATERIALS = "Materials";
+    private final String SUPPLIERS = "Suppliers";
     private final String PURCHASE_ORDERS = "PurchaseOrders";
     private final String GRN = "GRN";
     private final String INVENTORY = "Inventory";
@@ -30,6 +34,8 @@ public class InventoryGUI extends JFrame {
     private final String PRODUCTION = "Production";
     private final String QUALITY = "Quality";
     private final String ADMIN = "Admin (RBAC)";
+    private final String RISK_DASHBOARD = "Risk Dashboard";
+    private final String AI_DECISION = "AI Decision";
 
     // EDITED: New constructor signature now accepts the DatabaseService AND the
     // authenticated User object.
@@ -137,6 +143,8 @@ public class InventoryGUI extends JFrame {
         }
         if (authService.hasPermission(activeUser, "VIEW_REPORTS")) {
             sideNavPanel.add(createNavButton(REPORTS));
+            sideNavPanel.add(createNavButton(RISK_DASHBOARD));
+            sideNavPanel.add(createNavButton(AI_DECISION));
         }
         if (authService.hasPermission(activeUser, "MANAGE_USERS")) {
             sideNavPanel.add(createNavButton(ADMIN));
@@ -275,6 +283,9 @@ public class InventoryGUI extends JFrame {
 
         // ReportsPanel: Assumed signature: ReportsPanel(DatabaseService)
         mainContentPanel.add(new ReportsPanel(dbService), REPORTS);
+
+        mainContentPanel.add(new RiskDashboardPanel(), RISK_DASHBOARD);
+        mainContentPanel.add(new AIDecisionDashboardPanel(pharma.App.getAppServices()), AI_DECISION);
 
         if (authService.hasPermission(activeUser, "MANAGE_USERS")) {
             mainContentPanel.add(new AdminRBACPanel(new pharma.service.RoleService(dbService), activeUser), ADMIN);
