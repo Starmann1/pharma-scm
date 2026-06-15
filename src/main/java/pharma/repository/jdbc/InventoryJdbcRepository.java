@@ -71,6 +71,11 @@ public class InventoryJdbcRepository implements InventoryRepository {
                 + "FROM Material_Master mm "
                 + "LEFT JOIN Stock_Inventory si ON si.material_code = mm.material_code "
                 + "WHERE mm.is_active = TRUE "
+                + "AND mm.material_code NOT IN ("
+                + "  SELECT poi.drug_id FROM PurchaseOrder_Item poi "
+                + "  JOIN Purchase_Order po ON po.po_id = poi.po_id "
+                + "  WHERE UPPER(po.status) NOT IN ('RECEIVED', 'CANCELLED', 'REJECTED')"
+                + ") "
                 + "GROUP BY mm.material_code, mm.reorder_level "
                 + "HAVING available_qty < mm.reorder_level";
         List<MaterialAvailabilityDTO> results = new ArrayList<>();
