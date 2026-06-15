@@ -52,11 +52,11 @@ public class SupplierJdbcRepository implements SupplierRepository {
     @Override
     public double getSupplierCapacity(int supplierId, String materialCode)
             throws SQLException, ClassNotFoundException {
-        String sql = "SELECT COALESCE(AVG(pod.quantity), 0) AS avg_capacity "
-                + "FROM Purchase_Order_Details pod "
-                + "JOIN Purchase_Order po ON po.po_id = pod.po_id "
-                + "WHERE po.supplier_id = ? AND pod.material_code = ? "
-                + "AND po.po_status NOT IN ('CANCELLED', 'REJECTED')";
+        String sql = "SELECT COALESCE(AVG(poi.quantity), 0) AS avg_capacity "
+                + "FROM PurchaseOrder_Item poi "
+                + "JOIN Purchase_Order po ON po.po_id = poi.po_id "
+                + "WHERE po.supplier_id = ? AND poi.drug_id = ? "
+                + "AND po.status NOT IN ('CANCELLED', 'REJECTED')";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, supplierId);
