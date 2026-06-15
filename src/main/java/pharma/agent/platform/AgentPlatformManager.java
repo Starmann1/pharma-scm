@@ -65,6 +65,10 @@ public class AgentPlatformManager {
         // Enable O2A channel for all agents (required by AgentGateway.submit)
         profile.setParameter(Profile.MAIN, "true");
         mainContainer = runtime.createMainContainer(profile);
+        if (mainContainer == null) {
+            log.error("AgentPlatformManager: Failed to start JADE container. Port 1099 might be in use.");
+            throw new IllegalStateException("JADE createMainContainer returned null. Port 1099 may be in use.");
+        }
         log.info("AgentPlatformManager: JADE main container started in headless mode.");
     }
 
@@ -113,6 +117,20 @@ public class AgentPlatformManager {
             // --- Phase 6: Core sub-agents (Coordinator routes to them) ---
             startAgent(AgentNames.INVENTORY,   InventoryAgent.class,   new Object[]{appServices});
             startAgent(AgentNames.SUPPLIER,    SupplierAgent.class,    new Object[]{appServices});
+
+            // --- Spawn representative agents for all approved suppliers ---
+            try (java.sql.Connection conn = appServices.getDatabaseService().getConnection();
+                 java.sql.PreparedStatement stmt = conn.prepareStatement(
+                         "SELECT supplier_id FROM Supplier_Master WHERE UPPER(COALESCE(supplier_status, 'APPROVED')) = 'APPROVED'");
+                 java.sql.ResultSet rs = stmt.executeQuery()) {
+                 while (rs.next()) {
+                     int id = rs.getInt("supplier_id");
+                     startAgent(AgentNames.SUPPLIER + "-" + id, SupplierAgent.class, new Object[]{appServices, id});
+                 }
+            } catch (Exception e) {
+                 log.error("AgentPlatformManager: Failed to spawn supplier representatives", e);
+            }
+
             startAgent(AgentNames.PRODUCTION,  ProductionAgent.class,  new Object[]{appServices});
             startAgent(AgentNames.QA,          QAAgent.class,          new Object[]{appServices});
             startAgent(AgentNames.COMPLIANCE,  ComplianceAgent.class,  new Object[]{appServices});

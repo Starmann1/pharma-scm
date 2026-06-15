@@ -22,10 +22,6 @@ public class InventoryGUI extends JFrame {
     // REMOVED DASHBOARD :private final String DASHBOARD = "Dashboard";
     private final String MATERIALS = "Materials";
     private final String SUPPLIERS = "Suppliers";
-
-    // REMOVED DASHBOARD :private final String DASHBOARD = "Dashboard";
-    private final String MATERIALS = "Materials";
-    private final String SUPPLIERS = "Suppliers";
     private final String PURCHASE_ORDERS = "PurchaseOrders";
     private final String GRN = "GRN";
     private final String INVENTORY = "Inventory";

@@ -47,6 +47,7 @@ public class QAAgent extends BasePharmaAgent {
                         "QAAgent: unsupported action '" + request.getAction() + "'");
             }
 
+            @SuppressWarnings("null")
             QAReviewRequestDTO req = new ObjectMapper()
                     .convertValue(request.getPayload(), QAReviewRequestDTO.class);
 

@@ -6,7 +6,6 @@ import java.awt.event.MouseEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import javax.swing.*;
@@ -52,7 +51,6 @@ public class RiskDashboardPanel extends JPanel {
     // =========================================================================
     private static final Color BG_DARK          = new Color(0x1A, 0x1A, 0x2E);
     private static final Color BG_HEADER        = new Color(0x16, 0x21, 0x3E);
-    private static final Color BG_TABLE_ROW     = new Color(0x0F, 0x3D, 0x6D);
     private static final Color BG_TABLE_ALT     = new Color(0x12, 0x2A, 0x4E);
     private static final Color BG_SELECTION     = new Color(0x1A, 0x6D, 0xD4);
     private static final Color TEXT_PRIMARY     = new Color(0xE0, 0xE0, 0xE0);
@@ -325,7 +323,6 @@ public class RiskDashboardPanel extends JPanel {
         });
     }
 
-    @SuppressWarnings("unchecked")
     private void populateFromResponse(AgentResponseEnvelope<?> response) {
         try {
             if (response.getErrors() != null && !response.getErrors().isEmpty()) {
@@ -621,7 +618,7 @@ public class RiskDashboardPanel extends JPanel {
         return findComponentByName(this, "refreshButton", JButton.class);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "null"})
     private static <T extends Component> T findComponentByName(
             Container container, String name, Class<T> type) {
         for (Component comp : container.getComponents()) {

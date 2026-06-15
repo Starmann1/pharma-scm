@@ -61,6 +61,7 @@ public class ProductionAgent extends BasePharmaAgent {
         private AgentResponseEnvelope<List<MaterialAvailabilityDTO>> handleFeasibility(
                 AgentRequestEnvelope<?> request) throws Exception {
 
+            @SuppressWarnings("null")
             FeasibilityRequestDTO req = MAPPER_WITH_TIME
                     .convertValue(request.getPayload(), FeasibilityRequestDTO.class);
 
@@ -82,6 +83,7 @@ public class ProductionAgent extends BasePharmaAgent {
         private AgentResponseEnvelope<ProductionCapacityDTO> handleCapacity(
                 AgentRequestEnvelope<?> request) throws Exception {
 
+            @SuppressWarnings("null")
             FeasibilityRequestDTO req = MAPPER_WITH_TIME
                     .convertValue(request.getPayload(), FeasibilityRequestDTO.class);
 

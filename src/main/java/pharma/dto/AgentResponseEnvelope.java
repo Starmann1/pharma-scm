@@ -6,6 +6,7 @@ import java.util.List;
 
 import pharma.agent.ontology.AgentStatuses;
 
+@SuppressWarnings("null")
 public class AgentResponseEnvelope<T> {
     private String transactionId;
     private String action;

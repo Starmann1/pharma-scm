@@ -3,6 +3,7 @@ package pharma.dto;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@SuppressWarnings("null")
 public class AgentRequestEnvelope<T> {
     private String transactionId;
     private String action;

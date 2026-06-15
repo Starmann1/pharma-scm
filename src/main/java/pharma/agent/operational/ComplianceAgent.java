@@ -57,6 +57,7 @@ public class ComplianceAgent extends BasePharmaAgent {
             logger.info("[ComplianceAgent] COMPLIANCE_VALIDATE txId='{}'",
                     request.getTransactionId());
 
+            @SuppressWarnings("null")
             ManufacturingFeasibilityDTO proposal =
                     MAPPER_JT.convertValue(request.getPayload(), ManufacturingFeasibilityDTO.class);
 

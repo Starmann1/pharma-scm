@@ -87,6 +87,7 @@ public class SupplierProposalBehaviour extends ContractNetResponder {
     @Override
     protected ACLMessage handleCfp(ACLMessage cfp) throws RefuseException, NotUnderstoodException {
         try {
+            @SuppressWarnings("null")
             ProcurementRequestDTO request = MAPPER.readValue(
                     cfp.getContent(), ProcurementRequestDTO.class);
 
@@ -168,9 +169,11 @@ public class SupplierProposalBehaviour extends ContractNetResponder {
     protected ACLMessage handleAcceptProposal(ACLMessage cfp, ACLMessage propose,
                                                ACLMessage accept) throws FailureException {
         try {
+            @SuppressWarnings("null")
             SupplierProposalDTO winningProposal = MAPPER.readValue(
                     propose.getContent(), SupplierProposalDTO.class);
 
+            @SuppressWarnings("null")
             ProcurementRequestDTO originalRequest = MAPPER.readValue(
                     cfp.getContent(), ProcurementRequestDTO.class);
 

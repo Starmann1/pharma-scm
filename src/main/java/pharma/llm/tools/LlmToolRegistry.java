@@ -33,6 +33,7 @@ public class LlmToolRegistry {
      *
      * @param services the application services providing access to all service-layer beans
      */
+    @SuppressWarnings("null")
     public LlmToolRegistry(ApplicationServices services) {
         this.toolObjects = Collections.unmodifiableList(List.of(
                 new InventoryLlmTools(services.getInventoryService()),

@@ -7,5 +7,6 @@
   },
   "chatgpt.runCodexInWindowsSubsystemForLinux": false,
   "java.debug.settings.onBuildFailureProceed": true,
-  "java.configuration.updateBuildConfiguration": "interactive"
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.compile.nullAnalysis.mode": "automatic"
 }

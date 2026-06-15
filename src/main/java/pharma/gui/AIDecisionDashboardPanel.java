@@ -75,7 +75,6 @@ public class AIDecisionDashboardPanel extends JPanel {
     private static final int COL_CREATED_AT   = 5;
 
     // ── State ───────────────────────────────────────────────────────────────
-    private final ApplicationServices services;
     private final AIDecisionService aiDecisionService;
 
     private JTable table;
@@ -91,7 +90,6 @@ public class AIDecisionDashboardPanel extends JPanel {
      *                 {@link AIDecisionService}
      */
     public AIDecisionDashboardPanel(ApplicationServices services) {
-        this.services = services;
         this.aiDecisionService = services.getAiDecisionService();
 
         setLayout(new BorderLayout(0, 0));

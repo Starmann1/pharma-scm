@@ -53,6 +53,7 @@ public class ComplianceLlmTools {
                "e.g. {\"materialCode\":\"FP-001\",\"bomId\":1,\"plannedQuantity\":100.0}") String proposalJson) {
         log.info("[ComplianceLlmTools] validateProposal json='{}'", proposalJson);
         try {
+            @SuppressWarnings("null")
             ManufacturingFeasibilityDTO proposal = MAPPER.readValue(proposalJson, ManufacturingFeasibilityDTO.class);
             return complianceService.validateManufacturingProposal(proposal);
         } catch (Exception e) {

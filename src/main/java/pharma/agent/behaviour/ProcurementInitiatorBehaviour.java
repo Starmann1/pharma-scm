@@ -1,7 +1,6 @@
 package pharma.agent.behaviour;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Vector;
 
@@ -75,7 +74,7 @@ public class ProcurementInitiatorBehaviour extends ContractNetInitiator {
      * @param acceptances  the vector to fill with ACCEPT/REJECT messages
      */
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     protected void handleAllResponses(Vector responses, Vector acceptances) {
         log.info("[ProcurementInitiator] Received {} response(s) for material='{}'.",
                 responses.size(), procurementRequest.getMaterialCode());
@@ -88,6 +87,7 @@ public class ProcurementInitiatorBehaviour extends ContractNetInitiator {
             ACLMessage response = (ACLMessage) obj;
             if (response.getPerformative() == ACLMessage.PROPOSE) {
                 try {
+                    @SuppressWarnings("null")
                     SupplierProposalDTO dto = MAPPER.readValue(
                             response.getContent(), SupplierProposalDTO.class);
                     proposals.add(response);
@@ -150,7 +150,7 @@ public class ProcurementInitiatorBehaviour extends ContractNetInitiator {
      * @param resultNotifications the INFORM/FAILURE messages from the winning supplier
      */
     @Override
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("rawtypes")
     protected void handleAllResultNotifications(Vector resultNotifications) {
         for (Object obj : resultNotifications) {
             ACLMessage notification = (ACLMessage) obj;

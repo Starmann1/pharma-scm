@@ -102,7 +102,9 @@ public class CoordinatorAgent extends BasePharmaAgent {
 
             AgentRequestEnvelope<?> request;
             try {
-                request = MAPPER.readValue(msg.getContent(), AgentRequestEnvelope.class);
+                @SuppressWarnings("null")
+                AgentRequestEnvelope<?> req = MAPPER.readValue(msg.getContent(), AgentRequestEnvelope.class);
+                request = req;
             } catch (JsonProcessingException e) {
                 log.error("[CoordinatorAgent] Failed to parse O2A request: {}", e.getMessage());
                 return;
@@ -175,6 +177,7 @@ public class CoordinatorAgent extends BasePharmaAgent {
             }
 
             try {
+                @SuppressWarnings("null")
                 AgentResponseEnvelope<?> response =
                         MAPPER.readValue(msg.getContent(), AgentResponseEnvelope.class);
 

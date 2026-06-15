@@ -28,11 +28,21 @@ import pharma.dto.SupplierScoreDTO;
  */
 public class SupplierAgent extends BasePharmaAgent {
 
+    private Integer supplierId = null;
+
     @Override
     protected void setup() {
         super.setup();
-        addBehaviour(new SupplierRequestBehaviour());
-        logger.info("[SupplierAgent] Ready to rank suppliers.");
+        Object[] args = getArguments();
+        if (args != null && args.length > 1 && args[1] instanceof Integer) {
+            supplierId = (Integer) args[1];
+            jade.lang.acl.MessageTemplate template = jade.lang.acl.MessageTemplate.MatchPerformative(jade.lang.acl.ACLMessage.CFP);
+            addBehaviour(new pharma.agent.behaviour.SupplierProposalBehaviour(this, template, services, supplierId));
+            logger.info("[SupplierAgent-{}] Ready to propose for Contract-Net.", supplierId);
+        } else {
+            addBehaviour(new SupplierRequestBehaviour());
+            logger.info("[SupplierAgent] Ready to rank suppliers.");
+        }
     }
 
     // =========================================================================
@@ -49,6 +59,7 @@ public class SupplierAgent extends BasePharmaAgent {
                         "SupplierAgent: unsupported action '" + request.getAction() + "'");
             }
 
+            @SuppressWarnings("null")
             SupplierCheckRequestDTO req = new ObjectMapper()
                     .convertValue(request.getPayload(), SupplierCheckRequestDTO.class);
 

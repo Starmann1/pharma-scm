@@ -20,3 +20,8 @@ maven.zip
 # lib/mysql-connector-j-9.4.0.jar
 
 .env
+
+# JADE Agent Platform files
+APDescription.txt
+MTPs-Main-Container.txt
+

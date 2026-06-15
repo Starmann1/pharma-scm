@@ -1,7 +1,6 @@
 package pharma.agent.behaviour;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -64,6 +63,7 @@ public class AIReasoningBehaviour extends RequestHandlerBehaviour {
         }
 
         // Deserialise the request payload
+        @SuppressWarnings("null")
         AIReasoningRequestDTO reasoningRequest = MAPPER.convertValue(
                 request.getPayload(), AIReasoningRequestDTO.class);
 

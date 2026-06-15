@@ -16,17 +16,20 @@ import pharma.service.DatabaseService;
 /**
  * Application entry point — Agentic Pharma SCM (V1: JADE + LangChain4j).
  *
- * <p>Startup sequence:
+ * <p>
+ * Startup sequence:
  * <ol>
- *   <li>Register a JVM shutdown hook to close HikariCP and JADE cleanly.</li>
- *   <li>Test the database connection (fail-fast with a dialog if unreachable).</li>
- *   <li>Build the {@link ApplicationServices} composition root.</li>
- *   <li>Create the {@link AgentGateway} (implements {@link PharmaGateway}).</li>
- *   <li>Start all JADE agents (Phase 6 core + V1 additions).</li>
- *   <li>Launch the Swing {@link LoginGUI} on the EDT.</li>
+ * <li>Register a JVM shutdown hook to close HikariCP and JADE cleanly.</li>
+ * <li>Test the database connection (fail-fast with a dialog if
+ * unreachable).</li>
+ * <li>Build the {@link ApplicationServices} composition root.</li>
+ * <li>Create the {@link AgentGateway} (implements {@link PharmaGateway}).</li>
+ * <li>Start all JADE agents (Phase 6 core + V1 additions).</li>
+ * <li>Launch the Swing {@link LoginGUI} on the EDT.</li>
  * </ol>
  *
- * <p>Architecture rule: {@link ApplicationServices}, {@link PharmaGateway}, and
+ * <p>
+ * Architecture rule: {@link ApplicationServices}, {@link PharmaGateway}, and
  * {@link AgentPlatformManager} are created once here and injected down into
  * panels that need them. No static singletons.
  */
@@ -67,7 +70,7 @@ public class App {
         if (!dbService.connect()) {
             JOptionPane.showMessageDialog(null,
                     "Failed to connect to the database.\n" +
-                    "Check your MySQL server status and the .env configuration.",
+                            "Check your MySQL server status and the .env configuration.",
                     "Fatal Connection Error",
                     JOptionPane.ERROR_MESSAGE);
             System.exit(1);
@@ -97,7 +100,7 @@ public class App {
             log.error("Failed to start JADE agent platform: {}", e.getMessage(), e);
             JOptionPane.showMessageDialog(null,
                     "Failed to start the agent platform:\n" + e.getMessage() +
-                    "\n\nThe application will start in degraded mode (no agent orchestration).",
+                            "\n\nThe application will start in degraded mode (no agent orchestration).",
                     "Agent Platform Warning",
                     JOptionPane.WARNING_MESSAGE);
             // Non-fatal — application continues without agents in degraded mode
@@ -119,7 +122,8 @@ public class App {
 
     /**
      * Returns the shared {@link PharmaGateway} for submitting async agent requests.
-     * May return {@code null} if the agent platform failed to start (degraded mode).
+     * May return {@code null} if the agent platform failed to start (degraded
+     * mode).
      */
     public static PharmaGateway getGateway() {
         return gateway;
@@ -142,7 +146,8 @@ public class App {
 
     /**
      * Returns the {@link ApplicationServices} composition root.
-     * Used by GUI panels that need direct service access (e.g., AI Decision Dashboard).
+     * Used by GUI panels that need direct service access (e.g., AI Decision
+     * Dashboard).
      */
     public static ApplicationServices getAppServices() {
         return appServices;

@@ -49,7 +49,9 @@ public abstract class RequestHandlerBehaviour extends CyclicBehaviour {
 
         AgentRequestEnvelope<?> request = null;
         try {
-            request = MAPPER.readValue(msg.getContent(), AgentRequestEnvelope.class);
+            @SuppressWarnings("null")
+            AgentRequestEnvelope<?> req = MAPPER.readValue(msg.getContent(), AgentRequestEnvelope.class);
+            request = req;
         } catch (JsonProcessingException e) {
             log.error("[{}] Failed to parse incoming request: {}", myAgent.getLocalName(), e.getMessage());
             sendFailureReply(msg, "unknown", "PARSE_ERROR: " + e.getMessage());
