@@ -70,7 +70,7 @@ public class InventoryJdbcRepository implements InventoryRepository {
                 + "COALESCE(SUM(si.reserved_quantity), 0) AS reserved_qty "
                 + "FROM Material_Master mm "
                 + "LEFT JOIN Stock_Inventory si ON si.material_code = mm.material_code "
-                + "WHERE mm.is_active = TRUE "
+                + "WHERE mm.is_active = TRUE AND mm.material_type IN ('RAW_MATERIAL', 'PACKAGING') "
                 + "AND mm.material_code NOT IN ("
                 + "  SELECT poi.drug_id FROM PurchaseOrder_Item poi "
                 + "  JOIN Purchase_Order po ON po.po_id = poi.po_id "

@@ -29,7 +29,7 @@ public class RiskJdbcRepository implements RiskRepository {
                 + "THEN si.quantity - si.reserved_quantity ELSE 0 END), 0) AS available_qty "
                 + "FROM Material_Master mm "
                 + "LEFT JOIN Stock_Inventory si ON si.material_code = mm.material_code "
-                + "WHERE mm.is_active = TRUE "
+                + "WHERE mm.is_active = TRUE AND mm.material_type IN ('RAW_MATERIAL', 'PACKAGING') "
                 + "GROUP BY mm.material_code, mm.reorder_level "
                 + "HAVING available_qty < mm.reorder_level";
         try (Connection conn = databaseService.getConnection();
@@ -212,7 +212,7 @@ public class RiskJdbcRepository implements RiskRepository {
         }
 
         // Collect material stockout risks for all active materials
-        String materialSql = "SELECT material_code FROM Material_Master WHERE is_active = TRUE";
+        String materialSql = "SELECT material_code FROM Material_Master WHERE is_active = TRUE AND material_type IN ('RAW_MATERIAL', 'PACKAGING')";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(materialSql);
                 ResultSet rs = stmt.executeQuery()) {
