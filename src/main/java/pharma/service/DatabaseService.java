@@ -3,6 +3,7 @@ package pharma.service;
 import pharma.model.*;
 import pharma.model.GRN.GRNItem;
 import pharma.model.PurchaseOrder.PurchaseOrderItem;
+import pharma.config.DatabaseConfig;
 
 import java.sql.*;
 import java.time.LocalDate;
@@ -12,9 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
-import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import io.github.cdimascio.dotenv.Dotenv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 //import java.util.Date;
@@ -23,22 +22,16 @@ public class DatabaseService {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseService.class);
     private static DatabaseService instance = null;
+    private static final DatabaseConfig databaseConfig;
     private static HikariDataSource ds;
 
     static {
-        Dotenv env = Dotenv.load();
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl(env.get("DB_URL"));
-        config.setUsername(env.get("DB_USER"));
-        config.setPassword(env.get("DB_PASS"));
-
-        config.setMaximumPoolSize(10);
-        config.setMinimumIdle(2);
-        config.setIdleTimeout(30000);
-        config.setMaxLifetime(1800000);
-        config.setConnectionTimeout(30000);
-
-        ds = new HikariDataSource(config);
+        databaseConfig = DatabaseConfig.fromEnvironment();
+        ds = new HikariDataSource(databaseConfig.toHikariConfig());
+        logger.info("Initialized {} database pool for profile '{}' at {}.",
+                databaseConfig.getDialect().getProfileName(),
+                databaseConfig.getProfile(),
+                databaseConfig.getRedactedJdbcUrl());
     }
 
     // *** FIX: Removed 'private Connection connection = null;' - connections should
@@ -56,21 +49,23 @@ public class DatabaseService {
     public boolean connect() {
         try {
             getConnection().close();
-            System.out.println("Database connection established successfully.");
+            logger.info("{} database connection established successfully.",
+                    databaseConfig.getDialect().getProfileName());
             return true;
         } catch (ClassNotFoundException e) {
-            System.err.println("JDBC Driver not found. Check your classpath.");
-            e.printStackTrace();
+            logger.error("JDBC driver not found. Check the classpath.", e);
             return false;
         } catch (SQLException e) {
-            System.err.println("SQL Connection failed. Ensure MySQL is running and database exists.");
-            e.printStackTrace();
+            logger.error("SQL connection failed for {} profile '{}'.",
+                    databaseConfig.getDialect().getProfileName(),
+                    databaseConfig.getProfile(),
+                    e);
             return false;
         }
     }
 
     public void disconnect() {
-        System.out.println("Note: DatabaseService now manages connection lifecycle per operation.");
+        logger.info("DatabaseService manages connection lifecycle per operation.");
     }
 
     public User getUserByCredentials(String username, String password) {
@@ -85,6 +80,13 @@ public class DatabaseService {
     }
 
     private void ensureOptionalSchema() {
+        if (!databaseConfig.isMysql()) {
+            logger.info("Skipping MySQL-only optional schema updates for {} profile '{}'.",
+                    databaseConfig.getDialect().getProfileName(),
+                    databaseConfig.getProfile());
+            return;
+        }
+
         try (Connection conn = getConnection()) {
             ensureSupplierApprovalSchema(conn);
             ensureInventoryStatusLocationConsistency(conn);
@@ -186,6 +188,10 @@ public class DatabaseService {
         if (ds != null && !ds.isClosed()) {
             ds.close();
         }
+    }
+
+    public static DatabaseConfig getDatabaseConfig() {
+        return databaseConfig;
     }
 
     // =======================================================

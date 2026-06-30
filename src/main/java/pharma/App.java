@@ -70,7 +70,7 @@ public class App {
         if (!dbService.connect()) {
             JOptionPane.showMessageDialog(null,
                     "Failed to connect to the database.\n" +
-                            "Check your MySQL server status and the .env configuration.",
+                            "Check the configured database server and .env configuration.",
                     "Fatal Connection Error",
                     JOptionPane.ERROR_MESSAGE);
             System.exit(1);

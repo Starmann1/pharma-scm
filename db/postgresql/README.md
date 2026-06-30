@@ -44,7 +44,8 @@ Tables use `created_at` and `updated_at` where mutable records need lifecycle tr
 
 ## v1.1 Integration Notes
 
-- Replace MySQL Connector/J with the PostgreSQL JDBC driver only on the v1.1 branch.
+- Keep MySQL Connector/J for the existing default profile and add the PostgreSQL JDBC driver only on the v1.1 branch.
+- Use the profile and environment keys documented in `runtime-configuration.md`.
 - Use a v1.1-specific JDBC URL such as `jdbc:postgresql://localhost:5432/pharma_ims_v11`.
 - Convert repository SQL before switching runtime traffic.
 - Fix direct `DriverManager.getConnection(...)` UI usages before production use.

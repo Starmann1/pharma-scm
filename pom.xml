@@ -33,6 +33,13 @@
             <artifactId>mysql-connector-j</artifactId>
             <version>9.0.0</version>
         </dependency>
+
+        <!-- PostgreSQL connector for the v1.1 upgrade profile -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.4</version>
+        </dependency>
         
         <!-- HikariCP connection pool -->
         <dependency>
