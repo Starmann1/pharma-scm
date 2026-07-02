@@ -12,16 +12,24 @@ import pharma.service.DatabaseService;
 
 public class MaterialJdbcRepository implements MaterialRepository {
     private final DatabaseService databaseService;
+    private final JdbcSqlDialect sqlDialect;
 
     public MaterialJdbcRepository(DatabaseService databaseService) {
+        this(databaseService, JdbcSqlDialect.from(DatabaseService.getDatabaseConfig()));
+    }
+
+    MaterialJdbcRepository(DatabaseService databaseService, JdbcSqlDialect sqlDialect) {
         this.databaseService = databaseService;
+        this.sqlDialect = sqlDialect;
     }
 
     @Override
     public Optional<Material> findByCode(String materialCode) throws SQLException, ClassNotFoundException {
         String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, "
                 + "schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, "
-                + "material_type, unit_of_measure FROM Material_Master WHERE material_code = ?";
+                + "material_type, unit_of_measure FROM "
+                + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
+                + " WHERE material_code = ?";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, materialCode);

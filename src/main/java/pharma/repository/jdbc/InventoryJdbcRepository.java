@@ -14,17 +14,24 @@ import pharma.service.DatabaseService;
 
 public class InventoryJdbcRepository implements InventoryRepository {
     private final DatabaseService databaseService;
+    private final JdbcSqlDialect sqlDialect;
 
     public InventoryJdbcRepository(DatabaseService databaseService) {
+        this(databaseService, JdbcSqlDialect.from(DatabaseService.getDatabaseConfig()));
+    }
+
+    InventoryJdbcRepository(DatabaseService databaseService, JdbcSqlDialect sqlDialect) {
         this.databaseService = databaseService;
+        this.sqlDialect = sqlDialect;
     }
 
     @Override
     public MaterialAvailabilityDTO checkAvailability(String materialCode, double requiredQuantity)
             throws SQLException, ClassNotFoundException {
         String sql = "SELECT si.batch_number, si.quantity, si.reserved_quantity, mm.reorder_level "
-                + "FROM Stock_Inventory si "
-                + "JOIN Material_Master mm ON mm.material_code = si.material_code "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.STOCK_INVENTORY) + " si "
+                + "JOIN " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
+                + " mm ON mm.material_code = si.material_code "
                 + "WHERE si.material_code = ? "
                 + "AND si.qc_status = 'APPROVED' "
                 + "AND si.location_code != 'REJECTED_AREA' "
@@ -68,16 +75,21 @@ public class InventoryJdbcRepository implements InventoryRepository {
                 + "AND (si.exp_date IS NULL OR si.exp_date >= CURRENT_DATE) "
                 + "THEN si.quantity - si.reserved_quantity ELSE 0 END), 0) AS available_qty, "
                 + "COALESCE(SUM(si.reserved_quantity), 0) AS reserved_qty "
-                + "FROM Material_Master mm "
-                + "LEFT JOIN Stock_Inventory si ON si.material_code = mm.material_code "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER) + " mm "
+                + "LEFT JOIN " + sqlDialect.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
+                + " si ON si.material_code = mm.material_code "
                 + "WHERE mm.is_active = TRUE AND mm.material_type IN ('RAW_MATERIAL', 'PACKAGING') "
                 + "AND mm.material_code NOT IN ("
-                + "  SELECT poi.drug_id FROM PurchaseOrder_Item poi "
-                + "  JOIN Purchase_Order po ON po.po_id = poi.po_id "
+                + "  SELECT poi.drug_id FROM " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM)
+                + " poi "
+                + "  JOIN " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER)
+                + " po ON po.po_id = poi.po_id "
                 + "  WHERE UPPER(po.status) NOT IN ('RECEIVED', 'CANCELLED', 'REJECTED')"
                 + ") "
                 + "GROUP BY mm.material_code, mm.reorder_level "
-                + "HAVING available_qty < mm.reorder_level";
+                + "HAVING COALESCE(SUM(CASE WHEN si.qc_status = 'APPROVED' "
+                + "AND (si.exp_date IS NULL OR si.exp_date >= CURRENT_DATE) "
+                + "THEN si.quantity - si.reserved_quantity ELSE 0 END), 0) < mm.reorder_level";
         List<MaterialAvailabilityDTO> results = new ArrayList<>();
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql);
@@ -97,7 +109,8 @@ public class InventoryJdbcRepository implements InventoryRepository {
     @Override
     public boolean reserveMaterial(String materialCode, double quantity)
             throws SQLException, ClassNotFoundException {
-        String sql = "UPDATE Stock_Inventory SET reserved_quantity = reserved_quantity + ? "
+        String sql = "UPDATE " + sqlDialect.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
+                + " SET reserved_quantity = reserved_quantity + ? "
                 + "WHERE material_code = ? "
                 + "AND qc_status = 'APPROVED' "
                 + "AND location_code != 'REJECTED_AREA' "

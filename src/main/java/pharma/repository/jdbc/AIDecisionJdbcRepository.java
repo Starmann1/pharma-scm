@@ -14,16 +14,23 @@ import pharma.service.DatabaseService;
 
 public class AIDecisionJdbcRepository implements AIDecisionRepository {
     private final DatabaseService databaseService;
+    private final JdbcSqlDialect sqlDialect;
 
     public AIDecisionJdbcRepository(DatabaseService databaseService) {
+        this(databaseService, JdbcSqlDialect.from(DatabaseService.getDatabaseConfig()));
+    }
+
+    AIDecisionJdbcRepository(DatabaseService databaseService, JdbcSqlDialect sqlDialect) {
         this.databaseService = databaseService;
+        this.sqlDialect = sqlDialect;
     }
 
     @Override
     public void save(String transactionId, String taskType, String promptSummary,
                      double confidenceScore, String rawOutput, boolean requiresHumanReview)
             throws SQLException, ClassNotFoundException {
-        String sql = "INSERT INTO ai_decisions (transaction_id, task_type, prompt_summary, "
+        String sql = "INSERT INTO " + sqlDialect.table(JdbcSqlDialect.Table.AI_DECISIONS)
+                + " (transaction_id, task_type, prompt_summary, "
                 + "confidence_score, raw_output, requires_human_review) "
                 + "VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection conn = databaseService.getConnection();
@@ -41,7 +48,8 @@ public class AIDecisionJdbcRepository implements AIDecisionRepository {
     @Override
     public AIReasoningResultDTO findByTransactionId(String transactionId)
             throws SQLException, ClassNotFoundException {
-        String sql = "SELECT * FROM ai_decisions WHERE transaction_id = ?";
+        String sql = "SELECT * FROM " + sqlDialect.table(JdbcSqlDialect.Table.AI_DECISIONS)
+                + " WHERE transaction_id = ?";
         try (Connection conn = databaseService.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, transactionId);
@@ -57,7 +65,8 @@ public class AIDecisionJdbcRepository implements AIDecisionRepository {
     @Override
     public List<AIReasoningResultDTO> findPendingReview()
             throws SQLException, ClassNotFoundException {
-        String sql = "SELECT * FROM ai_decisions WHERE status = 'PENDING' AND requires_human_review = 1";
+        String sql = "SELECT * FROM " + sqlDialect.table(JdbcSqlDialect.Table.AI_DECISIONS)
+                + " WHERE status = 'PENDING' AND requires_human_review = " + sqlDialect.trueLiteral();
         List<AIReasoningResultDTO> results = new ArrayList<>();
         try (Connection conn = databaseService.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -72,7 +81,8 @@ public class AIDecisionJdbcRepository implements AIDecisionRepository {
     @Override
     public List<AIReasoningResultDTO> findAll()
             throws SQLException, ClassNotFoundException {
-        String sql = "SELECT * FROM ai_decisions ORDER BY created_at DESC";
+        String sql = "SELECT * FROM " + sqlDialect.table(JdbcSqlDialect.Table.AI_DECISIONS)
+                + " ORDER BY created_at DESC";
         List<AIReasoningResultDTO> results = new ArrayList<>();
         try (Connection conn = databaseService.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -87,7 +97,8 @@ public class AIDecisionJdbcRepository implements AIDecisionRepository {
     @Override
     public void updateStatus(String transactionId, String status, int reviewedBy, String reason)
             throws SQLException, ClassNotFoundException {
-        String sql = "UPDATE ai_decisions SET status = ?, reviewed_by = ?, review_reason = ?, "
+        String sql = "UPDATE " + sqlDialect.table(JdbcSqlDialect.Table.AI_DECISIONS)
+                + " SET status = ?, reviewed_by = ?, review_reason = ?, "
                 + "reviewed_at = NOW() WHERE transaction_id = ?";
         try (Connection conn = databaseService.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {

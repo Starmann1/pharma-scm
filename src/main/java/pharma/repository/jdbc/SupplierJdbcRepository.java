@@ -14,9 +14,15 @@ import pharma.service.DatabaseService;
 
 public class SupplierJdbcRepository implements SupplierRepository {
     private final DatabaseService databaseService;
+    private final JdbcSqlDialect sqlDialect;
 
     public SupplierJdbcRepository(DatabaseService databaseService) {
+        this(databaseService, JdbcSqlDialect.from(DatabaseService.getDatabaseConfig()));
+    }
+
+    SupplierJdbcRepository(DatabaseService databaseService, JdbcSqlDialect sqlDialect) {
         this.databaseService = databaseService;
+        this.sqlDialect = sqlDialect;
     }
 
     @Override
@@ -24,8 +30,9 @@ public class SupplierJdbcRepository implements SupplierRepository {
             throws SQLException, ClassNotFoundException {
         String sql = "SELECT s.supplier_id, s.supplier_name, s.supplier_status, "
                 + "CASE WHEN mm.preferred_supplier_id = s.supplier_id THEN 100 ELSE 60 END AS score "
-                + "FROM Supplier_Master s "
-                + "LEFT JOIN Material_Master mm ON mm.material_code = ? "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.SUPPLIER_MASTER) + " s "
+                + "LEFT JOIN " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
+                + " mm ON mm.material_code = ? "
                 + "WHERE UPPER(COALESCE(s.supplier_status, 'APPROVED')) = ? "
                 + "ORDER BY score DESC, s.supplier_name ASC";
         List<SupplierScoreDTO> suppliers = new ArrayList<>();
@@ -53,8 +60,9 @@ public class SupplierJdbcRepository implements SupplierRepository {
     public double getSupplierCapacity(int supplierId, String materialCode)
             throws SQLException, ClassNotFoundException {
         String sql = "SELECT COALESCE(AVG(poi.quantity), 0) AS avg_capacity "
-                + "FROM PurchaseOrder_Item poi "
-                + "JOIN Purchase_Order po ON po.po_id = poi.po_id "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM) + " poi "
+                + "JOIN " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER)
+                + " po ON po.po_id = poi.po_id "
                 + "WHERE po.supplier_id = ? AND poi.drug_id = ? "
                 + "AND po.status NOT IN ('CANCELLED', 'REJECTED')";
         try (Connection conn = databaseService.getConnection();

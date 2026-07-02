@@ -13,9 +13,15 @@ import pharma.service.DatabaseService;
 
 public class RiskJdbcRepository implements RiskRepository {
     private final DatabaseService databaseService;
+    private final JdbcSqlDialect sqlDialect;
 
     public RiskJdbcRepository(DatabaseService databaseService) {
+        this(databaseService, JdbcSqlDialect.from(DatabaseService.getDatabaseConfig()));
+    }
+
+    RiskJdbcRepository(DatabaseService databaseService, JdbcSqlDialect sqlDialect) {
         this.databaseService = databaseService;
+        this.sqlDialect = sqlDialect;
     }
 
     @Override
@@ -27,11 +33,14 @@ public class RiskJdbcRepository implements RiskRepository {
                 + "COALESCE(SUM(CASE WHEN si.qc_status = 'APPROVED' "
                 + "AND (si.exp_date IS NULL OR si.exp_date >= CURRENT_DATE) "
                 + "THEN si.quantity - si.reserved_quantity ELSE 0 END), 0) AS available_qty "
-                + "FROM Material_Master mm "
-                + "LEFT JOIN Stock_Inventory si ON si.material_code = mm.material_code "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER) + " mm "
+                + "LEFT JOIN " + sqlDialect.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
+                + " si ON si.material_code = mm.material_code "
                 + "WHERE mm.is_active = TRUE AND mm.material_type IN ('RAW_MATERIAL', 'PACKAGING') "
                 + "GROUP BY mm.material_code, mm.reorder_level "
-                + "HAVING available_qty < mm.reorder_level";
+                + "HAVING COALESCE(SUM(CASE WHEN si.qc_status = 'APPROVED' "
+                + "AND (si.exp_date IS NULL OR si.exp_date >= CURRENT_DATE) "
+                + "THEN si.quantity - si.reserved_quantity ELSE 0 END), 0) < mm.reorder_level";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(lowStockSql);
                 ResultSet rs = stmt.executeQuery()) {
@@ -61,12 +70,13 @@ public class RiskJdbcRepository implements RiskRepository {
         String lateDeliverySql = "SELECT po.supplier_id, sm.supplier_name, "
                 + "COUNT(*) AS total_deliveries, "
                 + "SUM(CASE WHEN po.actual_delivery_date > po.expected_date THEN 1 ELSE 0 END) AS late_deliveries "
-                + "FROM Purchase_Order po "
-                + "JOIN Supplier_Master sm ON sm.supplier_id = po.supplier_id "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER) + " po "
+                + "JOIN " + sqlDialect.table(JdbcSqlDialect.Table.SUPPLIER_MASTER)
+                + " sm ON sm.supplier_id = po.supplier_id "
                 + "WHERE po.status IN ('DELIVERED', 'COMPLETED', 'CLOSED') "
-                + "AND po.order_date >= DATE_SUB(CURRENT_DATE, INTERVAL 90 DAY) "
+                + "AND po.order_date >= " + sqlDialect.daysBeforeCurrentDate(90) + " "
                 + "GROUP BY po.supplier_id, sm.supplier_name "
-                + "HAVING late_deliveries > 0";
+                + "HAVING SUM(CASE WHEN po.actual_delivery_date > po.expected_date THEN 1 ELSE 0 END) > 0";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(lateDeliverySql);
                 ResultSet rs = stmt.executeQuery()) {
@@ -103,9 +113,9 @@ public class RiskJdbcRepository implements RiskRepository {
                 + "COUNT(*) AS total_deliveries, "
                 + "SUM(CASE WHEN po.actual_delivery_date > po.expected_date THEN 1 ELSE 0 END) AS late_deliveries, "
                 + "SUM(CASE WHEN po.status = 'REJECTED' THEN 1 ELSE 0 END) AS rejections "
-                + "FROM Purchase_Order po "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER) + " po "
                 + "WHERE po.supplier_id = ? "
-                + "AND po.order_date >= DATE_SUB(CURRENT_DATE, INTERVAL 365 DAY)";
+                + "AND po.order_date >= " + sqlDialect.daysBeforeCurrentDate(365);
 
         double lateDeliveryRate = 0.0;
         double rejectionRate = 0.0;
@@ -153,8 +163,9 @@ public class RiskJdbcRepository implements RiskRepository {
                 + "COALESCE(SUM(CASE WHEN si.qc_status = 'APPROVED' "
                 + "AND (si.exp_date IS NULL OR si.exp_date >= CURRENT_DATE) "
                 + "THEN si.quantity - si.reserved_quantity ELSE 0 END), 0) AS current_stock "
-                + "FROM Material_Master mm "
-                + "LEFT JOIN Stock_Inventory si ON si.material_code = mm.material_code "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER) + " mm "
+                + "LEFT JOIN " + sqlDialect.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
+                + " si ON si.material_code = mm.material_code "
                 + "WHERE mm.material_code = ? "
                 + "GROUP BY mm.reorder_level";
 
@@ -200,7 +211,8 @@ public class RiskJdbcRepository implements RiskRepository {
         List<RiskReportDTO> allReports = new ArrayList<>();
 
         // Collect supplier risks for all active suppliers
-        String supplierSql = "SELECT DISTINCT supplier_id FROM Supplier_Master "
+        String supplierSql = "SELECT DISTINCT supplier_id FROM "
+                + sqlDialect.table(JdbcSqlDialect.Table.SUPPLIER_MASTER) + " "
                 + "WHERE UPPER(COALESCE(supplier_status, 'APPROVED')) = 'APPROVED'";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(supplierSql);
@@ -212,7 +224,9 @@ public class RiskJdbcRepository implements RiskRepository {
         }
 
         // Collect material stockout risks for all active materials
-        String materialSql = "SELECT material_code FROM Material_Master WHERE is_active = TRUE AND material_type IN ('RAW_MATERIAL', 'PACKAGING')";
+        String materialSql = "SELECT material_code FROM "
+                + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
+                + " WHERE is_active = TRUE AND material_type IN ('RAW_MATERIAL', 'PACKAGING')";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(materialSql);
                 ResultSet rs = stmt.executeQuery()) {
@@ -233,9 +247,9 @@ public class RiskJdbcRepository implements RiskRepository {
                 + "CASE WHEN po.actual_delivery_date > po.expected_date THEN 'LATE' "
                 + "     WHEN po.actual_delivery_date IS NULL THEN 'PENDING' "
                 + "     ELSE 'ON_TIME' END AS delivery_status "
-                + "FROM Purchase_Order po "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER) + " po "
                 + "WHERE po.supplier_id = ? "
-                + "AND po.order_date >= DATE_SUB(CURRENT_DATE, INTERVAL ? DAY) "
+                + "AND po.order_date >= " + sqlDialect.daysBeforeCurrentDateParameter() + " "
                 + "ORDER BY po.order_date DESC";
         List<Map<String, Object>> history = new ArrayList<>();
         try (Connection conn = databaseService.getConnection();
@@ -266,9 +280,9 @@ public class RiskJdbcRepository implements RiskRepository {
             throws SQLException, ClassNotFoundException {
         String sql = "SELECT si.batch_number, si.quantity, si.reserved_quantity, "
                 + "si.qc_status, si.location_code, si.exp_date, si.created_at AS received_date "
-                + "FROM Stock_Inventory si "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.STOCK_INVENTORY) + " si "
                 + "WHERE si.material_code = ? "
-                + "AND si.created_at >= DATE_SUB(CURRENT_DATE, INTERVAL ? DAY) "
+                + "AND si.created_at >= " + sqlDialect.daysBeforeCurrentDateParameter() + " "
                 + "ORDER BY si.created_at DESC";
         List<Map<String, Object>> trend = new ArrayList<>();
         try (Connection conn = databaseService.getConnection();
@@ -297,9 +311,9 @@ public class RiskJdbcRepository implements RiskRepository {
     private double estimateAvgDailyConsumption(String materialCode) throws SQLException, ClassNotFoundException {
         // Estimate consumption from reserved_quantity changes over the last 30 days
         String sql = "SELECT COALESCE(SUM(si.reserved_quantity), 0) / 30.0 AS avg_daily "
-                + "FROM Stock_Inventory si "
+                + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.STOCK_INVENTORY) + " si "
                 + "WHERE si.material_code = ? "
-                + "AND si.created_at >= DATE_SUB(CURRENT_DATE, INTERVAL 30 DAY)";
+                + "AND si.created_at >= " + sqlDialect.daysBeforeCurrentDate(30);
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, materialCode);
