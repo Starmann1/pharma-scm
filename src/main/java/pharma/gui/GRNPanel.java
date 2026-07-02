@@ -145,7 +145,7 @@ public class GRNPanel extends JPanel {
                 if (selectedIndex >= 0) {
                     PurchaseOrder selectedPO = availablePOs.get(selectedIndex);
                     // Open the CreateGRNDialog with the selected PO
-                    CreateGRNDialog dialog = new CreateGRNDialog(this.mainFrame, this, selectedPO);
+                    CreateGRNDialog dialog = new CreateGRNDialog(this.mainFrame, this, selectedPO, dbService);
                     dialog.setVisible(true);
                 }
             }
@@ -180,7 +180,7 @@ public class GRNPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "GRN not found.", "Data Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        ViewGRNDetailsDialog dlg = new ViewGRNDetailsDialog(mainFrame, grn);
+        ViewGRNDetailsDialog dlg = new ViewGRNDetailsDialog(mainFrame, grn, dbService);
         dlg.setVisible(true);
     }
 }

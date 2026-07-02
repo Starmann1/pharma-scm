@@ -1,17 +1,17 @@
 package pharma.gui;
 
 import pharma.model.GRN;
+import pharma.model.PurchaseOrder;
+import pharma.service.DatabaseService;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ViewGRNDetailsDialog extends JDialog {
-    public ViewGRNDetailsDialog(JFrame owner, GRN grn) {
+    public ViewGRNDetailsDialog(JFrame owner, GRN grn, DatabaseService dbService) {
         super(owner, "GRN Details", true);
 
         setLayout(new BorderLayout(10, 10));
@@ -40,36 +40,29 @@ public class ViewGRNDetailsDialog extends JDialog {
             }
         };
 
-        // Fetch PO items directly from DB and join with GRN details to populate the grid
         try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/pharma_ims?allowPublicKeyRetrieval=true&useSSL=false", "root", "SiriusBlack@369");
-                 PreparedStatement pstmt = conn.prepareStatement(
-                    "SELECT pi.drug_id, pi.quantity AS po_qty, pi.unit_price, gi.quantity_received, gi.batch_number, gi.expiry_date " +
-                    "FROM PurchaseOrder_Item pi " +
-                    "LEFT JOIN GRN_Item gi ON pi.drug_id = gi.drug_id AND gi.grn_id = ? " +
-                    "WHERE pi.po_id = ?")) {
-                
-                pstmt.setInt(1, grn.getId());
-                pstmt.setInt(2, grn.getPurchaseOrderId());
-                
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        String matCode = rs.getString("drug_id");
-                        int poQty = rs.getInt("po_qty");
-                        int recQty = rs.getInt("quantity_received");
-                        double unitPrice = rs.getDouble("unit_price");
-                        double totalCost = recQty * unitPrice;
-                        String batch = rs.getString("batch_number");
-                        String expiry = rs.getString("expiry_date");
-                        
-                        tableModel.addRow(new Object[]{
-                            matCode, poQty, recQty, batch, expiry, 
-                            String.format("$%.2f", unitPrice), 
-                            String.format("$%.2f", totalCost)
-                        });
-                    }
-                }
+            Map<String, PurchaseOrder.PurchaseOrderItem> poItemsByMaterial = new HashMap<>();
+            for (PurchaseOrder.PurchaseOrderItem item : dbService.getPurchaseOrderItems(grn.getPurchaseOrderId())) {
+                poItemsByMaterial.put(item.getMaterialCode(), item);
+            }
+
+            for (GRN.GRNItem item : grn.getItems()) {
+                PurchaseOrder.PurchaseOrderItem poItem = poItemsByMaterial.get(item.getMaterialCode());
+                int poQuantity = poItem != null ? poItem.getQuantity() : 0;
+                double unitPrice = poItem != null ? poItem.getUnitPrice() : 0.0;
+                int receivedQuantity = item.getQuantityReceived();
+                double totalCost = receivedQuantity * unitPrice;
+                String expiry = item.getExpiryDate() != null ? item.getExpiryDate().toString() : "";
+
+                tableModel.addRow(new Object[] {
+                        item.getMaterialCode(),
+                        poQuantity,
+                        receivedQuantity,
+                        item.getBatchNumber(),
+                        expiry,
+                        String.format("$%.2f", unitPrice),
+                        String.format("$%.2f", totalCost)
+                });
             }
         } catch (Exception e) {
             e.printStackTrace();

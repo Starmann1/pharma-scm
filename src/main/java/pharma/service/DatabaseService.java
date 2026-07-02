@@ -1008,11 +1008,12 @@ public class DatabaseService {
     }
 
     private GRNItem mapResultSetToGRNItem(ResultSet rs) throws SQLException {
+        java.sql.Date expiryDate = rs.getDate("expiry_date");
         return new GRNItem(
                 rs.getString("drug_id"), // Changed from getInt to getString
                 rs.getString("batch_number"),
                 rs.getInt("quantity_received"),
-                rs.getDate("expiry_date").toLocalDate());
+                expiryDate != null ? expiryDate.toLocalDate() : null);
     }
 
     private List<GRNItem> getGRNItems(int grn_Id) throws SQLException, ClassNotFoundException {
@@ -1249,7 +1250,7 @@ public class DatabaseService {
                 items);
     }
 
-    private List<PurchaseOrderItem> getPurchaseOrderItems(int poId) throws SQLException, ClassNotFoundException {
+    public List<PurchaseOrderItem> getPurchaseOrderItems(int poId) throws SQLException, ClassNotFoundException {
         List<PurchaseOrderItem> items = new ArrayList<>();
         String sql = "SELECT drug_id, quantity, unit_price FROM PurchaseOrder_Item WHERE po_id = ?";
 

@@ -6,23 +6,22 @@ import pharma.service.DatabaseService;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Date;
 
 public class CreateGRNDialog extends JDialog {
 
     private GRNPanel parentPanel;
     private PurchaseOrder purchaseOrder;
+    private DatabaseService dbService;
     private JTable itemsTable;
 
-    public CreateGRNDialog(JFrame owner, GRNPanel parent, PurchaseOrder po) {
+    public CreateGRNDialog(JFrame owner, GRNPanel parent, PurchaseOrder po, DatabaseService dbService) {
         super(owner, "Create GRN for PO: " + po.getPoNumber(), true);
         this.parentPanel = parent;
         this.purchaseOrder = po;
+        this.dbService = dbService;
         setLayout(new BorderLayout(10, 10));
 
         // --- Header Panel (Displaying PO Info) ---
@@ -49,21 +48,14 @@ public class CreateGRNDialog extends JDialog {
             }
         };
 
-        // Fetch PO items directly from DB to populate the grid
         try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/pharma_ims?allowPublicKeyRetrieval=true&useSSL=false", "root", "SiriusBlack@369");
-                 PreparedStatement pstmt = conn.prepareStatement("SELECT drug_id, quantity FROM PurchaseOrder_Item WHERE po_id = ?")) {
-                pstmt.setInt(1, po.getId());
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    while (rs.next()) {
-                        String matCode = rs.getString("drug_id");
-                        int qty = rs.getInt("quantity");
-                        String defaultBatch = "BATCH-" + System.currentTimeMillis() % 100000 + "-" + matCode;
-                        String defaultExpiry = LocalDate.now().plusYears(2).toString();
-                        tableModel.addRow(new Object[]{matCode, qty, qty, defaultBatch, defaultExpiry});
-                    }
-                }
+            List<PurchaseOrder.PurchaseOrderItem> items = dbService.getPurchaseOrderItems(po.getId());
+            for (PurchaseOrder.PurchaseOrderItem item : items) {
+                String materialCode = item.getMaterialCode();
+                int quantity = item.getQuantity();
+                String defaultBatch = "BATCH-" + System.currentTimeMillis() % 100000 + "-" + materialCode;
+                String defaultExpiry = LocalDate.now().plusYears(2).toString();
+                tableModel.addRow(new Object[] { materialCode, quantity, quantity, defaultBatch, defaultExpiry });
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -96,7 +88,7 @@ public class CreateGRNDialog extends JDialog {
         System.out.println("DEBUG: Attempting to save GRN for PO ID: " + purchaseOrder.getId());
 
         try {
-            Supplier supplier = DatabaseService.getInstance().getSupplierById(purchaseOrder.getSupplierId());
+            Supplier supplier = dbService.getSupplierById(purchaseOrder.getSupplierId());
             if (supplier != null && !Supplier.STATUS_APPROVED.equalsIgnoreCase(supplier.getSupplierStatus())) {
                 JOptionPane.showMessageDialog(this, "Cannot create GRN for unapproved supplier.", "Approval Required",
                         JOptionPane.ERROR_MESSAGE);
@@ -109,7 +101,7 @@ public class CreateGRNDialog extends JDialog {
         }
 
         // Placeholder save logic:
-        boolean success = DatabaseService.getInstance().createGRNFromPO(purchaseOrder);
+        boolean success = dbService.createGRNFromPO(purchaseOrder);
 
         System.out.println("DEBUG: GRN creation " + (success ? "SUCCESSFUL" : "FAILED"));
 
