@@ -4,6 +4,8 @@ import pharma.model.*;
 import pharma.model.GRN.GRNItem;
 import pharma.model.PurchaseOrder.PurchaseOrderItem;
 import pharma.config.DatabaseConfig;
+import pharma.repository.jdbc.GRNJdbcRepository;
+import pharma.repository.jdbc.PurchaseOrderJdbcRepository;
 
 import java.sql.*;
 import java.time.LocalDate;
@@ -25,6 +27,10 @@ public class DatabaseService {
     private static final DatabaseConfig databaseConfig;
     private static HikariDataSource ds;
 
+    // Phase 5: Dialect-aware repository delegates
+    private final PurchaseOrderJdbcRepository poRepository;
+    private final GRNJdbcRepository grnRepository;
+
     static {
         databaseConfig = DatabaseConfig.fromEnvironment();
         ds = new HikariDataSource(databaseConfig.toHikariConfig());
@@ -38,6 +44,8 @@ public class DatabaseService {
     // not be long-lived fields.
 
     public DatabaseService() {
+        this.poRepository = new PurchaseOrderJdbcRepository(this);
+        this.grnRepository = new GRNJdbcRepository(this);
         ensureOptionalSchema();
     }
 
@@ -883,410 +891,37 @@ public class DatabaseService {
         }
     }
 
+    // =====================================================================
+    // PURCHASE ORDER METHODS - delegated to PurchaseOrderJdbcRepository (Phase 5)
+    // =====================================================================
+
     public List<PurchaseOrder> getPurchaseOrders() {
-        List<PurchaseOrder> orders = new ArrayList<>();
-        String sql = "SELECT po.po_id, po.supplier_id, s.supplier_name, po.order_date, po.expected_date, po.total_amount, po.status "
-                +
-                "FROM Purchase_Order po JOIN Supplier_Master s ON po.supplier_id = s.supplier_id ORDER BY po.po_id DESC";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql);
-                ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                orders.add(mapResultSetToPurchaseOrder(rs));
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching all Purchase Orders: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return orders;
+        return poRepository.findAll();
     }
 
     public String generateNextPoNumber() {
-        // A simple UUID or sequence generation could replace this for a real
-        // application.
-        return "PO-" + LocalDate.now().getYear() + "-" + System.currentTimeMillis() % 10000;
+        return poRepository.generateNextPoNumber();
     }
 
     public boolean createPurchaseOrder(PurchaseOrder po) throws ClassNotFoundException {
-        // SQL to insert the PO Header and retrieve the auto-generated ID
-        String sqlHeader = "INSERT INTO Purchase_Order (supplier_id, order_date, expected_date, total_amount, status) VALUES (?, ?, ?, ?, ?)";
-        int newPoId = -1;
-
-        try (Connection conn = getConnection()) {
-            conn.setAutoCommit(false); // Start Transaction
-            try (PreparedStatement pstmt = conn.prepareStatement(sqlHeader, Statement.RETURN_GENERATED_KEYS)) {
-                validateSupplierApprovedForProcurement(conn, po.getSupplierId(), "Supplier is not approved.");
-
-                // 1. Insert PO Header
-                pstmt.setInt(1, po.getSupplierId());
-                pstmt.setDate(2, java.sql.Date.valueOf(po.getOrderDate()));
-                pstmt.setDate(3, java.sql.Date.valueOf(po.getExpectedDate()));
-                pstmt.setDouble(4, po.getTotalAmount());
-                pstmt.setString(5, po.getStatus());
-
-                if (pstmt.executeUpdate() == 0) {
-                    throw new SQLException("Creating PO header failed, no rows affected.");
-                }
-
-                try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        newPoId = generatedKeys.getInt(1);
-                        po.setId(newPoId); // Update the PO object with the new ID
-                    } else {
-                        throw new SQLException("Creating PO header failed, no ID obtained.");
-                    }
-                }
-
-                // 2. Insert PO Items (Line Items)
-                if (po.getItems() != null && !po.getItems().isEmpty()) {
-                    // SQL uses 'drug_id' which references Material_Master.material_code (VARCHAR)
-                    String sqlItems = "INSERT INTO PurchaseOrder_Item (po_id, drug_id, quantity, unit_price) VALUES (?, ?, ?, ?)";
-                    try (PreparedStatement pstmtItems = conn.prepareStatement(sqlItems)) {
-                        for (PurchaseOrder.PurchaseOrderItem item : po.getItems()) {
-                            pstmtItems.setInt(1, newPoId);
-
-                            // 💡 CRITICAL FIX: Use setString() and the corrected getter
-                            pstmtItems.setString(2, item.getMaterialCode()); // <-- Now uses String materialCode
-
-                            pstmtItems.setInt(3, item.getQuantity());
-                            pstmtItems.setDouble(4, item.getUnitPrice());
-                            pstmtItems.addBatch();
-                        }
-                        pstmtItems.executeBatch();
-                    }
-                }
-
-                // 3. Log Audit Trail (Inside Transaction)
-                logAuditTrail(conn, 0, "CREATE_PO", "Purchase_Order", String.valueOf(newPoId), null,
-                        "Total: " + po.getTotalAmount());
-
-                conn.commit(); // Commit Transaction
-                System.out.println("Purchase Order created successfully with ID: " + newPoId);
-                return true;
-
-            } catch (SQLException e) {
-                conn.rollback(); // Rollback on error
-                logger.error("Transaction Rollback due to SQL Error: {}", e.getMessage(), e);
-                // Re-throw if a serious unrecoverable error occurred (like invalid SQL or
-                // constraint violation)
-                return false;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        } catch (SQLException e) {
-            System.err.println("Database Error establishing connection for PO creation: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
+        return poRepository.create(po);
     }
 
-    // Corrected signature: returns PurchaseOrder, accepts String poId
+    public boolean createPurchaseOrder(String selectedSupplierName) {
+        return poRepository.createForSupplier(selectedSupplierName);
+    }
+
     public PurchaseOrder getPurchaseOrderById(String poId) throws ClassNotFoundException {
-        String sql = "SELECT po.po_id, po.supplier_id, po.order_date, po.expected_date, po.total_amount, po.status, s.supplier_name "
-                +
-                "FROM Purchase_Order po JOIN Supplier_Master s ON po.supplier_id = s.supplier_id WHERE po.po_id = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, Integer.parseInt(poId));
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToPurchaseOrder(rs);
-                }
-            }
-        } catch (SQLException e) {
-            System.err.println("Error retrieving Purchase Order " + poId + ": " + e.getMessage());
-            e.printStackTrace();
+        try {
+            return poRepository.findById(Integer.parseInt(poId));
         } catch (NumberFormatException e) {
-            System.err.println("Invalid PO ID format: " + poId);
+            logger.error("Invalid PO ID format: {}", poId);
+            return null;
         }
-        return null;
-    }
-
-    private GRNItem mapResultSetToGRNItem(ResultSet rs) throws SQLException {
-        java.sql.Date expiryDate = rs.getDate("expiry_date");
-        return new GRNItem(
-                rs.getString("drug_id"), // Changed from getInt to getString
-                rs.getString("batch_number"),
-                rs.getInt("quantity_received"),
-                expiryDate != null ? expiryDate.toLocalDate() : null);
-    }
-
-    private List<GRNItem> getGRNItems(int grn_Id) throws SQLException, ClassNotFoundException {
-        List<GRNItem> items = new ArrayList<>();
-        String sql = "SELECT drug_id, batch_number, quantity_received, expiry_date FROM GRN_Item WHERE grn_id = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, grn_Id);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    items.add(mapResultSetToGRNItem(rs));
-                }
-            }
-        }
-        return items;
-    }
-
-    /**
-     * Public wrapper method to get GRN items with exception handling
-     */
-    private List<GRNItem> getGRNItemsByGrnId(int grnId) {
-        try {
-            return getGRNItems(grnId);
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching GRN items for GRN ID " + grnId + ": " + e.getMessage());
-            e.printStackTrace();
-            return new ArrayList<>();
-        }
-    }
-
-    public List<GRN> getGRNs() {
-        List<GRN> grns = new ArrayList<>();
-        // CHANGE: Replaced INNER JOINs with LEFT JOINs to ensure all GRNs are returned.
-        String sql = "SELECT g.grn_id, g.po_id, g.received_date, g.received_by, g.status, s.supplier_name " +
-                "FROM Goods_Received_Note g " +
-                "LEFT JOIN Purchase_Order po ON g.po_id = po.po_id " +
-                "LEFT JOIN Supplier_Master s ON po.supplier_id = s.supplier_id";
-        try (Connection conn = getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql);
-                ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                int id = rs.getInt("grn_id");
-                int poId = rs.getInt("po_id");
-                java.sql.Timestamp receivedTs = rs.getTimestamp("received_date");
-                LocalDateTime received_Date = receivedTs != null ? receivedTs.toLocalDateTime() : null;
-                String received_By = rs.getString("received_by");
-                String status = rs.getString("status");
-                String supplierName = rs.getString("supplier_name"); // This will be null if no match is found
-                GRN grn = new GRN(id, supplierName, poId, received_Date, received_By, status, List.of());
-                grns.add(grn);
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching GRNs: " + e.getMessage());
-        }
-        return grns;
-    }
-
-    public boolean createGRNFromPO(PurchaseOrder po) {
-        System.out.println("Creating GRN for PO: " + po.getPoNumber() + " (ID: " + po.getId() + ")");
-
-        // SQL statements
-        String insertGrnSql = "INSERT INTO Goods_Received_Note (po_id, received_date, received_by, status) VALUES (?, NOW(), ?, ?)";
-        String insertGrnItemSql = "INSERT INTO GRN_Item (grn_id, drug_id, batch_number, quantity_received, expiry_date) VALUES (?, ?, ?, ?, ?)";
-        String insertOrUpdateStockSql = "INSERT INTO Stock_Inventory (material_code, location_code, batch_number, quantity, unit_cost, mfg_date, exp_date, qc_status) "
-                +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
-                "ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity), qc_status = VALUES(qc_status)";
-        String insertInventoryTransactionSql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        String insertEventLogSql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES (?, ?, ?, ?, ?)";
-        String updatePoStatusSql = "UPDATE Purchase_Order SET status = ? WHERE po_id = ?";
-
-        try (Connection conn = getConnection()) {
-            conn.setAutoCommit(false); // Start transaction
-
-            try {
-                validateSupplierApprovedForProcurement(conn, po.getSupplierId(),
-                        "Cannot create GRN for unapproved supplier.");
-
-                // 1. Create GRN Header
-                int grnId;
-                try (PreparedStatement pstmt = conn.prepareStatement(insertGrnSql, Statement.RETURN_GENERATED_KEYS)) {
-                    pstmt.setInt(1, po.getId());
-                    pstmt.setString(2, "admin"); // Default user, can be parameterized
-                    pstmt.setString(3, "Verified");
-
-                    int rowsAffected = pstmt.executeUpdate();
-                    if (rowsAffected == 0) {
-                        throw new SQLException("Creating GRN failed, no rows affected.");
-                    }
-
-                    try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
-                        if (generatedKeys.next()) {
-                            grnId = generatedKeys.getInt(1);
-                            System.out.println("Created GRN with ID: " + grnId);
-                        } else {
-                            throw new SQLException("Creating GRN failed, no ID obtained.");
-                        }
-                    }
-                }
-
-                // 2. Get PO items and create GRN items + update inventory
-                List<PurchaseOrderItem> poItems = getPurchaseOrderItems(po.getId());
-
-                if (poItems == null || poItems.isEmpty()) {
-                    System.out.println("Warning: No items found for PO " + po.getId());
-                    conn.rollback();
-                    return false;
-                }
-
-                try (PreparedStatement grnItemStmt = conn.prepareStatement(insertGrnItemSql);
-                        PreparedStatement stockStmt = conn.prepareStatement(insertOrUpdateStockSql);
-                        PreparedStatement txStmt = conn.prepareStatement(insertInventoryTransactionSql);
-                        PreparedStatement eventStmt = conn.prepareStatement(insertEventLogSql)) {
-
-                    for (PurchaseOrderItem item : poItems) {
-                        // Generate batch number (in real app, this would be from user input)
-                        String batchNumber = "BATCH-" + System.currentTimeMillis() + "-" + item.getMaterialCode();
-                        LocalDate expiryDate = LocalDate.now().plusYears(2); // Default 2 years expiry
-                        LocalDate mfgDate = LocalDate.now();
-
-                        // Insert GRN Item
-                        grnItemStmt.setInt(1, grnId);
-                        grnItemStmt.setString(2, item.getMaterialCode());
-                        grnItemStmt.setString(3, batchNumber);
-                        grnItemStmt.setInt(4, item.getQuantity());
-                        grnItemStmt.setDate(5, Date.valueOf(expiryDate));
-                        grnItemStmt.addBatch();
-
-                        // Insert/Update Stock Inventory (default location: RAW_MATERIAL_WAREHOUSE)
-                        stockStmt.setString(1, item.getMaterialCode());
-                        stockStmt.setString(2, "QC_HOLD"); // Use QC_HOLD for initial arrival
-                        stockStmt.setString(3, batchNumber);
-                        stockStmt.setInt(4, item.getQuantity());
-                        stockStmt.setDouble(5, item.getUnitPrice());
-                        stockStmt.setDate(6, Date.valueOf(mfgDate));
-                        stockStmt.setDate(7, Date.valueOf(expiryDate));
-                        stockStmt.setString(8, "QUARANTINE"); // Label as Quarantined by default
-                        stockStmt.addBatch();
-
-                        // Add Inventory Transaction
-                        txStmt.setString(1, item.getMaterialCode());
-                        txStmt.setString(2, batchNumber);
-                        txStmt.setString(3, "QC_HOLD"); // Logged at QC_HOLD arrival
-                        txStmt.setString(4, "GRN_RECEIPT");
-                        txStmt.setDouble(5, item.getQuantity());
-                        txStmt.setString(6, "GRN");
-                        txStmt.setString(7, String.valueOf(grnId));
-                        txStmt.setInt(8, 1); // System Admin ID
-                        txStmt.setString(9, "Received from PO " + po.getPoNumber());
-                        txStmt.addBatch();
-
-                        System.out.println("Added GRN item: Material=" + item.getMaterialCode() +
-                                ", Qty=" + item.getQuantity() +
-                                ", Batch=" + batchNumber);
-                    }
-
-                    // Execute batches
-                    grnItemStmt.executeBatch();
-                    stockStmt.executeBatch();
-                    txStmt.executeBatch();
-
-                    // Generate Event Log
-                    eventStmt.setString(1, "MATERIAL_RECEIVED");
-                    eventStmt.setString(2, "GRN");
-                    eventStmt.setString(3, String.valueOf(grnId));
-                    eventStmt.setString(4, "Received materials for PO " + po.getPoNumber());
-                    eventStmt.setString(5, "SUCCESS");
-                    eventStmt.executeUpdate();
-                }
-
-                // 3. Update PO status to "Received"
-                try (PreparedStatement pstmt = conn.prepareStatement(updatePoStatusSql)) {
-                    pstmt.setString(1, "Received");
-                    pstmt.setInt(2, po.getId());
-                    pstmt.executeUpdate();
-                }
-
-                conn.commit(); // Commit transaction
-                System.out.println("GRN creation successful for PO " + po.getId());
-                return true;
-
-            } catch (SQLException e) {
-                conn.rollback(); // Rollback on error
-                System.err.println("Error creating GRN, transaction rolled back: " + e.getMessage());
-                e.printStackTrace();
-                return false;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Database connection error during GRN creation: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    private PurchaseOrder mapResultSetToPurchaseOrder(ResultSet rs) throws SQLException, ClassNotFoundException {
-        int id = rs.getInt("po_id");
-        int supplierId = rs.getInt("supplier_id");
-
-        // Try to get supplierName from the joined query first
-        String supplierName = null;
-        try {
-            supplierName = rs.getString("supplier_name");
-        } catch (SQLException e) {
-            // ignore if column not found, handle below
-        }
-
-        // Fallback: If supplier_name wasn't included in the result set, fetch it.
-        if (supplierName == null) {
-            Supplier s = getSupplierById(supplierId);
-            supplierName = (s != null) ? s.getSupplierName() : "Unknown Supplier";
-        }
-
-        LocalDate orderDate = rs.getDate("order_date").toLocalDate();
-        LocalDate expectedDate = rs.getDate("expected_date").toLocalDate();
-
-        double totalAmount = rs.getDouble("total_amount");
-        String status = rs.getString("status");
-
-        List<PurchaseOrderItem> items = getPurchaseOrderItems(id);
-
-        return new PurchaseOrder(
-                id,
-                supplierId,
-                supplierName,
-                orderDate,
-                expectedDate,
-                totalAmount,
-                status,
-                items);
     }
 
     public List<PurchaseOrderItem> getPurchaseOrderItems(int poId) throws SQLException, ClassNotFoundException {
-        List<PurchaseOrderItem> items = new ArrayList<>();
-        String sql = "SELECT drug_id, quantity, unit_price FROM PurchaseOrder_Item WHERE po_id = ?";
-
-        System.out.println("DEBUG: Fetching items for PO ID: " + poId);
-
-        // Use the getConnection() helper method established in DatabaseService
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, poId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                int count = 0;
-                while (rs.next()) {
-                    String drugId = rs.getString("drug_id");
-                    int quantity = rs.getInt("quantity");
-                    double unitPrice = rs.getDouble("unit_price");
-
-                    System.out.println(
-                            "DEBUG: Found item - Material ID: " + drugId + ", Qty: " + quantity + ", Price: "
-                                    + unitPrice);
-
-                    items.add(new PurchaseOrderItem(
-                            // 💡 FIX 1: Read the material_code (drug_id) as a String
-                            drugId,
-
-                            // Read quantity and unit_price as intended
-                            quantity,
-                            unitPrice));
-                    count++;
-                }
-                System.out.println("DEBUG: Total items found for PO " + poId + ": " + count);
-            }
-        }
-        // Note: No explicit catch block here, allowing calling methods (like
-        // mapResultSetToPurchaseOrder) to handle the exception.
-        return items;
+        return poRepository.findItemsByPoId(poId);
     }
 
     public Supplier getSupplierById(int supplierId) throws ClassNotFoundException {
@@ -1308,12 +943,9 @@ public class DatabaseService {
 
     public int getSupplierIdByName(String supplierName) throws ClassNotFoundException {
         String sql = "SELECT supplier_id FROM Supplier_Master WHERE supplier_name = ?";
-
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
             pstmt.setString(1, supplierName);
-
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
                     return rs.getInt("supplier_id");
@@ -1326,188 +958,35 @@ public class DatabaseService {
         return -1;
     }
 
-    public boolean createPurchaseOrder(String selectedSupplierName) {
-        // 💡 FIX: Implemented the wrapper method
-        try {
-            int supplierId = getSupplierIdByName(selectedSupplierName);
-            if (supplierId == -1)
-                return false;
-
-            PurchaseOrder minimalPo = new PurchaseOrder(
-                    supplierId,
-                    selectedSupplierName,
-                    LocalDate.now(),
-                    LocalDate.now().plusDays(7),
-                    0.00,
-                    "Pending",
-                    new java.util.ArrayList<>());
-
-            return createPurchaseOrder(minimalPo);
-
-        } catch (Exception e) {
-            System.err.println("Error in simple PO creation wrapper: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    private boolean purchaseOrderExists(Connection conn, int orderId) throws SQLException {
-        String sql = "SELECT 1 FROM Purchase_Order WHERE po_id = ?";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, orderId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                return rs.next();
-            }
-        }
-    }
-
-    private boolean purchaseOrderHasGoodsReceivedNotes(Connection conn, int orderId) throws SQLException {
-        String sql = "SELECT 1 FROM Goods_Received_Note WHERE po_id = ? LIMIT 1";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, orderId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                return rs.next();
-            }
-        }
+    public boolean updatePurchaseOrder(PurchaseOrder updatedPo) {
+        return poRepository.update(updatedPo);
     }
 
     public void deletePurchaseOrder(int orderId) throws SQLException {
-        String deleteItemsSql = "DELETE FROM PurchaseOrder_Item WHERE po_id = ?";
-        String deleteOrderSql = "DELETE FROM Purchase_Order WHERE po_id = ?";
-        try (Connection conn = getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                if (!purchaseOrderExists(conn, orderId)) {
-                    throw new SQLException("Purchase order " + orderId + " was not found.");
-                }
-
-                if (purchaseOrderHasGoodsReceivedNotes(conn, orderId)) {
-                    throw new SQLIntegrityConstraintViolationException(
-                            "Purchase order " + orderId
-                                    + " cannot be deleted because goods have already been received for it. Delete the order only before creating a GRN.");
-                }
-
-                try (
-                        PreparedStatement itemsStmt = conn.prepareStatement(deleteItemsSql);
-                        PreparedStatement orderStmt = conn.prepareStatement(deleteOrderSql)) {
-                    itemsStmt.setInt(1, orderId);
-                    itemsStmt.executeUpdate();
-
-                    orderStmt.setInt(1, orderId);
-                    int deletedRows = orderStmt.executeUpdate();
-                    if (deletedRows == 0) {
-                        throw new SQLException("Purchase order " + orderId + " could not be deleted.");
-                    }
-                }
-
-                logAuditTrail(conn, 0, "DELETE_PO", "Purchase_Order", String.valueOf(orderId), "Existing", null);
-                conn.commit();
-            } catch (SQLException ex) {
-                conn.rollback();
-                System.err.println("Delete PurchaseOrder rollback: " + ex.getMessage());
-                throw ex;
-            }
-        } catch (ClassNotFoundException e) {
-            System.err.println("Delete PurchaseOrder error: " + e.getMessage());
-            throw new SQLException("Database driver not found: " + e.getMessage());
-        }
+        poRepository.delete(orderId);
     }
 
     public void receivePurchaseOrderShipment(int orderId) {
-        String updateStatusSql = "UPDATE Purchase_Order SET status = ? WHERE po_id = ?";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(updateStatusSql)) {
-            pstmt.setString(1, "Received");
-            pstmt.setInt(2, orderId);
-            pstmt.executeUpdate();
-            logAuditTrail(conn, 0, "RECEIVE_PO", "Purchase_Order", String.valueOf(orderId), "Pending", "Received");
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error marking PO as received: " + e.getMessage());
-        }
-    }
-
-    public boolean updatePurchaseOrder(PurchaseOrder updatedPo) {
-        String updateHeaderSql = "UPDATE Purchase_Order SET supplier_id = ?, order_date = ?, expected_date = ?, total_amount = ?, status = ? WHERE po_id = ?";
-        String deleteItemsSql = "DELETE FROM PurchaseOrder_Item WHERE po_id = ?";
-        String insertItemSql = "INSERT INTO PurchaseOrder_Item (po_id, drug_id, quantity, unit_price) VALUES (?, ?, ?, ?)";
-        try (Connection conn = getConnection()) {
-            conn.setAutoCommit(false);
-            try (
-                    PreparedStatement headerStmt = conn.prepareStatement(updateHeaderSql);
-                    PreparedStatement deleteItemsStmt = conn.prepareStatement(deleteItemsSql);
-                    PreparedStatement insertItemStmt = conn.prepareStatement(insertItemSql)) {
-                validateSupplierApprovedForProcurement(conn, updatedPo.getSupplierId(), "Supplier is not approved.");
-                // Update PO Header
-                headerStmt.setInt(1, updatedPo.getSupplierId());
-                headerStmt.setDate(2, java.sql.Date.valueOf(updatedPo.getOrderDate()));
-                headerStmt.setDate(3, java.sql.Date.valueOf(updatedPo.getExpectedDate()));
-                headerStmt.setDouble(4, updatedPo.getTotalAmount());
-                headerStmt.setString(5, updatedPo.getStatus());
-                headerStmt.setInt(6, updatedPo.getId());
-                headerStmt.executeUpdate();
-
-                // Delete old items
-                deleteItemsStmt.setInt(1, updatedPo.getId());
-                deleteItemsStmt.executeUpdate();
-
-                // Insert new items
-                for (PurchaseOrder.PurchaseOrderItem item : updatedPo.getItems()) {
-                    insertItemStmt.setInt(1, updatedPo.getId());
-                    insertItemStmt.setString(2, item.getMaterialCode());
-                    insertItemStmt.setInt(3, item.getQuantity());
-                    insertItemStmt.setDouble(4, item.getUnitPrice());
-                    insertItemStmt.addBatch();
-                }
-                insertItemStmt.executeBatch();
-
-                conn.commit();
-                return true;
-            } catch (SQLException ex) {
-                conn.rollback();
-                System.err.println("Update PO rollback: " + ex.getMessage());
-                return false;
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Update PO error: " + e.getMessage());
-            return false;
-        }
-    }
-
-    public GRN getGRNById(int grn_Id) {
-        // Fixed SQL: Use correct table name and JOIN to get supplier_name
-        String sql = "SELECT g.grn_id, g.po_id, g.received_date, g.received_by, g.status, s.supplier_name " +
-                "FROM Goods_Received_Note g " +
-                "LEFT JOIN Purchase_Order po ON g.po_id = po.po_id " +
-                "LEFT JOIN Supplier_Master s ON po.supplier_id = s.supplier_id " +
-                "WHERE g.grn_id = ?";
-        try (Connection conn = getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, grn_Id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    int grn_id = rs.getInt("grn_id");
-                    int po_Id = rs.getInt("po_id");
-                    String supplier_Name = rs.getString("supplier_name");
-                    java.sql.Timestamp receivedTs = rs.getTimestamp("received_date");
-                    String received_By = rs.getString("received_by");
-                    String status = rs.getString("status");
-
-                    LocalDateTime received_Date = receivedTs != null ? receivedTs.toLocalDateTime() : null;
-
-                    // Load GRN items
-                    List<GRN.GRNItem> items = getGRNItemsByGrnId(grn_Id);
-
-                    return new GRN(grn_id, supplier_Name, po_Id, received_Date, received_By, status, items);
-                }
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching GRN by ID: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return null;
+        poRepository.receiveShipment(orderId);
     }
 
     // =====================================================================
+    // GRN METHODS - delegated to GRNJdbcRepository (Phase 5)
+    // =====================================================================
+
+    public List<GRN> getGRNs() {
+        return grnRepository.findAll();
+    }
+
+    public GRN getGRNById(int grnId) {
+        return grnRepository.findById(grnId);
+    }
+
+    public boolean createGRNFromPO(PurchaseOrder po) {
+        return grnRepository.createFromPO(po);
+    }
+
+
     // MANUFACTURING ERP METHODS - Phase 3
     // =====================================================================
 
