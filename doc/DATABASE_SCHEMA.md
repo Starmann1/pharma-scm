@@ -1,204 +1,84 @@
-# Database Schema
+# Database Schema (v1.1)
 
-## Overview
+The Agentic Pharma SCM system (v1.1) supports a **dual-dialect persistence layer** running seamlessly on either **MySQL 8.0+** or **PostgreSQL 15+**.
 
-The Agentic Pharmaceutical Supply Chain Management System relies on a MySQL 8+ relational database. The schema is designed to enforce referential integrity and provide auditable tracking of all regulated events.
+This document outlines the core tables, their relationships, and the differences between the MySQL and PostgreSQL schemas.
 
-The following schema design incorporates the **existing application database** tables (from `database.sql`) while introducing **new agentic tables** to support AI and RAG functionalities. This database layer acts as the single source of truth for both Version 1 (JADE Hybrid) and Version 2 (Google ADK) implementations.
+## 1. Dual-Dialect System (`JdbcSqlDialect`)
 
----
+The system uses `JdbcSqlDialect.java` to map table names and SQL syntax differences at runtime based on the active profile in `.env` (`DB_PROFILE=mysql` or `DB_PROFILE=postgresql`).
 
-## 1. Materials Management
+- **MySQL Table Names**: Mixed case (e.g., `Supplier_Master`, `Goods_Received_Note`)
+- **PostgreSQL Table Names**: Snake case (e.g., `supplier_master`, `goods_received_note`)
 
-**`material_master` (Existing)**
-- `material_code` (PK, VARCHAR)
-- `brand_name` (VARCHAR)
-- `generic_name` (VARCHAR)
-- `manufacturer` (VARCHAR)
-- `formulation`, `strength`, `schedule_category` (VARCHAR)
-- `storage_conditions` (TEXT)
-- `reorder_level` (INT)
-- `is_active` (BOOLEAN)
-- `preferred_supplier_id` (FK -> `supplier_master.supplier_id`)
-- `material_type` (ENUM: 'RAW_MATERIAL', 'PACKAGING', 'INTERMEDIATE', 'FINISHED_GOOD')
-- `unit_of_measure` (VARCHAR)
-- `created_at`, `updated_at` (TIMESTAMP)
+## 2. Core Master Data
 
-## 2. Suppliers
+| PostgreSQL Table | Primary Key | Key Relationships | Purpose |
+|------------------|-------------|-------------------|---------|
+| `supplier_master` | `supplier_id` (IDENTITY) | - | Base supplier profiles and approval states |
+| `supplier_audit_log` | `id` | FK `supplier_master` | Tracking of supplier approval/rejection events |
+| `material_master` | `material_code` | FK `supplier_master` | Defines all drugs, excipients, and materials |
+| `location_master` | `location_code` | - | Physical warehouse and transit locations |
+| `role_master` | `role_id` | - | RBAC roles |
+| `permission_master` | `permission_id` | - | RBAC discrete permissions |
+| `role_permission` | `(role_id, permission_id)` | FK `role_master`, `permission_master` | RBAC mapping |
+| `user_master` | `user_id` | FK `role_master` | System users and agents |
+| `system_audit_trail` | `audit_id` | FK `user_master` | Immutable log of all system mutations |
 
-**`supplier_master` (Existing)**
-- `supplier_id` (PK, INT, Auto-increment)
-- `supplier_name` (VARCHAR)
-- `contact_person`, `address`, `email`, `phone_number` (VARCHAR)
-- `gstin`, `drug_license_number` (VARCHAR)
-- `payment_terms` (VARCHAR)
-- `supplier_status` (VARCHAR, DEFAULT 'PENDING')
-- `approved_at`, `rejected_at` (TIMESTAMP)
-- `remarks` (TEXT)
+## 3. Procurement & Receiving
 
-**`supplier_performance` (New Agentic Table)**
-- `id` (PK, INT, Auto-increment)
-- `supplier_id` (FK -> `supplier_master.supplier_id`)
-- `audit_date` (DATE)
-- `score` (DECIMAL)
-- `delivery_reliability_pct` (DECIMAL)
-- `quality_defect_rate` (DECIMAL)
+| PostgreSQL Table | Primary Key | Key Relationships |
+|------------------|-------------|-------------------|
+| `purchase_order` | `po_id` | FK `supplier_master` |
+| `purchase_order_item` | `po_item_id` | FK `purchase_order`, `material_master` |
+| `goods_received_note` | `grn_id` | FK `purchase_order` |
+| `grn_item` | `grn_item_id` | FK `goods_received_note`, `material_master` |
 
-## 3. Inventory & Warehousing
+## 4. Inventory & Production
 
-**`location_master` (Existing)**
-- `location_code` (PK, VARCHAR)
-- `location_name` (VARCHAR)
-- `description` (TEXT)
-- `capacity` (INT)
+| PostgreSQL Table | Primary Key | Key Relationships |
+|------------------|-------------|-------------------|
+| `stock_inventory` | `stock_id` | FK `material_master`, `location_master`. Unique on `(material_code, location_code, batch_number)`. |
+| `inventory_transaction` | `transaction_id` | FK `material_master`, `location_master`, `user_master` |
+| `bom_header` | `bom_id` | FK `material_master`. Unique on `(material_code, version_number)`. |
+| `bom_details` | `bom_detail_id` | FK `bom_header`, `material_master(ingredient)` |
+| `production_order` | `order_id` | FK `bom_header`, `user_master` |
+| `production_material_consumption` | `consumption_id` | FK `production_order`, `material_master` |
+| `production_batch` | `batch_id` | FK `production_order`, `material_master`, `location_master` |
+| `batch_genealogy` | `genealogy_id` | FK `production_order` |
+| `event_log` | `event_id` | - |
 
-**`stock_inventory` (Existing)**
-- `stock_id` (PK, INT, Auto-increment)
-- `material_code` (FK -> `material_master.material_code`)
-- `location_code` (FK -> `location_master.location_code`)
-- `batch_number` (VARCHAR)
-- `quantity` (DECIMAL)
-- `reserved_quantity` (DECIMAL)
-- `available_quantity` (DECIMAL, GENERATED ALWAYS)
-- `unit_cost` (DECIMAL)
-- `mfg_date`, `exp_date` (DATE)
-- `qc_status` (VARCHAR, DEFAULT 'APPROVED')
-- *Indexes*: UNIQUE KEY (material_code, location_code, batch_number)
+## 5. Quality & Compliance (PostgreSQL Only)
 
-**`inventory_transaction` (Existing)**
-- Tracks `GRN_RECEIPT`, `PRODUCTION_CONSUMPTION`, `STOCK_TRANSFER`, etc.
+*Note: These tables are part of the advanced PostgreSQL baseline (V001).*
 
-## 4. Procurement
+| PostgreSQL Table | Primary Key | Notes |
+|------------------|-------------|-------|
+| `qa_records` | `id` | `CHECK` on result IN ('PASS','FAIL','PENDING') |
+| `deviation_records` | `id` | Tracks out-of-spec incidents |
+| `capa_records` | `id` | FK `deviation_records` (Corrective and Preventive Actions) |
+| `compliance_records` | `id` | General regulatory compliance logs |
 
-**`purchase_order` (Existing)**
-- `po_id` (PK, INT, Auto-increment)
-- `supplier_id` (FK -> `supplier_master.supplier_id`)
-- `order_date`, `expected_date` (DATE)
-- `total_amount` (DECIMAL)
-- `status` (VARCHAR: 'Pending', 'Received', etc.)
+## 6. Agentic / AI Persistence (V002)
 
-**`purchaseorder_item` (Existing)**
-- `po_item_id` (PK, INT)
-- `po_id` (FK -> `purchase_order.po_id`)
-- `drug_id` (FK -> `material_master.material_code`)
-- `quantity`, `unit_price` (DECIMAL)
+| PostgreSQL Table | Primary Key | Purpose |
+|------------------|-------------|---------|
+| `supplier_delivery_history` | `history_id` | Used by AI to evaluate historical performance |
+| `risk_assessments` | `id` | Pre-computed risk scores for suppliers and materials |
+| `ai_decisions` | `id` | Human-in-the-loop audit log for LLM autonomous actions |
+| `knowledge_documents` | `id` | Metadata for ingested RAG SOPs |
+| `document_chunks` | `id` | Vector chunks for semantic search |
 
-**`goods_received_note` & `grn_item` (Existing)**
-- Links received batches against POs.
+## 7. Observability Tables (V003 - PostgreSQL Only)
 
-## 5. Production
-
-**`production_order` (Existing/Implied)**
-- `order_id` (PK, INT, Auto-increment)
-- `finished_material_code` (FK -> `material_master.material_code`)
-- `target_quantity` (DECIMAL)
-- `status` (VARCHAR: 'PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')
-
-**`production_batch` (Existing)**
-- `batch_id` (PK, INT)
-- `production_order_id` (FK -> `production_order.order_id`)
-- `material_code` (FK -> `material_master.material_code`)
-- `batch_number` (VARCHAR, Unique)
-- `quantity` (DECIMAL)
-- `qc_status` (VARCHAR, DEFAULT 'QUARANTINE')
-
-**`batch_genealogy` (Existing)**
-- Links parent and child batches for full traceability.
-
-## 6. Quality & Compliance (New Agentic Tables)
-
-**`qa_records`**
-- `id` (PK, INT, Auto-increment)
-- `batch_number` (VARCHAR, Indexed)
-- `test_type` (VARCHAR)
-- `result` (ENUM: 'PASS', 'FAIL', 'PENDING')
-- `tested_by` (VARCHAR)
-- `tested_at` (TIMESTAMP)
-
-**`deviation_records`**
-- `id` (PK, INT, Auto-increment)
-- `batch_number` (VARCHAR)
-- `description` (TEXT)
-- `criticality` (ENUM: 'MINOR', 'MAJOR', 'CRITICAL')
-- `status` (ENUM: 'OPEN', 'INVESTIGATING', 'CLOSED')
-
-**`capa_records`**
-- `id` (PK, INT, Auto-increment)
-- `deviation_id` (FK -> `deviation_records.id`)
-- `action_plan` (TEXT)
-- `due_date` (DATE)
-- `status` (ENUM: 'OPEN', 'IMPLEMENTED', 'VERIFIED')
-
-**`compliance_records`**
-- `id` (PK, INT, Auto-increment)
-- `reference_id` (VARCHAR) -- Generic reference to batch or PO
-- `rule_checked` (VARCHAR)
-- `is_compliant` (BOOLEAN)
-- `checked_at` (TIMESTAMP)
-
-## 7. Core Audit & Tracing
-
-**`system_audit_trail` (Existing)**
-- Tracks CRUD events with `old_value` and `new_value` (JSON/TEXT).
-
-**`event_log` (Existing)**
-- Application-level business events (`LOW_STOCK`, `QC_APPROVED`).
-
-**`risk_assessments` (New Agentic Table)**
-- `id` (PK, INT, Auto-increment)
-- `context_type` (VARCHAR) -- e.g., 'SUPPLIER', 'BATCH'
-- `context_id` (VARCHAR)
-- `risk_score` (DECIMAL)
-- `mitigation_notes` (TEXT)
-- `assessed_at` (TIMESTAMP)
-
-**`ai_decisions` (New Agentic Table)**
-- `id` (PK, BIGINT, Auto-increment)
-- `transaction_id` (VARCHAR, Indexed)
-- `agent_name` (VARCHAR)
-- `prompt_summary` (TEXT)
-- `response_summary` (TEXT)
-- `confidence_score` (DECIMAL)
-- `decision_applied` (BOOLEAN)
-- `created_at` (TIMESTAMP)
-
-## 8. RAG Knowledge Base (New Agentic Tables)
-
-**`knowledge_documents`**
-- `id` (PK, INT, Auto-increment)
-- `title` (VARCHAR)
-- `document_type` (ENUM: 'SOP', 'SPECIFICATION', 'POLICY', 'REGULATION')
-- `version` (VARCHAR)
-- `file_path` (VARCHAR)
-- `ingested_at` (TIMESTAMP)
-
-**`document_chunks`**
-- `id` (PK, BIGINT, Auto-increment)
-- `document_id` (FK -> `knowledge_documents.id`)
-- `chunk_index` (INT)
-- `content` (TEXT)
-- `embedding_id` (VARCHAR) -- Refers to external vector store ID
+| PostgreSQL Table | Primary Key | Purpose |
+|------------------|-------------|---------|
+| `agent_events` | `event_id` | High-level tracking of JADE agent behaviors |
+| `agent_event_details` | `event_id` | Deep JSONB trace payloads (`trace`, `errors`, `payload`) |
 
 ---
 
-## Future Vector Search Strategy
-
-Currently, MySQL lacks highly optimized native vector search capabilities for massive embedding arrays (though MySQL 9 adds vector support, the current stack is MySQL 8+). 
-**Strategy**: 
-1. Store document chunks and metadata in the relational `document_chunks` and `knowledge_documents` tables.
-2. Store the actual Vector Embeddings in an external vector database (like Milvus, Pinecone, or a local ChromaDB instance) or utilize a LangChain4j in-memory embedding store for early phases.
-3. The `embedding_id` in `document_chunks` links the relational metadata to the exact vector representation.
-4. When RAG executes, the system retrieves the `embedding_id` from the vector store and fetches the corresponding full text from MySQL.
-
----
-
-## Architecture Support
-
-### JADE Version (Version 1)
-JADE agents interact with this schema strictly via the **Service Layer** and **Repository Layer**. No JADE behaviour will execute SQL directly. `ai_decisions` tracks the reasoning traces of the JADE `AIReasoningAgent`.
-
-### Google ADK Version (Version 2)
-Because all database logic is encapsulated in JDBC Repositories and Services, transitioning to Google ADK requires **zero database schema changes**. ADK tools will call the same Java Service methods, logging identical audit trails and leveraging the same relational models.
-
-### RAG Version
-The `knowledge_documents` and `document_chunks` tables provide standard relational referential integrity to SOPs and regulations. This ensures that any AI advisory output can reference a traceable, version-controlled document ID stored securely in the local RDBMS.
+### Key Database Differences
+- **PostgreSQL schema is more advanced** than MySQL: includes BOM tables, advanced quality tables (`qa_records`, `deviation_records`), and observability tables using `JSONB`.
+- **PostgreSQL uses**: `GENERATED BY DEFAULT AS IDENTITY`, `CHECK` constraints extensively, and trigger functions for automatic timestamp updates (`set_updated_at()`).
+- **MySQL uses**: Monolithic DDL with mixed-case tables and `AUTO_INCREMENT`.

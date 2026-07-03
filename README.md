@@ -1,64 +1,104 @@
-# Agentic Pharmaceutical Supply Chain Management System (Agentic Pharma SCM)
+# Agentic Pharmaceutical Supply Chain Management System (v1.1)
 
 [![Java Version](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/)
 [![Build Tool](https://img.shields.io/badge/Build-Maven-orange.svg)](https://maven.apache.org/)
-[![Database](https://img.shields.io/badge/Database-MySQL%208%2B-blue.svg)](https://www.mysql.com/)
-[![Architecture](https://img.shields.io/badge/Architecture-Clean--Layers-green.svg)](#architecture-rules)
+[![Database](https://img.shields.io/badge/Database-MySQL_8+_|_PostgreSQL_15+-blue.svg)]()
+[![Architecture](https://img.shields.io/badge/Architecture-Multi--Agent_System-green.svg)]()
+[![AI](https://img.shields.io/badge/AI-LangChain4j_|_Gemini-orange.svg)]()
 
-An enterprise-grade, manufacturer-centric desktop application transitioning from a traditional monolithic Java Swing + MySQL architecture into a state-of-the-art **Multi-Agent Orchestrated System**. 
+An enterprise-grade, manufacturer-centric application that transitions a traditional monolithic architecture into a state-of-the-art **Multi-Agent Orchestrated System**. 
 
-The platform is designed to run intelligent agents that autonomously negotiate raw material procurement, evaluate supplier risk, enforce Quality Assurance (QA) compliance, and coordinate production schedules.
+Version 1.1 focuses on a hybrid approach: **JADE (Java Agent Development Framework)** handles deterministic FIPA contract-net negotiations and distributed task coordination, while **LangChain4j** powered by Google's Gemini provides advanced cognitive capabilities, RAG (Retrieval-Augmented Generation), and complex reasoning.
 
 ---
 
 ## 👁️ System Overview & Paradigm Shift
 
-The system focuses on upstream pharmaceutical manufacturing operations, enforcing strict regulatory compliance, complete batch lineage, and automated supply chain routing. 
+The system manages upstream pharmaceutical manufacturing operations, enforcing strict regulatory compliance, complete batch lineage, automated supply chain routing, and proactive risk management.
 
-```text
-                                  +-----------------------+
-                                  |     Java Swing UI     |
-                                  +-----------+-----------+
-                                              | (DTOs)
-                                              v
-                                  +-----------+-----------+
-                                  |     PharmaGateway     |  <-- Abstraction Layer
-                                  +-----------+-----------+
-                                              | 
-         +------------------------------------+------------------------------------+
-         |                                    |                                    |
-         v                                    v                                    v
-+------------------+                 +------------------+                 +------------------+
-|   Version 1      |                 |   Version 2      |                 |   Version 3      |
-|  JADE + LC4j     |                 | Pure LangChain4j |                 | Google ADK (Java)|
-+------------------+                 +------------------+                 +------------------+
-         |                                    |                                    |
-         +------------------------------------+------------------------------------+
-                                              | (Deterministic Service Calls)
-                                              v
-                                  +-----------+-----------+
-                                  |     Service Layer     |  <-- Shared Core Engine
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------+-----------+
-                                  |   Repository Layer    |
-                                  +-----------+-----------+
-                                              | (JDBC)
-                                              v
-                                  +-----------+-----------+
-                                  |     MySQL Database    |
-                                  +-----------------------+
+### High-Level Architecture (v1.1)
+
+```mermaid
+graph TD
+    subgraph UI ["Java Swing Desktop Client"]
+        D[Dashboards]
+        M[Material/Inventory Panels]
+        P[Procurement/GRN Dialogs]
+        Q[Quality & Risk Dashboards]
+    end
+
+    subgraph Abstraction ["Gateway Layer"]
+        G[PharmaGateway]
+    end
+
+    subgraph Agentic ["Multi-Agent Orchestration (JADE + LangChain4j)"]
+        CA[Coordinator Agent]
+        PWA[Procurement Workflow Agent]
+        RA[Risk Analysis Agent]
+        AI[AI Reasoning Agent]
+        KA[Knowledge Agent / RAG]
+        SA[Supplier & Inventory Agents]
+    end
+
+    subgraph Services ["Deterministic Service Engine"]
+        DB[DatabaseService]
+        IS[InventoryService]
+        RS[RiskService]
+        QS[QAService]
+    end
+
+    subgraph Data ["Dialect-Aware Persistence Layer"]
+        JDBC[JDBC Repositories]
+        MySQL[(MySQL)]
+        Postgres[(PostgreSQL)]
+    end
+
+    UI -->|DTOs| G
+    G -->|ACL Messages| Agentic
+    Agentic -->|Method Calls| Services
+    Services --> JDBC
+    JDBC -->|SQL| MySQL
+    JDBC -->|SQL| Postgres
 ```
 
-### The Three Agentic Paradigms
-We have successfully decoupled the database and UI (Phases 1-5) and implemented the core foundation and operational agent framework (Phase 6). 
+### Key Upgrades in v1.1
+1. **Dual Database Dialect Support:** A robust `JdbcSqlDialect` layer allows the application to run seamlessly on both **MySQL** and **PostgreSQL** without changing the Java Swing UI or the underlying agents.
+2. **God-Class Deconstruction:** The legacy massive `DatabaseService` has been systematically decomposed into domain-specific, dialect-aware JDBC repositories (e.g., `PurchaseOrderJdbcRepository`, `GRNJdbcRepository`).
+3. **Advanced AI Integration:** Deep integration of Google's Gemini models via LangChain4j for risk analysis, supplier evaluations, and document-grounded standard operating procedure (SOP) queries.
 
-The project is now splitting into three parallel, Long-Lived Variant Branches to explore and benchmark different AI orchestration frameworks:
+---
 
-1. **Version 1 (`v1/jade-langchain4j`)**: A hybrid approach using traditional JADE (Java Agent Development Framework) for deterministic FIPA-contract-net negotiation, combined with LangChain4j for LLM-powered cognitive tasks (Risk Analysis, Audit processing).
-2. **Version 2 (`v2/pure-langchain4j`)**: A complete migration away from JADE, using LangChain4j's built-in memory, tool calling, and AI Services to run the entire supply chain autonomously.
-3. **Version 3 (`v3/pure-google-adk`)**: Utilizing the cutting-edge Google ADK for Java to build highly concurrent, schema-driven, and purely native LLM agents.
+## 🤖 The Multi-Agent Ecosystem
+
+The application runs a specialized society of JADE agents, each with distinct responsibilities and behaviors.
+
+| Agent Name | Primary Responsibility | AI / LLM Capabilities |
+|------------|------------------------|------------------------|
+| **CoordinatorAgent** | Main entry point for GUI requests. Routes messages via ACL to specialized agents. | None (Deterministic routing) |
+| **ProcurementWorkflowAgent** | Monitors low stock and triggers FIPA Contract-Net protocols to automatically negotiate with suppliers and draft POs. | None (Deterministic negotiation) |
+| **RiskAnalysisAgent** | Runs periodic sweeps of the supply chain to detect single-point-of-failure risks and supplier vulnerabilities. | Yes (Calls AIReasoningAgent for deep analysis) |
+| **AIReasoningAgent** | The cognitive engine. Wrapped with LangChain4j tools. Evaluates complex scenarios (e.g., QA deviations) and outputs structured reasoning. | **Yes (Gemini LLM Tool Calling)** |
+| **KnowledgeAgent** | Handles regulatory and SOP queries using a local vector store. | **Yes (RAG / Embeddings)** |
+| **SupplierAgent** | Represents external suppliers. Evaluates CFPs (Call for Proposals) based on capacity and pricing. | None |
+| **QAAgent** | Manages batch lineage, quality dispositions, and compliance blocking. | Yes (Delegates complex reviews to AI) |
+
+---
+
+## 🧠 AI & LangChain4j Integration (Phases 9-12)
+
+The system leverages **LangChain4j (v1.16.1)** to provide cognitive capabilities to the JADE agents.
+
+### 1. Tool Wrappers (`pharma.llm.tools`)
+Existing deterministic Java services are exposed to the LLM via `@Tool` annotations. This allows the `AIReasoningAgent` to actively query the database to make decisions:
+- `InventoryLlmTools`: Check stock levels and material availability.
+- `SupplierLlmTools`: Rank suppliers and check capacity.
+- `RiskLlmTools`: Score supplier and material stockout risks.
+
+### 2. Retrieval-Augmented Generation (RAG)
+The `KnowledgeAgent` uses `GoogleAiEmbeddingModel` to ingest local SOP documents (PDF/Text) into an `InMemoryEmbeddingStore`. When a user queries the system via the UI, the agent performs semantic search to provide highly accurate, cited answers regarding manufacturing protocols.
+
+### 3. AI Decision Dashboard
+A dedicated Java Swing dashboard provides observability into the AI's autonomous decisions. Human supervisors can review the AI's confidence scores, read its "Agent Trace" (chain of thought), and manually approve or reject high-risk autonomous actions.
 
 ---
 
@@ -71,44 +111,19 @@ All detailed technical documentation has been organized under the `doc/` directo
 *   **[DATABASE_SCHEMA.md](doc/DATABASE_SCHEMA.md)**: Complete database relational schema description, index definitions, and audit trail tables.
 *   **[WORKFLOWS.md](doc/WORKFLOWS.md)**: Step-by-step descriptions and Mermaid sequence diagrams for key processes.
 *   **[CODING_STANDARDS.md](doc/CODING_STANDARDS.md)**: Development guidelines, naming conventions, and repository-service rules.
-*   **[ROADMAP.md](doc/ROADMAP.md)**: The phased transition plan mapping out the legacy-to-agentic transition.
 
 ---
 
 ## 🛠️ Technology Stack
 
 *   **Runtime Environment**: Java Development Kit (JDK) 21
-*   **GUI Library**: Java Swing / AWT
-*   **Database**: MySQL 8.0+
-*   **Connection Pool & Access**: HikariCP & Native JDBC
+*   **GUI Library**: Java Swing / AWT (FlatLaf Dark Theme)
+*   **Database**: MySQL 8.0+ AND PostgreSQL 15+
+*   **Connection Pool & Access**: HikariCP & Native JDBC (Dialect-Aware)
 *   **Build & Dependency Management**: Apache Maven 3.9+
 *   **Logging System**: SLF4J API with Logback implementation
-*   **Agentic Frameworks**: JADE 4.6.0, LangChain4j (v0.31.0), Google ADK (v0.1.0-alpha)
-
----
-
-## 🏗️ Architecture Rules
-
-To guarantee system stability, compliance, and transition safety across all 3 versions, all code changes **must** respect the following boundary guidelines:
-
-> [!IMPORTANT]
-> **1. The Gateway Rule:** The UI must ONLY interact with the agents via the `PharmaGateway` interface.
-> **2. No JDBC in UI:** Swing ActionListeners must never contain raw SQL, connections, or JDBC statements.
-> **3. No JDBC in Agents:** Agents are orchestration entities and must never contact the database directly.
-> **4. No Business Logic in Agents:** Agents must delegate to deterministic `pharma.service` classes for validation and data mutations.
-> **5. Repositories as Single Source of Database Interaction:** Only class implementations inside `pharma.repository.jdbc` are allowed to write or execute SQL.
-
----
-
-## 🌿 Git Branching & Lifecycle Strategy
-
-The project utilizes a Long-Lived Variant Branching strategy:
-
-*   **`master`**: Production-ready, stable releases.
-*   **`develop`**: The "Core Engine" integration branch. Any updates to shared GUI panels, JDBC repositories, database schemas, or Services go here.
-*   **`v1/jade-langchain4j`**: Dedicated branch for the Hybrid JADE + LC4j architecture. Upgraded by merging `develop` into it.
-*   **`v2/pure-langchain4j`**: Dedicated branch for the Pure LC4j architecture.
-*   **`v3/pure-google-adk`**: Dedicated branch for the Pure Google ADK architecture.
+*   **Agentic Frameworks**: JADE 4.6.0, LangChain4j (v1.16.1)
+*   **LLM Provider**: Google Gemini (`gemini-1.5-pro` & `text-embedding-004`)
 
 ---
 
@@ -116,22 +131,42 @@ The project utilizes a Long-Lived Variant Branching strategy:
 
 ### 1. Prerequisites
 - **JDK 21** (Ensure `JAVA_HOME` is set up correctly)
-- **Maven**
-- **MySQL Server 8+**
+- **Maven 3.9+**
+- **MySQL Server 8+** OR **PostgreSQL 15+**
 
 ### 2. Database Initialization
-1. Start your local MySQL database service.
-2. Create the database and seed it by importing the `database.sql` script:
-   ```bash
-   mysql -u <username> -p < database.sql
-   ```
+You can run the application on either MySQL or PostgreSQL. Configure the `.env` file accordingly.
+
+**For MySQL:**
+```bash
+mysql -u root -p < src/main/resources/database.sql
+```
+
+**For PostgreSQL:**
+```bash
+psql -U postgres -d pharma_ims -f src/main/resources/schema-postgres.sql
+```
 
 ### 3. Environment Variables
 Create a file named `.env` in the root folder of the project (`pharma-ims/`):
 ```ini
+# Database Configuration (MySQL Example)
+DB_PROFILE=mysql
 DB_URL=jdbc:mysql://localhost:3306/pharma_ims
 DB_USER=root
 DB_PASS=yourpassword
+
+# PostgreSQL Example
+# DB_PROFILE=postgresql
+# DB_URL=jdbc:postgresql://localhost:5432/pharma_ims
+# DB_USER=postgres
+# DB_PASS=yourpassword
+
+# AI Configuration
+GEMINI_API_KEY=your_google_ai_studio_key_here
+GEMINI_MODEL=gemini-1.5-pro
+GEMINI_TEMPERATURE=0.2
+SOP_DOCUMENTS_PATH=./sop_documents/
 ```
 
 ### 4. Build and Compilation
@@ -140,20 +175,21 @@ Clean, resolve dependencies, and compile the application using Maven:
 mvn clean compile
 ```
 
-### 5. Running Tests
-Verify the integrity of the repository and service layers:
-```cmd
-mvn test
-```
-
-### 6. Executing the Application
-Start the desktop application:
+### 5. Running the Application
+Start the desktop application. The JADE container will bootstrap automatically, initialize the LangChain4j tool registries, and launch the Swing GUI.
 ```cmd
 mvn exec:java
 ```
 
 ---
 
-## 🤖 Current Status: Common Foundation Complete
-The system has completed **Step 1: The Common Layer**.
-`develop` now contains the fully integrated database schemas, the `PharmaGateway` abstraction, the deterministic AI services, and the core Swing GUI. We are now branching out into `v1/jade-langchain4j` to implement the first agentic architecture!
+## 🏗️ Architecture Rules & Compliance
+
+To guarantee system stability, compliance, and transition safety, all code changes **must** respect the following boundary guidelines:
+
+> [!IMPORTANT]
+> **1. The Gateway Rule:** The UI must ONLY interact with the agents via the `PharmaGateway` interface. No direct service calls.
+> **2. No JDBC in UI:** Swing ActionListeners must never contain raw SQL, connections, or JDBC statements.
+> **3. No JDBC in Agents:** Agents are orchestration entities and must never contact the database directly.
+> **4. Tool Wrapping:** AI Agents must delegate to deterministic `pharma.service` classes (via `@Tool` annotations) for validation and data mutations. Hallucinated data must never touch the database directly.
+> **5. Repository Dialects:** All SQL must go through `pharma.repository.jdbc` classes utilizing the `JdbcSqlDialect` enum to ensure dual-database compatibility.
