@@ -36,6 +36,11 @@ public class DatabaseService {
     // Phase 7: Production and QA persistence
     private final pharma.repository.jdbc.ProductionOrderJdbcRepository productionOrderRepository;
     private final pharma.repository.jdbc.QAJdbcRepository qaRepository;
+    // Phase 8: Auth, Audit, Material, Reports
+    private final pharma.repository.jdbc.UserJdbcRepository userRepo;
+    private final pharma.repository.jdbc.RolePermissionJdbcRepository roleRepo;
+    private final pharma.repository.jdbc.MaterialJdbcRepository materialRepo;
+    private final pharma.repository.jdbc.AuditJdbcRepository auditRepo;
 
     static {
         databaseConfig = DatabaseConfig.fromEnvironment();
@@ -55,7 +60,15 @@ public class DatabaseService {
         this.stockRepository = new StockJdbcRepository(this);
         this.productionOrderRepository = new pharma.repository.jdbc.ProductionOrderJdbcRepository(this);
         this.qaRepository = new pharma.repository.jdbc.QAJdbcRepository(this);
+        this.roleRepo = new pharma.repository.jdbc.RolePermissionJdbcRepository(this);
+        this.userRepo = new pharma.repository.jdbc.UserJdbcRepository(this);
+        this.materialRepo = new pharma.repository.jdbc.MaterialJdbcRepository(this);
+        this.auditRepo = new pharma.repository.jdbc.AuditJdbcRepository(this);
         ensureOptionalSchema();
+    }
+
+    public pharma.repository.jdbc.UserJdbcRepository getUserRepository() {
+        return userRepo;
     }
 
     // Helper method to establish a fresh, single-use connection
@@ -513,90 +526,24 @@ public class DatabaseService {
     }
 
     // =======================================================
-    // --- MATERIAL CRUD OPERATIONS (BASED ON PREVIOUS REQUEST) ---
+    // --- MATERIAL CRUD OPERATIONS (DELEGATED TO MaterialJdbcRepository) ---
     // =======================================================
 
-    private Material mapResultSetToDrug(ResultSet rs) throws SQLException {
-        Material material = new Material();
-        material.setMaterialCode(rs.getString("material_code"));
-        material.setBrandName(rs.getString("brand_name"));
-        material.setGenericName(rs.getString("generic_name"));
-        material.setManufacturer(rs.getString("manufacturer"));
-        material.setFormulation(rs.getString("formulation"));
-        material.setStrength(rs.getString("strength"));
-        material.setScheduleCategory(rs.getString("schedule_category"));
-        material.setStorageConditions(rs.getString("storage_conditions"));
-        material.setReorderLevel(rs.getInt("reorder_level"));
-        material.setActive(rs.getBoolean("is_active"));
-        material.setMaterialType(Material.MaterialType.fromString(rs.getString("material_type")));
-        material.setUnitOfMeasure(Material.UnitOfMeasure.fromString(rs.getString("unit_of_measure")));
-
-        int preferredSupplierId = rs.getInt("preferred_supplier_id");
-        if (rs.wasNull()) { // Checks if the last value read was SQL NULL
-            material.setPreferredSupplierId(null);
-        } else {
-            material.setPreferredSupplierId(preferredSupplierId);
-        }
-        return material;
-    }
-
     public List<Material> getAllDrugs() {
-        List<Material> materials = new ArrayList<>();
-        String SQL = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Material_Master";
-
-        try (Connection conn = getConnection();
-                Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(SQL)) {
-
-            while (rs.next()) {
-                materials.add(mapResultSetToDrug(rs));
-            }
+        try {
+            return materialRepo.getAllMaterials();
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching all materials: " + e.getMessage());
             e.printStackTrace();
             return Collections.emptyList();
         }
-        return materials;
     }
 
     public boolean addDrug(Material newDrug) throws SQLException {
-        String SQL = "INSERT INTO Material_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure) "
-                +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (Connection conn = getConnection();
-                PreparedStatement stmt = conn.prepareStatement(SQL)) {
-            stmt.setString(1, newDrug.getMaterialCode());
-            stmt.setString(2, newDrug.getBrandName());
-            stmt.setString(3, newDrug.getGenericName());
-            stmt.setString(4, newDrug.getManufacturer());
-            stmt.setString(5, newDrug.getFormulation());
-            stmt.setString(6, newDrug.getStrength());
-            stmt.setString(7, newDrug.getScheduleCategory());
-            stmt.setString(8, newDrug.getStorageConditions());
-            stmt.setInt(9, newDrug.getReorderLevel());
-            stmt.setBoolean(10, newDrug.isActive());
-
-            if (newDrug.getPreferredSupplierId() == null) {
-                stmt.setNull(11, java.sql.Types.INTEGER);
-            } else {
-                stmt.setInt(11, newDrug.getPreferredSupplierId());
-            }
-            stmt.setString(12, newDrug.getMaterialType() != null ? newDrug.getMaterialType().name() : null);
-            stmt.setString(13, newDrug.getUnitOfMeasure() != null ? newDrug.getUnitOfMeasure().name() : null);
-
-            int affectedRows = stmt.executeUpdate();
-            System.out.println("Material added successfully: " + newDrug.getBrandName());
-            return affectedRows > 0; // <-- FIXED to return boolean result
-
-        } catch (SQLException e) {
-            System.err.println("Database Error inserting material: " + e.getMessage());
-            e.printStackTrace();
-            throw e;
+        try {
+            materialRepo.addMaterial(newDrug);
+            return true;
         } catch (ClassNotFoundException e) {
-            System.err.println("JDBC Driver not found: " + e.getMessage());
-            e.printStackTrace();
-            throw new SQLException("JDBC Driver not found.", e);
+            throw new SQLException(e);
         }
     }
 
@@ -604,36 +551,21 @@ public class DatabaseService {
      * Retrieves a single Material record using its primary key (materialCode).
      */
     public Material getDrugByMaterialCode(String materialCode) {
-        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Material_Master WHERE material_code = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, materialCode);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToDrug(rs); // <-- FIXED: Use helper
-                }
-            }
+        try {
+            return materialRepo.findByCode(materialCode).orElse(null);
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching material by code: " + e.getMessage());
             e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
     /**
      * Updates an existing Material record based on its materialCode.
      */
     public boolean updateDrug(Material material) {
-        // Updated SQL to include 'preferred_supplier_id', 'material_type', and
-        // 'unit_of_measure' in the SET clause
         String sql = "UPDATE Material_Master SET brand_name=?, generic_name=?, manufacturer=?, formulation=?, strength=?, schedule_category=?, storage_conditions=?, reorder_level=?, is_active=?, preferred_supplier_id=?, material_type=?, unit_of_measure=? WHERE material_code=?";
-
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            // Existing parameters (1-9)
             pstmt.setString(1, material.getBrandName());
             pstmt.setString(2, material.getGenericName());
             pstmt.setString(3, material.getManufacturer());
@@ -643,79 +575,36 @@ public class DatabaseService {
             pstmt.setString(7, material.getStorageConditions());
             pstmt.setInt(8, material.getReorderLevel());
             pstmt.setBoolean(9, material.isActive());
-
-            // FIX: New parameter (10) for the foreign key
             Integer supplierId = material.getPreferredSupplierId();
             if (supplierId != null) {
                 pstmt.setInt(10, supplierId);
             } else {
                 pstmt.setNull(10, java.sql.Types.INTEGER);
             }
-
             pstmt.setString(11, material.getMaterialType() != null ? material.getMaterialType().name() : null);
             pstmt.setString(12, material.getUnitOfMeasure() != null ? material.getUnitOfMeasure().name() : null);
-
-            // WHERE clause parameter (13)
             pstmt.setString(13, material.getMaterialCode());
-
             return pstmt.executeUpdate() > 0;
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error updating material: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
 
-    public boolean deleteDrug(String materialCode) { // <--- MODIFIED METHOD SIGNATURE AND LOGIC
-        // FIX: Corrected table name to Material_Master
+    public boolean deleteDrug(String materialCode) {
         String sql = "DELETE FROM Material_Master WHERE material_code = ?";
         try (Connection conn = getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
             pstmt.setString(1, materialCode);
-
             return pstmt.executeUpdate() > 0;
-        } catch (SQLException | ClassNotFoundException e) { // Combined catch block
-            System.err.println("Error deleting material: " + e.getMessage());
+        } catch (SQLException | ClassNotFoundException e) {
             e.printStackTrace();
             return false;
         }
     }
 
     public List<Material> getDrugs() {
-        List<Material> materials = new ArrayList<>();
-
-        // FIX: Updated SQL query to explicitly select 'preferred_supplier_id',
-        // 'material_type', 'unit_of_measure' (13
-        // columns total)
-        String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure FROM Material_Master";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql);
-                ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                Material material = new Material(
-                        rs.getString("material_code"),
-                        rs.getString("brand_name"),
-                        rs.getString("generic_name"),
-                        rs.getString("manufacturer"),
-                        rs.getString("formulation"),
-                        rs.getString("strength"),
-                        rs.getString("schedule_category"),
-                        rs.getString("storage_conditions"),
-                        rs.getInt("reorder_level"),
-                        rs.getBoolean("is_active"),
-                        rs.getInt("preferred_supplier_id"),
-                        Material.MaterialType.fromString(rs.getString("material_type")),
-                        Material.UnitOfMeasure.fromString(rs.getString("unit_of_measure")));
-                materials.add(material);
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching all materials: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return materials;
+        return getAllDrugs();
     }
 
     public boolean editDrug(Material material) {
@@ -1202,162 +1091,31 @@ public class DatabaseService {
 
     public void logAuditTrail(Connection conn, int userId, String actionType, String tableName, String recordId,
             String oldValue, String newValue) throws SQLException {
-        String sql = "INSERT INTO System_Audit_Trail (user_id, action_type, table_name, record_id, old_value, new_value) VALUES (?, ?, ?, ?, ?, ?)";
-
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            if (userId <= 0) {
-                pstmt.setNull(1, java.sql.Types.INTEGER);
-            } else {
-                pstmt.setInt(1, userId);
-            }
-            pstmt.setString(2, actionType);
-            pstmt.setString(3, tableName);
-            pstmt.setString(4, recordId);
-            pstmt.setString(5, oldValue);
-            pstmt.setString(6, newValue);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            logger.error("Error logging audit trail: {}", e.getMessage(), e);
-            throw e; // Re-throw to ensure transaction rollback if within one
-        }
+        auditRepo.logAuditTrail(conn, userId, actionType, tableName, recordId, oldValue, newValue);
     }
 
     public void logAuditTrail(int userId, String actionType, String tableName, String recordId, String oldValue,
             String newValue) throws SQLException, ClassNotFoundException {
-        try (Connection conn = getConnection()) {
-            logAuditTrail(conn, userId, actionType, tableName, recordId, oldValue, newValue);
-        }
+        auditRepo.logAuditTrail(userId, actionType, tableName, recordId, oldValue, newValue);
     }
 
     public List<AuditTrail> getAuditTrail(String actionType, LocalDate startDate, LocalDate endDate)
             throws SQLException, ClassNotFoundException {
-        List<AuditTrail> trails = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT * FROM System_Audit_Trail WHERE 1=1");
-
-        if (actionType != null && !actionType.isEmpty()) {
-            sql.append(" AND action_type = ?");
-        }
-        if (startDate != null) {
-            sql.append(" AND DATE(timestamp) >= ?");
-        }
-        if (endDate != null) {
-            sql.append(" AND DATE(timestamp) <= ?");
-        }
-        sql.append(" ORDER BY timestamp DESC LIMIT 1000");
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql.toString())) {
-
-            int paramIndex = 1;
-            if (actionType != null && !actionType.isEmpty()) {
-                pstmt.setString(paramIndex++, actionType);
-            }
-            if (startDate != null) {
-                pstmt.setDate(paramIndex++, java.sql.Date.valueOf(startDate));
-            }
-            if (endDate != null) {
-                pstmt.setDate(paramIndex++, java.sql.Date.valueOf(endDate));
-            }
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    trails.add(new AuditTrail(
-                            rs.getInt("audit_id"),
-                            rs.getInt("user_id"),
-                            rs.getString("action_type"),
-                            rs.getString("table_name"),
-                            rs.getString("record_id"),
-                            rs.getString("old_value"),
-                            rs.getString("new_value"),
-                            rs.getTimestamp("timestamp").toLocalDateTime(),
-                            rs.getString("ip_address"),
-                            rs.getString("notes")));
-                }
-            }
-        }
-        return trails;
+        return auditRepo.getAuditTrail(actionType, startDate, endDate);
     }
 
     // --- Material Methods (replacing Material methods) ---
 
     public List<Material> getAllMaterials() throws SQLException, ClassNotFoundException {
-        List<Material> materials = new ArrayList<>();
-        String sql = "SELECT * FROM Material_Master ORDER BY material_code";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql);
-                ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                materials.add(mapResultSetToMaterial(rs));
-            }
-        }
-        return materials;
-    }
-
-    private Material mapResultSetToMaterial(ResultSet rs) throws SQLException {
-        return new Material(
-                rs.getString("material_code"),
-                rs.getString("brand_name"),
-                rs.getString("generic_name"),
-                rs.getString("manufacturer"),
-                rs.getString("formulation"),
-                rs.getString("strength"),
-                rs.getString("schedule_category"),
-                rs.getString("storage_conditions"),
-                rs.getInt("reorder_level"),
-                rs.getBoolean("is_active"),
-                rs.getObject("preferred_supplier_id") != null ? rs.getInt("preferred_supplier_id") : null,
-                Material.MaterialType.fromString(rs.getString("material_type")),
-                Material.UnitOfMeasure.fromString(rs.getString("unit_of_measure")));
+        return materialRepo.getAllMaterials();
     }
 
     public void addMaterial(Material material) throws SQLException, ClassNotFoundException {
-        String sql = "INSERT INTO Material_Master (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, material.getMaterialCode());
-            pstmt.setString(2, material.getBrandName());
-            pstmt.setString(3, material.getGenericName());
-            pstmt.setString(4, material.getManufacturer());
-            pstmt.setString(5, material.getFormulation());
-            pstmt.setString(6, material.getStrength());
-            pstmt.setString(7, material.getScheduleCategory());
-            pstmt.setString(8, material.getStorageConditions());
-            pstmt.setInt(9, material.getReorderLevel());
-            pstmt.setBoolean(10, material.isActive());
-
-            if (material.getPreferredSupplierId() != null) {
-                pstmt.setInt(11, material.getPreferredSupplierId());
-            } else {
-                pstmt.setNull(11, java.sql.Types.INTEGER);
-            }
-
-            pstmt.setString(12, material.getMaterialType().name());
-            pstmt.setString(13, material.getUnitOfMeasure().name());
-
-            pstmt.executeUpdate();
-        }
+        materialRepo.addMaterial(material);
     }
 
     public List<Material> getMaterialsByType(Material.MaterialType type) throws SQLException, ClassNotFoundException {
-        List<Material> materials = new ArrayList<>();
-        String sql = "SELECT * FROM Material_Master WHERE material_type = ? ORDER BY material_code";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, type.name());
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    materials.add(mapResultSetToMaterial(rs));
-                }
-            }
-        }
-        return materials;
+        return materialRepo.getMaterialsByType(type);
     }
 
     // =======================================================

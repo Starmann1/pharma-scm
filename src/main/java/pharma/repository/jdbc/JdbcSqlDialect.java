@@ -18,7 +18,11 @@ final class JdbcSqlDialect {
         PURCHASE_ORDER_ITEM("PurchaseOrder_Item", "purchase_order_item"),
         STOCK_INVENTORY("Stock_Inventory", "stock_inventory"),
         SUPPLIER_MASTER("Supplier_Master", "supplier_master"),
-        SYSTEM_AUDIT_TRAIL("System_Audit_Trail", "system_audit_trail");
+        SYSTEM_AUDIT_TRAIL("System_Audit_Trail", "system_audit_trail"),
+        USER_MASTER("User_Master", "user_master"),
+        ROLE_MASTER("Role_Master", "role_master"),
+        ROLE_PERMISSION("Role_Permission", "role_permission"),
+        PERMISSION_MASTER("Permission_Master", "permission_master");
 
         private final String mysqlName;
         private final String postgresqlName;
