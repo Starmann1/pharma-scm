@@ -5,11 +5,15 @@ import pharma.config.DatabaseConfig;
 final class JdbcSqlDialect {
     enum Table {
         AI_DECISIONS("ai_decisions", "ai_decisions"),
+        BATCH_GENEALOGY("Batch_Genealogy", "batch_genealogy"),
         EVENT_LOG("event_log", "event_log"),
         GOODS_RECEIVED_NOTE("Goods_Received_Note", "goods_received_note"),
         GRN_ITEM("GRN_Item", "grn_item"),
         INVENTORY_TRANSACTION("inventory_transaction", "inventory_transaction"),
         MATERIAL_MASTER("Material_Master", "material_master"),
+        PRODUCTION_BATCH("Production_Batch", "production_batch"),
+        PRODUCTION_MATERIAL_CONSUMPTION("Production_Material_Consumption", "production_material_consumption"),
+        PRODUCTION_ORDER("Production_Order", "production_order"),
         PURCHASE_ORDER("Purchase_Order", "purchase_order"),
         PURCHASE_ORDER_ITEM("PurchaseOrder_Item", "purchase_order_item"),
         STOCK_INVENTORY("Stock_Inventory", "stock_inventory"),
@@ -96,6 +100,10 @@ final class JdbcSqlDialect {
 
     boolean isPostgresql() {
         return dialect == DatabaseConfig.Dialect.POSTGRESQL;
+    }
+
+    boolean isMysql() {
+        return dialect != DatabaseConfig.Dialect.POSTGRESQL;
     }
 
     String fefoOrderByClause() {
