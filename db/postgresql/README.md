@@ -19,8 +19,10 @@ Run these scripts against an empty PostgreSQL database provisioned for v1.1:
 1. `schema/V001__baseline_schema.sql`
 2. `schema/V002__agentic_tables.sql`
 3. `schema/V003__observability_tables.sql`
-
-Seed and data-migration scripts are intentionally not included in Phase 1. They belong to later phases after the schema is reviewed and approved.
+4. `seed/V010__seed_roles_permissions.sql`
+5. `seed/V011__seed_admin_user.sql`
+6. `seed/V012__seed_locations.sql`
+7. `seed/V013__seed_reference_data.sql`
 
 ## Naming Policy
 
