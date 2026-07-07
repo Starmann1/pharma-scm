@@ -63,7 +63,7 @@ public class SupplierJdbcRepository implements SupplierRepository {
                 + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM) + " poi "
                 + "JOIN " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER)
                 + " po ON po.po_id = poi.po_id "
-                + "WHERE po.supplier_id = ? AND poi.drug_id = ? "
+                + "WHERE po.supplier_id = ? AND poi.material_code = ? "
                 + "AND po.status NOT IN ('CANCELLED', 'REJECTED')";
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -77,5 +77,64 @@ public class SupplierJdbcRepository implements SupplierRepository {
             }
         }
         return 10000.0;
+    }
+
+    @Override
+    public List<Supplier> getAllSuppliers() throws SQLException, ClassNotFoundException {
+        List<Supplier> suppliers = new ArrayList<>();
+        String sql = "SELECT * FROM " + sqlDialect.table(JdbcSqlDialect.Table.SUPPLIER_MASTER);
+        try (Connection conn = databaseService.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+
+            while (rs.next()) {
+                suppliers.add(mapResultSetToSupplier(rs));
+            }
+        }
+        return suppliers;
+    }
+
+    @Override
+    public int addSupplier(Supplier supplier) throws SQLException, ClassNotFoundException {
+        String sql = "INSERT INTO " + sqlDialect.table(JdbcSqlDialect.Table.SUPPLIER_MASTER) + " (supplier_name, contact_person, address, email, phone_number, gstin, drug_license_number, payment_terms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = databaseService.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setString(1, supplier.getSupplierName());
+            pstmt.setString(2, supplier.getContactPerson());
+            pstmt.setString(3, supplier.getAddress());
+            pstmt.setString(4, supplier.getEmail());
+            pstmt.setString(5, supplier.getPhoneNumber());
+            pstmt.setString(6, supplier.getGstin());
+            pstmt.setString(7, supplier.getDrugLicenseNumber());
+            pstmt.setString(8, supplier.getPaymentTerms());
+            pstmt.executeUpdate();
+            
+            try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1);
+                }
+            }
+        }
+        return -1;
+    }
+
+    private Supplier mapResultSetToSupplier(ResultSet rs) throws SQLException {
+        Supplier supplier = new Supplier();
+        supplier.setSupplierId(rs.getInt("supplier_id"));
+        supplier.setSupplierName(rs.getString("supplier_name"));
+        supplier.setContactPerson(rs.getString("contact_person"));
+        supplier.setAddress(rs.getString("address"));
+        supplier.setEmail(rs.getString("email"));
+        supplier.setPhoneNumber(rs.getString("phone_number"));
+        supplier.setGstin(rs.getString("gstin"));
+        supplier.setDrugLicenseNumber(rs.getString("drug_license_number"));
+        supplier.setPaymentTerms(rs.getString("payment_terms"));
+        // Additional mapping for schema updates
+        try {
+            supplier.setSupplierStatus(rs.getString("supplier_status"));
+        } catch (SQLException e) {
+            // ignore if column doesn't exist
+        }
+        return supplier;
     }
 }

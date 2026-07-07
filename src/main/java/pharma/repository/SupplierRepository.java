@@ -10,4 +10,8 @@ public interface SupplierRepository {
             throws SQLException, ClassNotFoundException;
 
     double getSupplierCapacity(int supplierId, String materialCode) throws SQLException, ClassNotFoundException;
+
+    List<pharma.model.Supplier> getAllSuppliers() throws SQLException, ClassNotFoundException;
+
+    int addSupplier(pharma.model.Supplier supplier) throws SQLException, ClassNotFoundException;
 }

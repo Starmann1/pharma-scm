@@ -82,7 +82,7 @@ public class InventoryJdbcRepository implements InventoryRepository {
                 + " si ON si.material_code = mm.material_code "
                 + "WHERE mm.is_active = TRUE AND mm.material_type IN ('RAW_MATERIAL', 'PACKAGING') "
                 + "AND mm.material_code NOT IN ("
-                + "  SELECT poi.drug_id FROM " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM)
+                + "  SELECT poi.material_code FROM " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM)
                 + " poi "
                 + "  JOIN " + sqlDialect.table(JdbcSqlDialect.Table.PURCHASE_ORDER)
                 + " po ON po.po_id = poi.po_id "
