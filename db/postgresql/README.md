@@ -24,6 +24,16 @@ Run these scripts against an empty PostgreSQL database provisioned for v1.1:
 6. `seed/V012__seed_locations.sql`
 7. `seed/V013__seed_reference_data.sql`
 
+## Data Migration (ETL)
+
+For migrating existing data from MySQL (Phase 10), run the scripts in `db/postgresql/migration/` in this order:
+
+1. Run `01_export_mysql.ps1` to dump MySQL tables to CSV files.
+2. Run `02_transform.sql` to apply necessary transformations.
+3. Run `03_load_postgresql.sql` using psql to load the CSVs.
+4. Run `04_reset_sequences.sql` to fix identity sequences.
+5. Run `05_validate.sql` to ensure data integrity.
+
 ## Naming Policy
 
 PostgreSQL identifiers use lowercase snake_case. This avoids quoted mixed-case identifiers and keeps repository/JPA mappings predictable.
