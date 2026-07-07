@@ -6,6 +6,7 @@ import pharma.model.PurchaseOrder.PurchaseOrderItem;
 import pharma.config.DatabaseConfig;
 import pharma.repository.jdbc.GRNJdbcRepository;
 import pharma.repository.jdbc.PurchaseOrderJdbcRepository;
+import pharma.repository.jdbc.StockJdbcRepository;
 
 import java.sql.*;
 import java.time.LocalDate;
@@ -30,6 +31,8 @@ public class DatabaseService {
     // Phase 5: Dialect-aware repository delegates
     private final PurchaseOrderJdbcRepository poRepository;
     private final GRNJdbcRepository grnRepository;
+    // Phase 6: Stock/inventory persistence
+    private final StockJdbcRepository stockRepository;
 
     static {
         databaseConfig = DatabaseConfig.fromEnvironment();
@@ -46,6 +49,7 @@ public class DatabaseService {
     public DatabaseService() {
         this.poRepository = new PurchaseOrderJdbcRepository(this);
         this.grnRepository = new GRNJdbcRepository(this);
+        this.stockRepository = new StockJdbcRepository(this);
         ensureOptionalSchema();
     }
 
@@ -153,25 +157,9 @@ public class DatabaseService {
     }
 
     private void ensureInventoryStatusLocationConsistency(Connection conn) throws SQLException {
-        try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate(
-                    "UPDATE Stock_Inventory si " +
-                            "JOIN Material_Master mm ON mm.material_code = si.material_code " +
-                            "SET si.qc_status = CASE " +
-                            "        WHEN si.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'RELEASED' " +
-                            "        ELSE si.qc_status " +
-                            "    END, " +
-                            "    si.location_code = CASE " +
-                            "        WHEN si.qc_status = 'REJECTED' THEN 'REJECTED_AREA' " +
-                            "        WHEN si.qc_status = 'IN_PRODUCTION' THEN 'PRODUCTION_FLOOR' " +
-                            "        WHEN si.qc_status IN ('QUARANTINE', 'QI', 'IN_PROCESS_SAMPLE', 'UNDER_TEST') THEN 'QC_HOLD' " +
-                            "        WHEN si.qc_status = 'RELEASED' THEN 'FINISHED_GOODS_WAREHOUSE' " +
-                            "        WHEN si.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'FINISHED_GOODS_WAREHOUSE' " +
-                            "        WHEN si.qc_status = 'APPROVED' AND mm.material_type = 'PACKAGING' THEN 'PACKAGING_WAREHOUSE' " +
-                            "        WHEN si.qc_status = 'APPROVED' AND mm.material_type IN ('RAW_MATERIAL', 'INTERMEDIATE') THEN 'RAW_MATERIAL_WAREHOUSE' " +
-                            "        ELSE si.location_code " +
-                            "    END");
+        stockRepository.ensureStatusLocationConsistency(conn);
 
+        try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate(
                     "UPDATE production_batch pb " +
                             "JOIN Material_Master mm ON mm.material_code = pb.material_code " +
@@ -1138,24 +1126,9 @@ public class DatabaseService {
 
         for (BOMDetail ingredient : ingredients) {
             double requiredQty = ingredient.getRequiredQty() * plannedQty;
-
-            String sql = "SELECT SUM(quantity) as available FROM Stock_Inventory WHERE material_code = ? AND qc_status = 'APPROVED' AND location_code != 'REJECTED_AREA'";
-
-            try (Connection conn = getConnection();
-                    PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-                pstmt.setString(1, ingredient.getIngredientMaterialCode());
-
-                try (ResultSet rs = pstmt.executeQuery()) {
-                    double available = 0;
-                    if (rs.next()) {
-                        available = rs.getDouble("available");
-                    }
-
-                    double shortage = Math.max(0, requiredQty - available);
-                    shortages.put(ingredient.getIngredientMaterialCode(), shortage);
-                }
-            }
+            double available = stockRepository.getAvailableStock(ingredient.getIngredientMaterialCode(), null);
+            double shortage = Math.max(0, requiredQty - available);
+            shortages.put(ingredient.getIngredientMaterialCode(), shortage);
         }
 
         return shortages;
@@ -1281,86 +1254,55 @@ public class DatabaseService {
             for (BOMDetail ingredient : ingredients) {
                 double qtyNeeded = ingredient.getRequiredQty() * order.getPlannedQty();
 
-                String selectSql = "SELECT stock_id, batch_number, quantity, exp_date FROM Stock_Inventory WHERE material_code = ? AND qc_status = 'APPROVED' AND location_code != 'REJECTED_AREA' AND quantity > 0 ORDER BY exp_date ASC, stock_id ASC";
+                List<StockJdbcRepository.ConsumedStockLine> consumedLines =
+                        stockRepository.consumeStock(conn, ingredient.getIngredientMaterialCode(), qtyNeeded);
 
-                try (PreparedStatement selectStmt = conn.prepareStatement(selectSql)) {
-                    selectStmt.setString(1, ingredient.getIngredientMaterialCode());
+                for (StockJdbcRepository.ConsumedStockLine line : consumedLines) {
+                    String batchNumber = line.batchNumber();
+                    double toConsume = line.quantityConsumed();
 
-                    try (ResultSet rs = selectStmt.executeQuery()) {
-                        double remaining = qtyNeeded;
-
-                        while (rs.next() && remaining > 0) {
-                            int stockId = rs.getInt("stock_id");
-                            String batchNumber = rs.getString("batch_number");
-                            double available = rs.getDouble("quantity");
-
-                            double toConsume = Math.min(remaining, available);
-
-                            String updateSql = "UPDATE Stock_Inventory SET quantity = quantity - ? WHERE stock_id = ?";
-                            try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
-                                updateStmt.setDouble(1, toConsume);
-                                updateStmt.setInt(2, stockId);
-                                updateStmt.executeUpdate();
-                            }
-
-                            // 1. Material Consumption
-                            String insertMcSql = "INSERT INTO production_material_consumption (production_order_id, material_code, batch_number, required_qty, consumed_qty, uom) VALUES (?, ?, ?, ?, ?, ?)";
-                            try (PreparedStatement mcStmt = conn.prepareStatement(insertMcSql)) {
-                                mcStmt.setInt(1, orderId);
-                                mcStmt.setString(2, ingredient.getIngredientMaterialCode());
-                                mcStmt.setString(3, batchNumber);
-                                mcStmt.setDouble(4, qtyNeeded);
-                                mcStmt.setDouble(5, toConsume);
-                                mcStmt.setString(6, ingredient.getUom());
-                                mcStmt.executeUpdate();
-                            }
-
-                            // 2. Inventory Transaction (Consumption)
-                            String insertTxSql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES (?, ?, 'PRODUCTION_FLOOR', 'PRODUCTION_CONSUMPTION', ?, 'PRODUCTION_ORDER', ?, ?, ?)";
-                            try (PreparedStatement txStmt = conn.prepareStatement(insertTxSql)) {
-                                txStmt.setString(1, ingredient.getIngredientMaterialCode());
-                                txStmt.setString(2, batchNumber);
-                                txStmt.setDouble(3, -toConsume);
-                                txStmt.setString(4, String.valueOf(orderId));
-                                txStmt.setInt(5, userId);
-                                txStmt.setString(6, "Consumed for Order " + orderId);
-                                txStmt.executeUpdate();
-                            }
-
-                            // 3. Batch Genealogy
-                            String insertBgSql = "INSERT INTO batch_genealogy (parent_batch, child_batch, production_order_id, relationship_type) VALUES (?, ?, ?, 'USED_IN')";
-                            try (PreparedStatement bgStmt = conn.prepareStatement(insertBgSql)) {
-                                bgStmt.setString(1, batchNumber);
-                                bgStmt.setString(2, order.getBatchNumber());
-                                bgStmt.setInt(3, orderId);
-                                bgStmt.executeUpdate();
-                            }
-
-                            if (parentBatches.length() > 0) {
-                                parentBatches.append(",");
-                            }
-                            parentBatches.append(batchNumber);
-
-                            remaining -= toConsume;
-                        }
+                    // 1. Material Consumption
+                    String insertMcSql = "INSERT INTO production_material_consumption (production_order_id, material_code, batch_number, required_qty, consumed_qty, uom) VALUES (?, ?, ?, ?, ?, ?)";
+                    try (PreparedStatement mcStmt = conn.prepareStatement(insertMcSql)) {
+                        mcStmt.setInt(1, orderId);
+                        mcStmt.setString(2, ingredient.getIngredientMaterialCode());
+                        mcStmt.setString(3, batchNumber);
+                        mcStmt.setDouble(4, qtyNeeded);
+                        mcStmt.setDouble(5, toConsume);
+                        mcStmt.setString(6, ingredient.getUom());
+                        mcStmt.executeUpdate();
                     }
+
+                    // 2. Inventory Transaction (Consumption)
+                    String insertTxSql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) VALUES (?, ?, 'PRODUCTION_FLOOR', 'PRODUCTION_CONSUMPTION', ?, 'PRODUCTION_ORDER', ?, ?, ?)";
+                    try (PreparedStatement txStmt = conn.prepareStatement(insertTxSql)) {
+                        txStmt.setString(1, ingredient.getIngredientMaterialCode());
+                        txStmt.setString(2, batchNumber);
+                        txStmt.setDouble(3, -toConsume);
+                        txStmt.setString(4, String.valueOf(orderId));
+                        txStmt.setInt(5, userId);
+                        txStmt.setString(6, "Consumed for Order " + orderId);
+                        txStmt.executeUpdate();
+                    }
+
+                    // 3. Batch Genealogy
+                    String insertBgSql = "INSERT INTO batch_genealogy (parent_batch, child_batch, production_order_id, relationship_type) VALUES (?, ?, ?, 'USED_IN')";
+                    try (PreparedStatement bgStmt = conn.prepareStatement(insertBgSql)) {
+                        bgStmt.setString(1, batchNumber);
+                        bgStmt.setString(2, order.getBatchNumber());
+                        bgStmt.setInt(3, orderId);
+                        bgStmt.executeUpdate();
+                    }
+
+                    if (parentBatches.length() > 0) {
+                        parentBatches.append(",");
+                    }
+                    parentBatches.append(batchNumber);
                 }
             }
 
-            String insertStockSql = "INSERT INTO Stock_Inventory (material_code, location_code, batch_number, quantity, unit_cost, mfg_date, exp_date, qc_status, parent_batch_id, production_order_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'IN_PRODUCTION', ?, ?)";
-
-            try (PreparedStatement pstmt = conn.prepareStatement(insertStockSql)) {
-                pstmt.setString(1, bom.getMaterialCode());
-                pstmt.setString(2, "PRODUCTION_FLOOR"); // In-production batches remain on the production floor
-                pstmt.setString(3, order.getBatchNumber());
-                pstmt.setDouble(4, order.getPlannedQty());
-                pstmt.setDouble(5, 0.0);
-                pstmt.setDate(6, java.sql.Date.valueOf(LocalDate.now()));
-                pstmt.setDate(7, java.sql.Date.valueOf(LocalDate.now().plusYears(2)));
-                pstmt.setString(8, parentBatches.toString());
-                pstmt.setInt(9, orderId);
-                pstmt.executeUpdate();
-            }
+            stockRepository.insertProductionStock(conn, bom.getMaterialCode(), "PRODUCTION_FLOOR",
+                    order.getBatchNumber(), order.getPlannedQty(), parentBatches.toString(), orderId);
 
             // 4. Production Batch Record
             String insertPbSql = "INSERT INTO production_batch (production_order_id, material_code, batch_number, quantity, mfg_date, expiry_date, qc_status, location_code) VALUES (?, ?, ?, ?, ?, ?, 'IN_PRODUCTION', 'PRODUCTION_FLOOR')";
@@ -1621,148 +1563,29 @@ public class DatabaseService {
         }
     }
 
+    // =====================================================================
+    // STOCK / INVENTORY METHODS - delegated to StockJdbcRepository (Phase 6)
+    // =====================================================================
+
     public List<Stock> getQCBatches(String statusFilter) {
-        List<Stock> stocks = new ArrayList<>();
-        StringBuilder sql = new StringBuilder(
-                "SELECT s.stock_id, s.material_code, d.brand_name, d.generic_name, d.manufacturer, " +
-                        "s.location_code, s.batch_number, s.quantity, s.reserved_quantity, s.available_quantity, " +
-                        "s.unit_cost, s.mfg_date, s.exp_date, s.qc_status, s.parent_batch_id " +
-                        "FROM Stock_Inventory s JOIN Material_Master d ON s.material_code = d.material_code");
-
-        if (!"All".equalsIgnoreCase(statusFilter)) {
-            sql.append(" WHERE s.qc_status = ?");
-        }
-        sql.append(" ORDER BY s.mfg_date DESC, s.batch_number DESC");
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql.toString())) {
-            if (!"All".equalsIgnoreCase(statusFilter)) {
-                pstmt.setString(1, statusFilter);
-            }
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    stocks.add(mapResultSetToStock(rs));
-                }
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching QC batches: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return stocks;
+        return stockRepository.getAllStockByQcStatus(statusFilter);
     }
 
     public Stock getStockByBatchNumber(String batchNumber) {
-        String sql = "SELECT s.stock_id, s.material_code, d.brand_name, d.generic_name, d.manufacturer, " +
-                "s.location_code, s.batch_number, s.quantity, s.reserved_quantity, s.available_quantity, " +
-                "s.unit_cost, s.mfg_date, s.exp_date, s.qc_status, s.parent_batch_id, s.production_order_id " +
-                "FROM Stock_Inventory s JOIN Material_Master d ON s.material_code = d.material_code " +
-                "WHERE s.batch_number = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, batchNumber);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    Stock stock = mapResultSetToStock(rs);
-                    stock.setProductionOrderId(rs.getInt("production_order_id"));
-                    return stock;
-                }
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching stock details for batch " + batchNumber + ": " + e.getMessage());
-            e.printStackTrace();
-        }
-        return null;
+        return stockRepository.getStockByBatch(batchNumber);
     }
-
-    private Stock mapResultSetToStock(ResultSet rs) throws SQLException {
-        Stock stock = new Stock();
-        stock.setStockId(rs.getInt("stock_id"));
-        stock.setMaterialCode(rs.getString("material_code"));
-        stock.setBrandName(rs.getString("brand_name"));
-        stock.setGenericName(rs.getString("generic_name"));
-        stock.setManufacturer(rs.getString("manufacturer"));
-        stock.setLocationCode(rs.getString("location_code"));
-        stock.setBatchNumber(rs.getString("batch_number"));
-        stock.setQuantity(rs.getDouble("quantity"));
-        stock.setReservedQuantity(readOptionalDouble(rs, "reserved_quantity"));
-        stock.setAvailableQuantity(readOptionalDouble(rs, "available_quantity"));
-        stock.setUnitCost(rs.getDouble("unit_cost"));
-        java.sql.Date mfg = rs.getDate("mfg_date");
-        if (mfg != null) {
-            stock.setMfgDate(mfg.toLocalDate());
-        }
-        java.sql.Date exp = rs.getDate("exp_date");
-        if (exp != null) {
-            stock.setExpDate(exp.toLocalDate());
-        }
-        stock.setQcStatus(rs.getString("qc_status"));
-        stock.setParentBatchId(rs.getString("parent_batch_id"));
-        return stock;
-    }
-
-    private double readOptionalDouble(ResultSet rs, String columnName) throws SQLException {
-        try {
-            double value = rs.getDouble(columnName);
-            return rs.wasNull() ? 0.0 : value;
-        } catch (SQLException ex) {
-            return 0.0;
-        }
-    }
-
-    // --- Batch Genealogy and Traceability ---
 
     public List<String> getBatchGenealogy(String childBatchId) throws SQLException, ClassNotFoundException {
-        List<String> parentBatches = new ArrayList<>();
-        String sql = "SELECT parent_batch_id FROM Stock_Inventory WHERE batch_number = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, childBatchId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    String parents = rs.getString("parent_batch_id");
-                    if (parents != null && !parents.isEmpty()) {
-                        String[] batchArray = parents.split(",");
-                        for (String batch : batchArray) {
-                            parentBatches.add(batch.trim());
-                        }
-                    }
-                }
-            }
-        }
-        return parentBatches;
+        return stockRepository.getParentBatch(childBatchId);
     }
 
     public List<Map<String, Object>> getRecallReport(String rawMaterialBatchId)
             throws SQLException, ClassNotFoundException {
-        List<Map<String, Object>> affectedBatches = new ArrayList<>();
+        return stockRepository.getChildBatches(rawMaterialBatchId);
+    }
 
-        String sql = "SELECT si.batch_number, si.material_code, dm.brand_name, si.quantity, si.qc_status, si.exp_date, si.location_code FROM Stock_Inventory si JOIN Material_Master dm ON si.material_code = dm.material_code WHERE si.parent_batch_id LIKE ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, "%" + rawMaterialBatchId + "%");
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> batch = new HashMap<>();
-                    batch.put("batch_number", rs.getString("batch_number"));
-                    batch.put("material_code", rs.getString("material_code"));
-                    batch.put("brand_name", rs.getString("brand_name"));
-                    batch.put("quantity", rs.getDouble("quantity"));
-                    batch.put("qc_status", rs.getString("qc_status"));
-                    batch.put("exp_date", rs.getDate("exp_date"));
-                    batch.put("location_code", rs.getString("location_code"));
-                    affectedBatches.add(batch);
-                }
-            }
-        }
-        return affectedBatches;
+    public List<Stock> getDetailedInventoryReport() {
+        return stockRepository.getAllStock();
     }
 
     // --- Audit Trail Methods ---
@@ -2057,24 +1880,6 @@ public class DatabaseService {
             e.printStackTrace();
         }
         return false;
-    }
-
-    public List<Stock> getDetailedInventoryReport() {
-        List<Stock> stocks = new ArrayList<>();
-        String sql = "SELECT s.stock_id, s.material_code, d.brand_name, d.generic_name, d.manufacturer, s.location_code, s.batch_number, s.quantity, s.reserved_quantity, s.available_quantity, s.unit_cost, s.mfg_date, s.exp_date, s.qc_status, s.parent_batch_id "
-                +
-                "FROM Stock_Inventory s JOIN Material_Master d ON s.material_code = d.material_code";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql);
-                ResultSet rs = pstmt.executeQuery()) {
-            while (rs.next()) {
-                stocks.add(mapResultSetToStock(rs));
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching detailed inventory: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return stocks;
     }
 
     public List<MaterialConsumption> getMaterialConsumptionsForOrder(int orderId) {

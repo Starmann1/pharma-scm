@@ -93,4 +93,15 @@ final class JdbcSqlDialect {
                 + " ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity),"
                 + " qc_status = VALUES(qc_status)";
     }
+
+    boolean isPostgresql() {
+        return dialect == DatabaseConfig.Dialect.POSTGRESQL;
+    }
+
+    String fefoOrderByClause() {
+        if (dialect == DatabaseConfig.Dialect.POSTGRESQL) {
+            return " ORDER BY exp_date ASC NULLS LAST, stock_id ASC";
+        }
+        return " ORDER BY exp_date ASC, stock_id ASC";
+    }
 }

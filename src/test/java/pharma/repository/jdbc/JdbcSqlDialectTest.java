@@ -58,4 +58,24 @@ class JdbcSqlDialectTest {
 
         assertThrows(IllegalArgumentException.class, () -> dialect.daysBeforeCurrentDate(-1));
     }
+
+    @Test
+    void upsertStockSqlMatchesDialect() {
+        assertEquals(
+                "INSERT INTO Stock_Inventory (material_code, location_code, batch_number, quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity), qc_status = VALUES(qc_status)",
+                JdbcSqlDialect.forDialect(DatabaseConfig.Dialect.MYSQL).upsertStockSql());
+        assertEquals(
+                "INSERT INTO stock_inventory (material_code, location_code, batch_number, quantity, unit_cost, mfg_date, exp_date, qc_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (material_code, batch_number, location_code) DO UPDATE SET quantity = stock_inventory.quantity + EXCLUDED.quantity, qc_status = EXCLUDED.qc_status",
+                JdbcSqlDialect.forDialect(DatabaseConfig.Dialect.POSTGRESQL).upsertStockSql());
+    }
+
+    @Test
+    void fefoOrderByMatchesDialect() {
+        assertEquals(
+                " ORDER BY exp_date ASC, stock_id ASC",
+                JdbcSqlDialect.forDialect(DatabaseConfig.Dialect.MYSQL).fefoOrderByClause());
+        assertEquals(
+                " ORDER BY exp_date ASC NULLS LAST, stock_id ASC",
+                JdbcSqlDialect.forDialect(DatabaseConfig.Dialect.POSTGRESQL).fefoOrderByClause());
+    }
 }

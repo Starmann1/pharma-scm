@@ -15,6 +15,7 @@ import pharma.service.DatabaseService;
 public class InventoryJdbcRepository implements InventoryRepository {
     private final DatabaseService databaseService;
     private final JdbcSqlDialect sqlDialect;
+    private final StockJdbcRepository stockRepository;
 
     public InventoryJdbcRepository(DatabaseService databaseService) {
         this(databaseService, JdbcSqlDialect.from(DatabaseService.getDatabaseConfig()));
@@ -23,6 +24,7 @@ public class InventoryJdbcRepository implements InventoryRepository {
     InventoryJdbcRepository(DatabaseService databaseService, JdbcSqlDialect sqlDialect) {
         this.databaseService = databaseService;
         this.sqlDialect = sqlDialect;
+        this.stockRepository = new StockJdbcRepository(databaseService, sqlDialect);
     }
 
     @Override
@@ -109,20 +111,6 @@ public class InventoryJdbcRepository implements InventoryRepository {
     @Override
     public boolean reserveMaterial(String materialCode, double quantity)
             throws SQLException, ClassNotFoundException {
-        String sql = "UPDATE " + sqlDialect.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
-                + " SET reserved_quantity = reserved_quantity + ? "
-                + "WHERE material_code = ? "
-                + "AND qc_status = 'APPROVED' "
-                + "AND location_code != 'REJECTED_AREA' "
-                + "AND (exp_date IS NULL OR exp_date >= CURRENT_DATE) "
-                + "AND (quantity - reserved_quantity) >= ?";
-        try (Connection conn = databaseService.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setDouble(1, quantity);
-            stmt.setString(2, materialCode);
-            stmt.setDouble(3, quantity);
-            int rows = stmt.executeUpdate();
-            return rows > 0;
-        }
+        return stockRepository.reserveStock(materialCode, quantity);
     }
 }

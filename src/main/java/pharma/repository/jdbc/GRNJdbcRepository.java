@@ -30,6 +30,7 @@ public class GRNJdbcRepository {
 
     private final DatabaseService databaseService;
     private final JdbcSqlDialect d;
+    private final StockJdbcRepository stockRepository;
 
     public GRNJdbcRepository(DatabaseService databaseService) {
         this(databaseService, JdbcSqlDialect.from(DatabaseService.getDatabaseConfig()));
@@ -38,6 +39,7 @@ public class GRNJdbcRepository {
     GRNJdbcRepository(DatabaseService databaseService, JdbcSqlDialect sqlDialect) {
         this.databaseService = databaseService;
         this.d = sqlDialect;
+        this.stockRepository = new StockJdbcRepository(databaseService, sqlDialect);
     }
 
     // -----------------------------------------------------------------------
@@ -141,7 +143,7 @@ public class GRNJdbcRepository {
                 + " (po_id, received_date, received_by, status) VALUES (?, " + d.nowExpression() + ", ?, ?)";
         String insertGrnItemSql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.GRN_ITEM)
                 + " (grn_id, drug_id, batch_number, quantity_received, expiry_date) VALUES (?, ?, ?, ?, ?)";
-        String upsertStockSql = d.upsertStockSql();
+        String upsertStockSql = stockRepository.upsertStockSql();
         String insertTxSql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.INVENTORY_TRANSACTION)
                 + " (material_code, batch_number, location_code, transaction_type, quantity,"
                 + " reference_type, reference_id, performed_by, notes)"
@@ -209,14 +211,8 @@ public class GRNJdbcRepository {
                         grnItemStmt.addBatch();
 
                         // Stock upsert
-                        stockStmt.setString(1, item.getMaterialCode());
-                        stockStmt.setString(2, "QC_HOLD");
-                        stockStmt.setString(3, batchNumber);
-                        stockStmt.setInt(4, item.getQuantity());
-                        stockStmt.setDouble(5, item.getUnitPrice());
-                        stockStmt.setDate(6, Date.valueOf(mfgDate));
-                        stockStmt.setDate(7, Date.valueOf(expiryDate));
-                        stockStmt.setString(8, "QUARANTINE");
+                        stockRepository.bindUpsertStock(stockStmt, item.getMaterialCode(), "QC_HOLD", batchNumber,
+                                item.getQuantity(), item.getUnitPrice(), mfgDate, expiryDate, "QUARANTINE");
                         stockStmt.addBatch();
 
                         // Inventory transaction
