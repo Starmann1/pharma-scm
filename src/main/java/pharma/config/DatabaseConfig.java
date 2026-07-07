@@ -35,7 +35,7 @@ public final class DatabaseConfig {
     }
 
     public static final String PROFILE_KEY = "PHARMA_DB_PROFILE";
-    public static final String DEFAULT_PROFILE = "mysql";
+    public static final String DEFAULT_PROFILE = "postgresql";
 
     private static final String DB_URL = "DB_URL";
     private static final String DB_USER = "DB_USER";

@@ -10,8 +10,9 @@ import org.junit.jupiter.api.Test;
 
 class DatabaseConfigTest {
     @Test
-    void defaultsToMysqlUsingExistingDbSettings() {
+    void explicitlySetMysqlUsingExistingDbSettings() {
         DatabaseConfig config = DatabaseConfig.fromSettings(Map.of(
+                "PHARMA_DB_PROFILE", "mysql",
                 "DB_URL", "jdbc:mysql://localhost:3306/pharma_ims?allowPublicKeyRetrieval=true",
                 "DB_USER", "root",
                 "DB_PASS", "secret"));
@@ -19,6 +20,17 @@ class DatabaseConfigTest {
         assertEquals(DatabaseConfig.Dialect.MYSQL, config.getDialect());
         assertTrue(config.isMysql());
         assertEquals("jdbc:mysql://localhost:3306/pharma_ims?...", config.getRedactedJdbcUrl());
+    }
+
+    @Test
+    void defaultsToPostgresqlUsingExistingDbSettings() {
+        DatabaseConfig config = DatabaseConfig.fromSettings(Map.of(
+                "POSTGRES_DB_URL", "jdbc:postgresql://localhost:5432/pharma_ims_v11",
+                "POSTGRES_DB_USER", "pharma_v11",
+                "POSTGRES_DB_PASS", "secret"));
+
+        assertEquals(DatabaseConfig.Dialect.POSTGRESQL, config.getDialect());
+        assertTrue(config.isPostgresql());
     }
 
     @Test
@@ -61,6 +73,7 @@ class DatabaseConfigTest {
     @Test
     void preservesConfiguredPasswordValue() {
         DatabaseConfig config = DatabaseConfig.fromSettings(Map.of(
+                "PHARMA_DB_PROFILE", "mysql",
                 "DB_URL", "jdbc:mysql://localhost:3306/pharma_ims",
                 "DB_USER", "root",
                 "DB_PASS", " leading-and-trailing "));
