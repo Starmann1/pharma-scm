@@ -42,6 +42,8 @@ public class DatabaseService {
     private final pharma.repository.jdbc.MaterialJdbcRepository materialRepo;
     private final pharma.repository.jdbc.AuditJdbcRepository auditRepo;
     private final pharma.repository.jdbc.SupplierJdbcRepository supplierRepo;
+    private final pharma.repository.jdbc.LocationJdbcRepository locationRepo;
+    private final pharma.repository.jdbc.BOMJdbcRepository bomRepo;
 
     static {
         databaseConfig = DatabaseConfig.fromEnvironment();
@@ -66,11 +68,17 @@ public class DatabaseService {
         this.materialRepo = new pharma.repository.jdbc.MaterialJdbcRepository(this);
         this.auditRepo = new pharma.repository.jdbc.AuditJdbcRepository(this);
         this.supplierRepo = new pharma.repository.jdbc.SupplierJdbcRepository(this);
+        this.locationRepo = new pharma.repository.jdbc.LocationJdbcRepository(this);
+        this.bomRepo = new pharma.repository.jdbc.BOMJdbcRepository(this);
         ensureOptionalSchema();
     }
 
     public pharma.repository.jdbc.UserJdbcRepository getUserRepository() {
         return userRepo;
+    }
+
+    public pharma.repository.jdbc.RolePermissionJdbcRepository getRoleRepository() {
+        return roleRepo;
     }
 
     // Helper method to establish a fresh, single-use connection
@@ -401,90 +409,33 @@ public class DatabaseService {
     }
 
     // =======================================================
-    // --- LOCATION CRUD OPERATIONS (MODIFIED FOR Location.java) ---
+    // --- LOCATION CRUD OPERATIONS (DELEGATED TO REPOSITORY) ---
     // =======================================================
     public List<Location> getLocations() {
-        List<Location> locations = new ArrayList<>();
-        // FIX: Replaced hardcoded columns with the ones selected in the query
-        String sql = "SELECT location_code, location_name, description, capacity FROM Location_Master";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql);
-                ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                // FIX: Use the Location constructor that aligns with the fields
-                Location location = new Location(
-                        rs.getString("location_code"), // FIX: Use correct column name
-                        rs.getString("location_name"), // FIX: Use correct column name
-                        rs.getString("description"),
-                        rs.getInt("capacity"));
-                locations.add(location);
-            }
+        try {
+            return locationRepo.getLocations();
         } catch (SQLException | ClassNotFoundException e) {
             System.err.println("Error fetching all locations: " + e.getMessage());
-            e.printStackTrace(); // Added stack trace
+            e.printStackTrace();
+            return new ArrayList<>();
         }
-        return locations;
     }
 
-    /**
-     * FIX: Replaces stub. Fetches a single Location record by its locationCode.
-     * 
-     * @param locationCode The primary key of the location.
-     * @return The Location object or null if not found or on error.
-     */
     public Location getLocationById(String locationCode) {
-        // locationCode is the Primary Key
-        String sql = "SELECT location_code, location_name, description, capacity FROM Location_Master WHERE location_code = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, locationCode);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return new Location(
-                            rs.getString("location_code"),
-                            rs.getString("location_name"),
-                            rs.getString("description"),
-                            rs.getInt("capacity"));
-                }
-            }
+        try {
+            return locationRepo.getLocationById(locationCode);
         } catch (SQLException | ClassNotFoundException e) {
             System.err.println("Error fetching location by ID: " + e.getMessage());
             e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
     public boolean addLocation(String code, String name, String description, int capacity)
             throws ClassNotFoundException {
-        // SQL statement to insert a new location.
-        String sql = "INSERT INTO location_master (location_code, location_name, description, capacity) VALUES (?, ?, ?, ?)";
-
-        try (
-                // FIX: Using try-with-resources for automatic resource closing
-                Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql);) {
-            // Validate essential fields
-            if (code == null || code.trim().isEmpty() || name == null || name.trim().isEmpty()) {
-                System.err.println("Cannot add location: Code or Name is empty.");
-                return false;
-            }
-
-            // 1. Set parameters for the INSERT statement
-            pstmt.setString(1, code.trim());
-            pstmt.setString(2, name.trim());
-            pstmt.setString(3, description.trim());
-            pstmt.setInt(4, capacity);
-
-            int affectedRows = pstmt.executeUpdate();
-
-            return affectedRows == 1;
-
+        try {
+            return locationRepo.addLocation(code, name, description, capacity);
         } catch (SQLException e) {
-            // Log the error (e.g., duplicate PK error, connection failure)
             System.err.println("SQL Error inserting location '" + code + "': " + e.getMessage());
             e.printStackTrace();
             return false;
@@ -493,34 +444,9 @@ public class DatabaseService {
 
     public boolean updateLocation(String code, String name, String description, int capacity)
             throws ClassNotFoundException {
-        // SQL statement to update existing columns, using location_code as the WHERE
-        // clause.
-        String sql = "UPDATE location_master SET location_name = ?, description = ?, capacity = ? WHERE location_code = ?";
-
-        try (
-                // FIX: Using try-with-resources for automatic resource closing
-                Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql);) {
-            // Validate essential fields
-            if (code == null || code.trim().isEmpty()) {
-                System.err.println("Cannot update location: Code is empty.");
-                return false;
-            }
-
-            // 1. Set parameters for the UPDATE clause (SET columns)
-            pstmt.setString(1, name.trim());
-            pstmt.setString(2, description.trim());
-            pstmt.setInt(3, capacity);
-
-            // 2. Set parameter for the WHERE clause (Primary Key)
-            pstmt.setString(4, code.trim());
-
-            int affectedRows = pstmt.executeUpdate();
-
-            return affectedRows == 1;
-
+        try {
+            return locationRepo.updateLocation(code, name, description, capacity);
         } catch (SQLException e) {
-            // Log the error
             System.err.println("SQL Error updating location '" + code + "': " + e.getMessage());
             e.printStackTrace();
             return false;
@@ -528,14 +454,8 @@ public class DatabaseService {
     }
 
     public boolean deleteLocation(String locationCode) {
-        String sql = "DELETE FROM Location_Master WHERE location_code = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, locationCode);
-            return pstmt.executeUpdate() > 0;
-
+        try {
+            return locationRepo.deleteLocation(locationCode);
         } catch (SQLException | ClassNotFoundException e) {
             System.err.println("Error deleting location: " + e.getMessage());
             e.printStackTrace();
@@ -645,151 +565,29 @@ public class DatabaseService {
     // MANUFACTURING ERP METHODS - Phase 3
     // =====================================================================
 
-    // --- BOM (Bill of Materials) Management ---
+    // --- BOM (Bill of Materials) Management (DELEGATED TO REPOSITORY) ---
 
     public int createBOM(BOMHeader header, List<BOMDetail> details) throws SQLException, ClassNotFoundException {
-        Connection conn = null;
-        int bomId = -1;
-
-        try {
-            conn = getConnection();
-            conn.setAutoCommit(false);
-
-            String headerSql = "INSERT INTO BOM_Header (material_code, version_number, is_active, effective_date, description) VALUES (?, ?, ?, ?, ?)";
-
-            try (PreparedStatement pstmt = conn.prepareStatement(headerSql, Statement.RETURN_GENERATED_KEYS)) {
-                pstmt.setString(1, header.getMaterialCode());
-                pstmt.setInt(2, header.getVersionNumber());
-                pstmt.setBoolean(3, header.isActive());
-                pstmt.setDate(4, java.sql.Date.valueOf(header.getEffectiveDate()));
-                pstmt.setString(5, header.getDescription());
-
-                pstmt.executeUpdate();
-
-                try (ResultSet rs = pstmt.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        bomId = rs.getInt(1);
-                    }
-                }
-            }
-
-            if (bomId > 0 && details != null && !details.isEmpty()) {
-                String detailSql = "INSERT INTO BOM_Details (bom_id, ingredient_material_code, required_qty, uom, sequence_number, notes) VALUES (?, ?, ?, ?, ?, ?)";
-
-                try (PreparedStatement pstmt = conn.prepareStatement(detailSql)) {
-                    for (BOMDetail detail : details) {
-                        pstmt.setInt(1, bomId);
-                        pstmt.setString(2, detail.getIngredientMaterialCode());
-                        pstmt.setDouble(3, detail.getRequiredQty());
-                        pstmt.setString(4, detail.getUom());
-                        pstmt.setInt(5, detail.getSequenceNumber());
-                        pstmt.setString(6, detail.getNotes());
-                        pstmt.addBatch();
-                    }
-                    pstmt.executeBatch();
-                }
-            }
-
-            conn.commit();
-            return bomId;
-
-        } catch (SQLException e) {
-            if (conn != null) {
-                try {
-                    conn.rollback();
-                } catch (SQLException ex) {
-                    ex.printStackTrace();
-                }
-            }
-            throw e;
-        } finally {
-            if (conn != null) {
-                conn.setAutoCommit(true);
-            }
-        }
+        return bomRepo.createBOM(header, details);
     }
 
     public BOMHeader getBOMById(int bomId) throws SQLException, ClassNotFoundException {
-        String sql = "SELECT * FROM BOM_Header WHERE bom_id = ?";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, bomId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return new BOMHeader(
-                            rs.getInt("bom_id"),
-                            rs.getString("material_code"),
-                            rs.getInt("version_number"),
-                            rs.getBoolean("is_active"),
-                            rs.getDate("effective_date").toLocalDate(),
-                            rs.getString("description"),
-                            rs.getTimestamp("created_at").toLocalDateTime(),
-                            rs.getTimestamp("updated_at").toLocalDateTime());
-                }
-            }
-        }
-        return null;
+        return bomRepo.getBOMById(bomId);
     }
 
     public List<BOMDetail> getBOMIngredients(int bomId) throws SQLException, ClassNotFoundException {
-        List<BOMDetail> ingredients = new ArrayList<>();
-        String sql = "SELECT * FROM BOM_Details WHERE bom_id = ? ORDER BY sequence_number";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, bomId);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    ingredients.add(new BOMDetail(
-                            rs.getInt("bom_detail_id"),
-                            rs.getInt("bom_id"),
-                            rs.getString("ingredient_material_code"),
-                            rs.getDouble("required_qty"),
-                            rs.getString("uom"),
-                            rs.getInt("sequence_number"),
-                            rs.getString("notes")));
-                }
-            }
-        }
-        return ingredients;
+        return bomRepo.getBOMIngredients(bomId);
     }
 
     public List<BOMHeader> getActiveBOMsForMaterial(String materialCode) throws SQLException, ClassNotFoundException {
-        List<BOMHeader> boms = new ArrayList<>();
-        String sql = "SELECT * FROM BOM_Header WHERE material_code = ? AND is_active = TRUE ORDER BY version_number DESC";
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, materialCode);
-
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    boms.add(new BOMHeader(
-                            rs.getInt("bom_id"),
-                            rs.getString("material_code"),
-                            rs.getInt("version_number"),
-                            rs.getBoolean("is_active"),
-                            rs.getDate("effective_date").toLocalDate(),
-                            rs.getString("description"),
-                            rs.getTimestamp("created_at").toLocalDateTime(),
-                            rs.getTimestamp("updated_at").toLocalDateTime()));
-                }
-            }
-        }
-        return boms;
+        return bomRepo.getActiveBOMsForMaterial(materialCode);
     }
 
     public Map<String, Double> validateBOMAvailability(int bomId, double plannedQty)
             throws SQLException, ClassNotFoundException {
         Map<String, Double> shortages = new HashMap<>();
 
-        List<BOMDetail> ingredients = getBOMIngredients(bomId);
+        List<BOMDetail> ingredients = bomRepo.getBOMIngredients(bomId);
 
         for (BOMDetail ingredient : ingredients) {
             double requiredQty = ingredient.getRequiredQty() * plannedQty;

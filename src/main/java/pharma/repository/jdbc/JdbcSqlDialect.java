@@ -22,7 +22,10 @@ final class JdbcSqlDialect {
         USER_MASTER("User_Master", "user_master"),
         ROLE_MASTER("Role_Master", "role_master"),
         ROLE_PERMISSION("Role_Permission", "role_permission"),
-        PERMISSION_MASTER("Permission_Master", "permission_master");
+        PERMISSION_MASTER("Permission_Master", "permission_master"),
+        BOM_HEADER("BOM_Header", "bom_header"),
+        BOM_DETAILS("BOM_Details", "bom_details"),
+        LOCATION_MASTER("Location_Master", "location_master");
 
         private final String mysqlName;
         private final String postgresqlName;
