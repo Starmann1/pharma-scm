@@ -36,11 +36,12 @@ public class DatabaseService {
     // Phase 7: Production and QA persistence
     private final pharma.repository.jdbc.ProductionOrderJdbcRepository productionOrderRepository;
     private final pharma.repository.jdbc.QAJdbcRepository qaRepository;
-    // Phase 8: Auth, Audit, Material, Reports
+    // Phase 8: Auth, Audit, Material, Reports, Supplier
     private final pharma.repository.jdbc.UserJdbcRepository userRepo;
     private final pharma.repository.jdbc.RolePermissionJdbcRepository roleRepo;
     private final pharma.repository.jdbc.MaterialJdbcRepository materialRepo;
     private final pharma.repository.jdbc.AuditJdbcRepository auditRepo;
+    private final pharma.repository.jdbc.SupplierJdbcRepository supplierRepo;
 
     static {
         databaseConfig = DatabaseConfig.fromEnvironment();
@@ -64,6 +65,7 @@ public class DatabaseService {
         this.userRepo = new pharma.repository.jdbc.UserJdbcRepository(this);
         this.materialRepo = new pharma.repository.jdbc.MaterialJdbcRepository(this);
         this.auditRepo = new pharma.repository.jdbc.AuditJdbcRepository(this);
+        this.supplierRepo = new pharma.repository.jdbc.SupplierJdbcRepository(this);
         ensureOptionalSchema();
     }
 
@@ -177,24 +179,26 @@ public class DatabaseService {
     private void ensureInventoryStatusLocationConsistency(Connection conn) throws SQLException {
         stockRepository.ensureStatusLocationConsistency(conn);
 
+        // PostgreSQL-compatible UPDATE with JOIN via subquery (no MySQL-style UPDATE...JOIN)
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate(
                     "UPDATE production_batch pb " +
-                            "JOIN Material_Master mm ON mm.material_code = pb.material_code " +
-                            "SET pb.qc_status = CASE " +
-                            "        WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'RELEASED' " +
-                            "        ELSE pb.qc_status " +
-                            "    END, " +
-                            "    pb.location_code = CASE " +
-                            "        WHEN pb.qc_status = 'REJECTED' THEN 'REJECTED_AREA' " +
-                            "        WHEN pb.qc_status = 'IN_PRODUCTION' THEN 'PRODUCTION_FLOOR' " +
-                            "        WHEN pb.qc_status IN ('QUARANTINE', 'QI', 'IN_PROCESS_SAMPLE', 'UNDER_TEST') THEN 'QC_HOLD' " +
-                            "        WHEN pb.qc_status = 'RELEASED' THEN 'FINISHED_GOODS_WAREHOUSE' " +
-                            "        WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'FINISHED_GOODS_WAREHOUSE' " +
-                            "        WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'PACKAGING' THEN 'PACKAGING_WAREHOUSE' " +
-                            "        WHEN pb.qc_status = 'APPROVED' AND mm.material_type IN ('RAW_MATERIAL', 'INTERMEDIATE') THEN 'RAW_MATERIAL_WAREHOUSE' " +
-                            "        ELSE pb.location_code " +
-                            "    END");
+                            "SET qc_status = CASE " +
+                            "    WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'RELEASED' " +
+                            "    ELSE pb.qc_status " +
+                            "END, " +
+                            "location_code = CASE " +
+                            "    WHEN pb.qc_status = 'REJECTED' THEN 'REJECTED_AREA' " +
+                            "    WHEN pb.qc_status = 'IN_PRODUCTION' THEN 'PRODUCTION_FLOOR' " +
+                            "    WHEN pb.qc_status IN ('QUARANTINE', 'QI', 'IN_PROCESS_SAMPLE', 'UNDER_TEST') THEN 'QC_HOLD' " +
+                            "    WHEN pb.qc_status = 'RELEASED' THEN 'FINISHED_GOODS_WAREHOUSE' " +
+                            "    WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'FINISHED_GOOD' THEN 'FINISHED_GOODS_WAREHOUSE' " +
+                            "    WHEN pb.qc_status = 'APPROVED' AND mm.material_type = 'PACKAGING' THEN 'PACKAGING_WAREHOUSE' " +
+                            "    WHEN pb.qc_status = 'APPROVED' AND mm.material_type IN ('RAW_MATERIAL', 'INTERMEDIATE') THEN 'RAW_MATERIAL_WAREHOUSE' " +
+                            "    ELSE pb.location_code " +
+                            "END " +
+                            "FROM material_master mm " +
+                            "WHERE mm.material_code = pb.material_code");
         }
     }
 
@@ -209,253 +213,66 @@ public class DatabaseService {
     }
 
     // =======================================================
-    // --- Supplier CRUD OPERATIONS (BASED ON PREVIOUS REQUEST) ---
+    // --- Supplier CRUD OPERATIONS — delegated to SupplierJdbcRepository (Phase 8) ---
     // =======================================================
     public List<Supplier> getAllSuppliers() {
-        List<Supplier> suppliers = new ArrayList<>();
-        String sql = "SELECT * FROM Supplier_Master";
-        // *** FIX: Use try-with-resources on the Connection (conn) to guarantee closure
-        // of all resources.
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql); // Using PreparedStatement is better practice even
-                                                                      // for simple selects
-                ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                suppliers.add(mapResultSetToSupplier(rs));
-            }
-        } catch (SQLException | ClassNotFoundException e) { // Combined catch block
-            System.err.println("Error fetching all suppliers: " + e.getMessage());
-            e.printStackTrace();
+        try {
+            return supplierRepo.getAllSuppliers();
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error fetching all suppliers: {}", e.getMessage(), e);
+            return Collections.emptyList();
         }
-        return suppliers;
     }
 
     // method to addSupplier.
     public int addSupplier(Supplier supplier) {
-        String sql = "INSERT INTO Supplier_Master (supplier_name, contact_person, address, email, phone_number, gstin, drug_license_number, payment_terms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        int newId = -1;
-        // *** FIX: Use try-with-resources on the Connection (conn) and
-        // PreparedStatement.
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            pstmt.setString(1, supplier.getSupplierName());
-            pstmt.setString(2, supplier.getContactPerson());
-            pstmt.setString(3, supplier.getAddress());
-            pstmt.setString(4, supplier.getEmail());
-            pstmt.setString(5, supplier.getPhoneNumber());
-            pstmt.setString(6, supplier.getGstin());
-            pstmt.setString(7, supplier.getDrugLicenseNumber());
-            pstmt.setString(8, supplier.getPaymentTerms());
-
-            int affectedRows = pstmt.executeUpdate();
-            if (affectedRows > 0) {
-                try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        newId = generatedKeys.getInt(1);
-                        supplier.setSupplierId(newId);
-                        supplier.setSupplierStatus(Supplier.STATUS_PENDING);
-                        logAuditTrail(conn, 0, "ADD_SUPPLIER", "Supplier_Master", String.valueOf(newId), null,
-                                supplier.getSupplierName());
-                        System.out.println("New supplier added with ID: " + newId);
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            System.err.println("Error adding supplier: " + e.getMessage());
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            System.err.println("JDBC Driver not found: " + e.getMessage());
-            e.printStackTrace();
+        try {
+            return supplierRepo.addSupplier(supplier);
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error adding supplier: {}", e.getMessage(), e);
+            return -1;
         }
-        return newId;
     }
 
     // method to updateSupplier.
     public boolean updateSupplier(Supplier supplier) {
-        String sql = "UPDATE Supplier_Master SET supplier_name=?, contact_person=?, address=?, email=?, phone_number=?, gstin=?, drug_license_number=?, payment_terms=? WHERE supplier_id=?";
-        // *** FIX: Use try-with-resources on the Connection (conn) and
-        // PreparedStatement.
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, supplier.getSupplierName());
-            pstmt.setString(2, supplier.getContactPerson());
-            pstmt.setString(3, supplier.getAddress());
-            pstmt.setString(4, supplier.getEmail());
-            pstmt.setString(5, supplier.getPhoneNumber());
-            pstmt.setString(6, supplier.getGstin());
-            pstmt.setString(7, supplier.getDrugLicenseNumber());
-            pstmt.setString(8, supplier.getPaymentTerms());
-            pstmt.setInt(9, supplier.getSupplierId());
-            int affectedRows = pstmt.executeUpdate();
-            if (affectedRows > 0) {
-                logAuditTrail(conn, 0, "EDIT_SUPPLIER", "Supplier_Master", String.valueOf(supplier.getSupplierId()),
-                        null, supplier.getSupplierName());
-                return true;
-            }
-            return false;
-        } catch (SQLException e) {
-            System.err.println("Error updating supplier: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        } catch (ClassNotFoundException e) {
-            System.err.println("JDBC Driver not found: " + e.getMessage());
-            e.printStackTrace();
+        try {
+            return supplierRepo.updateSupplier(supplier);
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error updating supplier: {}", e.getMessage(), e);
             return false;
         }
     }
 
     // method to deleteSupplier.
     public boolean deleteSupplier(int supplierId) {
-        try (Connection conn = getConnection()) {
-            logAuditTrail(conn, 0, "DELETE_SUPPLIER_BLOCKED", "Supplier_Master", String.valueOf(supplierId), null,
-                    "Deletion blocked by supplier approval workflow");
-            return false;
-        } catch (SQLException e) {
-            System.err.println("Error deleting supplier: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        } catch (ClassNotFoundException e) {
-            System.err.println("JDBC Driver not found: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
+        return supplierRepo.deleteSupplier(supplierId);
     }
 
     public List<String> getSupplierNames() throws ClassNotFoundException {
-        String sql = "SELECT supplier_name FROM Supplier_Master ORDER BY supplier_name";
-        List<String> supplierNames = new ArrayList<>();
-
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql);
-                ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                supplierNames.add(rs.getString("supplier_name"));
-            }
+        try {
+            return supplierRepo.getSupplierNames();
         } catch (SQLException e) {
-            System.err.println("Error retrieving supplier names: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error retrieving supplier names: {}", e.getMessage(), e);
+            return Collections.emptyList();
         }
-        return supplierNames;
     }
 
     public boolean approveSupplier(int supplierId, String remarks, String performedBy)
             throws SQLException, ClassNotFoundException {
-        String selectSql = "SELECT supplier_name, gstin, drug_license_number, supplier_status FROM Supplier_Master WHERE supplier_id = ?";
-        String updateSql = "UPDATE Supplier_Master SET supplier_status = 'APPROVED', approved_at = CURRENT_TIMESTAMP, rejected_at = NULL, remarks = ? WHERE supplier_id = ?";
-
-        try (Connection conn = getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                Supplier supplier = null;
-                try (PreparedStatement pstmt = conn.prepareStatement(selectSql)) {
-                    pstmt.setInt(1, supplierId);
-                    try (ResultSet rs = pstmt.executeQuery()) {
-                        if (rs.next()) {
-                            supplier = new Supplier();
-                            supplier.setSupplierId(supplierId);
-                            supplier.setSupplierName(rs.getString("supplier_name"));
-                            supplier.setGstin(rs.getString("gstin"));
-                            supplier.setDrugLicenseNumber(rs.getString("drug_license_number"));
-                            supplier.setSupplierStatus(
-                                    normalizeSupplierStatus(readOptionalString(rs, "supplier_status")));
-                        }
-                    }
-                }
-
-                if (supplier == null) {
-                    throw new SQLException("Supplier not found.");
-                }
-                if (Supplier.STATUS_REJECTED.equalsIgnoreCase(supplier.getSupplierStatus())) {
-                    throw new SQLException("Rejected suppliers cannot be approved again.");
-                }
-                if (Supplier.STATUS_APPROVED.equalsIgnoreCase(supplier.getSupplierStatus())) {
-                    throw new SQLException("Supplier is already approved.");
-                }
-                if (isBlank(supplier.getDrugLicenseNumber())) {
-                    throw new SQLException("License number required for approval.");
-                }
-                if (isBlank(supplier.getGstin())) {
-                    throw new SQLException("GSTIN required for approval.");
-                }
-
-                try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
-                    pstmt.setString(1, normalizeRemarks(remarks));
-                    pstmt.setInt(2, supplierId);
-                    pstmt.executeUpdate();
-                }
-
-                insertSupplierAuditLog(conn, supplierId, "APPROVED", remarks, performedBy);
-                logAuditTrail(conn, 0, "APPROVE_SUPPLIER", "Supplier_Master", String.valueOf(supplierId),
-                        Supplier.STATUS_PENDING, Supplier.STATUS_APPROVED);
-                conn.commit();
-                return true;
-            } catch (SQLException ex) {
-                conn.rollback();
-                throw ex;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        }
+        return supplierRepo.approveSupplier(supplierId, remarks, performedBy);
     }
 
     public boolean rejectSupplier(int supplierId, String remarks, String performedBy)
             throws SQLException, ClassNotFoundException {
-        String selectSql = "SELECT supplier_status FROM Supplier_Master WHERE supplier_id = ?";
-        String updateSql = "UPDATE Supplier_Master SET supplier_status = 'REJECTED', rejected_at = CURRENT_TIMESTAMP, remarks = ? WHERE supplier_id = ?";
-
-        try (Connection conn = getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String oldStatus = null;
-                try (PreparedStatement pstmt = conn.prepareStatement(selectSql)) {
-                    pstmt.setInt(1, supplierId);
-                    try (ResultSet rs = pstmt.executeQuery()) {
-                        if (rs.next()) {
-                            oldStatus = normalizeSupplierStatus(readOptionalString(rs, "supplier_status"));
-                        }
-                    }
-                }
-
-                if (oldStatus == null) {
-                    throw new SQLException("Supplier not found.");
-                }
-                if (Supplier.STATUS_REJECTED.equalsIgnoreCase(oldStatus)) {
-                    throw new SQLException("Supplier is already rejected.");
-                }
-
-                try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
-                    pstmt.setString(1, normalizeRemarks(remarks));
-                    pstmt.setInt(2, supplierId);
-                    pstmt.executeUpdate();
-                }
-
-                insertSupplierAuditLog(conn, supplierId, "REJECTED", remarks, performedBy);
-                logAuditTrail(conn, 0, "REJECT_SUPPLIER", "Supplier_Master", String.valueOf(supplierId), oldStatus,
-                        Supplier.STATUS_REJECTED);
-                conn.commit();
-                return true;
-            } catch (SQLException ex) {
-                conn.rollback();
-                throw ex;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        }
+        return supplierRepo.rejectSupplier(supplierId, remarks, performedBy);
     }
 
     private void insertSupplierAuditLog(Connection conn, int supplierId, String action, String remarks,
-            String performedBy)
-            throws SQLException {
-        String sql = "INSERT INTO supplier_audit_log (supplier_id, action, remarks, performed_by) VALUES (?, ?, ?, ?)";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, supplierId);
-            pstmt.setString(2, action);
-            pstmt.setString(3, normalizeRemarks(remarks));
-            pstmt.setString(4, isBlank(performedBy) ? "system" : performedBy);
-            pstmt.executeUpdate();
-        }
+            String performedBy) throws SQLException {
+        // Delegated to SupplierJdbcRepository internally — this stub kept for backward compat.
+        auditRepo.logAuditTrail(conn, 0, action + "_SUPPLIER", "supplier_master",
+                String.valueOf(supplierId), null, remarks);
     }
 
     private Supplier mapResultSetToSupplier(ResultSet rs) throws SQLException {
@@ -480,16 +297,10 @@ public class DatabaseService {
     }
 
     private boolean isSupplierApproved(Connection conn, int supplierId) throws SQLException {
-        String sql = "SELECT supplier_status FROM Supplier_Master WHERE supplier_id = ?";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, supplierId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (!rs.next()) {
-                    throw new SQLException("Supplier not found.");
-                }
-                return Supplier.STATUS_APPROVED.equalsIgnoreCase(
-                        normalizeSupplierStatus(readOptionalString(rs, "supplier_status")));
-            }
+        try {
+            return supplierRepo.isSupplierApproved(supplierId);
+        } catch (ClassNotFoundException e) {
+            throw new SQLException(e);
         }
     }
 
@@ -561,44 +372,22 @@ public class DatabaseService {
 
     /**
      * Updates an existing Material record based on its materialCode.
+     * Delegated to MaterialJdbcRepository (Phase 8).
      */
     public boolean updateDrug(Material material) {
-        String sql = "UPDATE Material_Master SET brand_name=?, generic_name=?, manufacturer=?, formulation=?, strength=?, schedule_category=?, storage_conditions=?, reorder_level=?, is_active=?, preferred_supplier_id=?, material_type=?, unit_of_measure=? WHERE material_code=?";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, material.getBrandName());
-            pstmt.setString(2, material.getGenericName());
-            pstmt.setString(3, material.getManufacturer());
-            pstmt.setString(4, material.getFormulation());
-            pstmt.setString(5, material.getStrength());
-            pstmt.setString(6, material.getScheduleCategory());
-            pstmt.setString(7, material.getStorageConditions());
-            pstmt.setInt(8, material.getReorderLevel());
-            pstmt.setBoolean(9, material.isActive());
-            Integer supplierId = material.getPreferredSupplierId();
-            if (supplierId != null) {
-                pstmt.setInt(10, supplierId);
-            } else {
-                pstmt.setNull(10, java.sql.Types.INTEGER);
-            }
-            pstmt.setString(11, material.getMaterialType() != null ? material.getMaterialType().name() : null);
-            pstmt.setString(12, material.getUnitOfMeasure() != null ? material.getUnitOfMeasure().name() : null);
-            pstmt.setString(13, material.getMaterialCode());
-            return pstmt.executeUpdate() > 0;
+        try {
+            return materialRepo.updateMaterial(material);
         } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
+            logger.error("Error updating material: {}", e.getMessage(), e);
             return false;
         }
     }
 
     public boolean deleteDrug(String materialCode) {
-        String sql = "DELETE FROM Material_Master WHERE material_code = ?";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, materialCode);
-            return pstmt.executeUpdate() > 0;
+        try {
+            return materialRepo.deleteMaterial(materialCode);
         } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
+            logger.error("Error deleting material: {}", e.getMessage(), e);
             return false;
         }
     }
@@ -807,37 +596,21 @@ public class DatabaseService {
     }
 
     public Supplier getSupplierById(int supplierId) throws ClassNotFoundException {
-        String sql = "SELECT * FROM Supplier_Master WHERE supplier_id = ?";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, supplierId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToSupplier(rs);
-                }
-            }
+        try {
+            return supplierRepo.getSupplierById(supplierId);
         } catch (SQLException e) {
-            System.err.println("Error fetching supplier by ID: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching supplier by ID: {}", e.getMessage(), e);
+            return null;
         }
-        return null;
     }
 
     public int getSupplierIdByName(String supplierName) throws ClassNotFoundException {
-        String sql = "SELECT supplier_id FROM Supplier_Master WHERE supplier_name = ?";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, supplierName);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("supplier_id");
-                }
-            }
+        try {
+            return supplierRepo.getSupplierIdByName(supplierName);
         } catch (SQLException e) {
-            System.err.println("Error fetching supplier ID: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching supplier ID by name: {}", e.getMessage(), e);
+            return -1;
         }
-        return -1;
     }
 
     public boolean updatePurchaseOrder(PurchaseOrder updatedPo) {
@@ -1123,160 +896,27 @@ public class DatabaseService {
     // =======================================================
 
     public boolean addInventoryTransaction(InventoryTransaction tx) {
-        String sql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code, transaction_type, quantity, reference_type, reference_id, performed_by, notes) "
-                +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            pstmt.setString(1, tx.getMaterialCode());
-            pstmt.setString(2, tx.getBatchNumber());
-            pstmt.setString(3, tx.getLocationCode());
-            pstmt.setString(4, tx.getTransactionType());
-            pstmt.setDouble(5, tx.getQuantity());
-            pstmt.setString(6, tx.getReferenceType());
-            pstmt.setString(7, tx.getReferenceId());
-            pstmt.setInt(8, tx.getPerformedBy());
-            pstmt.setString(9, tx.getNotes());
-            int rows = pstmt.executeUpdate();
-            if (rows > 0) {
-                try (ResultSet rs = pstmt.getGeneratedKeys()) {
-                    if (rs.next())
-                        tx.setTransactionId(rs.getInt(1));
-                }
-                return true;
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return false;
+        return productionOrderRepository.addInventoryTransaction(tx);
     }
 
     public boolean addMaterialConsumption(MaterialConsumption mc) {
-        String sql = "INSERT INTO production_material_consumption (production_order_id, material_code, batch_number, required_qty, consumed_qty, uom) "
-                +
-                "VALUES (?, ?, ?, ?, ?, ?)";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            pstmt.setInt(1, mc.getProductionOrderId());
-            pstmt.setString(2, mc.getMaterialCode());
-            pstmt.setString(3, mc.getBatchNumber());
-            pstmt.setDouble(4, mc.getRequiredQty());
-            pstmt.setDouble(5, mc.getConsumedQty());
-            pstmt.setString(6, mc.getUom());
-            int rows = pstmt.executeUpdate();
-            if (rows > 0) {
-                try (ResultSet rs = pstmt.getGeneratedKeys()) {
-                    if (rs.next())
-                        mc.setConsumptionId(rs.getInt(1));
-                }
-                return true;
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return false;
+        return productionOrderRepository.addMaterialConsumption(mc);
     }
 
     public boolean addProductionBatch(ProductionBatch pb) {
-        String sql = "INSERT INTO production_batch (production_order_id, material_code, batch_number, quantity, mfg_date, expiry_date, qc_status, location_code) "
-                +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            pstmt.setInt(1, pb.getProductionOrderId());
-            pstmt.setString(2, pb.getMaterialCode());
-            pstmt.setString(3, pb.getBatchNumber());
-            pstmt.setDouble(4, pb.getQuantity());
-            pstmt.setDate(5, pb.getMfgDate() != null ? java.sql.Date.valueOf(pb.getMfgDate()) : null);
-            pstmt.setDate(6, pb.getExpiryDate() != null ? java.sql.Date.valueOf(pb.getExpiryDate()) : null);
-            pstmt.setString(7, pb.getQcStatus());
-            pstmt.setString(8, pb.getLocationCode());
-            int rows = pstmt.executeUpdate();
-            if (rows > 0) {
-                try (ResultSet rs = pstmt.getGeneratedKeys()) {
-                    if (rs.next())
-                        pb.setBatchId(rs.getInt(1));
-                }
-                return true;
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return false;
+        return productionOrderRepository.addProductionBatch(pb);
     }
 
     public boolean addBatchGenealogy(BatchGenealogy bg) {
-        String sql = "INSERT INTO batch_genealogy (parent_batch, child_batch, production_order_id, relationship_type) VALUES (?, ?, ?, ?)";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            pstmt.setString(1, bg.getParentBatch());
-            pstmt.setString(2, bg.getChildBatch());
-            pstmt.setInt(3, bg.getProductionOrderId());
-            pstmt.setString(4, bg.getRelationshipType());
-            int rows = pstmt.executeUpdate();
-            if (rows > 0) {
-                try (ResultSet rs = pstmt.getGeneratedKeys()) {
-                    if (rs.next())
-                        bg.setGenealogyId(rs.getInt(1));
-                }
-                return true;
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return false;
+        return productionOrderRepository.addBatchGenealogy(bg);
     }
 
     public boolean addEventLog(EventLog el) {
-        String sql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status) VALUES (?, ?, ?, ?, ?)";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            pstmt.setString(1, el.getEventType());
-            pstmt.setString(2, el.getEntityType());
-            pstmt.setString(3, el.getEntityId());
-            pstmt.setString(4, el.getDetails());
-            pstmt.setString(5, el.getStatus());
-            int rows = pstmt.executeUpdate();
-            if (rows > 0) {
-                try (ResultSet rs = pstmt.getGeneratedKeys()) {
-                    if (rs.next())
-                        el.setEventId(rs.getInt(1));
-                }
-                return true;
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return false;
+        return productionOrderRepository.addEventLog(el);
     }
 
     public List<MaterialConsumption> getMaterialConsumptionsForOrder(int orderId) {
-        List<MaterialConsumption> consumptions = new ArrayList<>();
-        String sql = "SELECT * FROM production_material_consumption WHERE production_order_id = ?";
-        try (Connection conn = getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, orderId);
-            try (ResultSet rs = pstmt.executeQuery()) {
-                while (rs.next()) {
-                    MaterialConsumption mc = new MaterialConsumption();
-                    mc.setConsumptionId(rs.getInt("consumption_id"));
-                    mc.setProductionOrderId(rs.getInt("production_order_id"));
-                    mc.setMaterialCode(rs.getString("material_code"));
-                    mc.setBatchNumber(rs.getString("batch_number"));
-                    mc.setRequiredQty(rs.getDouble("required_qty"));
-                    mc.setConsumedQty(rs.getDouble("consumed_qty"));
-                    mc.setUom(rs.getString("uom"));
-                    java.sql.Timestamp ts = rs.getTimestamp("created_at");
-                    if (ts != null)
-                        mc.setCreatedAt(ts.toLocalDateTime());
-                    consumptions.add(mc);
-                }
-            }
-        } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching consumptions: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return consumptions;
+        return productionOrderRepository.getMaterialConsumptionsForOrder(orderId);
     }
 
 }

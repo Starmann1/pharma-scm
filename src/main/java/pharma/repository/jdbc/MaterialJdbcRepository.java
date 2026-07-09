@@ -125,4 +125,43 @@ public class MaterialJdbcRepository implements MaterialRepository {
         }
         return materials;
     }
+
+    public boolean updateMaterial(Material material) throws SQLException, ClassNotFoundException {
+        String sql = "UPDATE " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
+                + " SET brand_name=?, generic_name=?, manufacturer=?, formulation=?, strength=?,"
+                + " schedule_category=?, storage_conditions=?, reorder_level=?, is_active=?,"
+                + " preferred_supplier_id=?, material_type=?, unit_of_measure=?"
+                + " WHERE material_code=?";
+        try (Connection conn = databaseService.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, material.getBrandName());
+            pstmt.setString(2, material.getGenericName());
+            pstmt.setString(3, material.getManufacturer());
+            pstmt.setString(4, material.getFormulation());
+            pstmt.setString(5, material.getStrength());
+            pstmt.setString(6, material.getScheduleCategory());
+            pstmt.setString(7, material.getStorageConditions());
+            pstmt.setInt(8, material.getReorderLevel());
+            pstmt.setBoolean(9, material.isActive());
+            if (material.getPreferredSupplierId() != null) {
+                pstmt.setInt(10, material.getPreferredSupplierId());
+            } else {
+                pstmt.setNull(10, java.sql.Types.INTEGER);
+            }
+            pstmt.setString(11, material.getMaterialType() != null ? material.getMaterialType().name() : null);
+            pstmt.setString(12, material.getUnitOfMeasure() != null ? material.getUnitOfMeasure().name() : null);
+            pstmt.setString(13, material.getMaterialCode());
+            return pstmt.executeUpdate() > 0;
+        }
+    }
+
+    public boolean deleteMaterial(String materialCode) throws SQLException, ClassNotFoundException {
+        String sql = "DELETE FROM " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
+                + " WHERE material_code = ?";
+        try (Connection conn = databaseService.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, materialCode);
+            return pstmt.executeUpdate() > 0;
+        }
+    }
 }

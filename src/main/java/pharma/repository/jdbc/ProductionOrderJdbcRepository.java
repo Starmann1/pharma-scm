@@ -265,4 +265,161 @@ public class ProductionOrderJdbcRepository {
             }
         }
     }
+
+    // =========================================================================
+    // AGENTIC SCM — Phase 8 delegation from DatabaseService
+    // Tables are always lowercase (PostgreSQL-safe; MySQL-compatible too)
+    // =========================================================================
+
+    public boolean addInventoryTransaction(pharma.model.InventoryTransaction tx) {
+        String sql = "INSERT INTO inventory_transaction (material_code, batch_number, location_code,"
+                + " transaction_type, quantity, reference_type, reference_id, performed_by, notes)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setString(1, tx.getMaterialCode());
+            pstmt.setString(2, tx.getBatchNumber());
+            pstmt.setString(3, tx.getLocationCode());
+            pstmt.setString(4, tx.getTransactionType());
+            pstmt.setDouble(5, tx.getQuantity());
+            pstmt.setString(6, tx.getReferenceType());
+            pstmt.setString(7, tx.getReferenceId());
+            pstmt.setInt(8, tx.getPerformedBy());
+            pstmt.setString(9, tx.getNotes());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next()) tx.setTransactionId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error adding inventory transaction: {}", e.getMessage(), e);
+        }
+        return false;
+    }
+
+    public boolean addMaterialConsumption(pharma.model.MaterialConsumption mc) {
+        String sql = "INSERT INTO production_material_consumption"
+                + " (production_order_id, material_code, batch_number, required_qty, consumed_qty, uom)"
+                + " VALUES (?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, mc.getProductionOrderId());
+            pstmt.setString(2, mc.getMaterialCode());
+            pstmt.setString(3, mc.getBatchNumber());
+            pstmt.setDouble(4, mc.getRequiredQty());
+            pstmt.setDouble(5, mc.getConsumedQty());
+            pstmt.setString(6, mc.getUom());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next()) mc.setConsumptionId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error adding material consumption: {}", e.getMessage(), e);
+        }
+        return false;
+    }
+
+    public boolean addProductionBatch(pharma.model.ProductionBatch pb) {
+        String sql = "INSERT INTO production_batch"
+                + " (production_order_id, material_code, batch_number, quantity, mfg_date, expiry_date, qc_status, location_code)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setInt(1, pb.getProductionOrderId());
+            pstmt.setString(2, pb.getMaterialCode());
+            pstmt.setString(3, pb.getBatchNumber());
+            pstmt.setDouble(4, pb.getQuantity());
+            pstmt.setDate(5, pb.getMfgDate() != null ? java.sql.Date.valueOf(pb.getMfgDate()) : null);
+            pstmt.setDate(6, pb.getExpiryDate() != null ? java.sql.Date.valueOf(pb.getExpiryDate()) : null);
+            pstmt.setString(7, pb.getQcStatus());
+            pstmt.setString(8, pb.getLocationCode());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next()) pb.setBatchId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error adding production batch: {}", e.getMessage(), e);
+        }
+        return false;
+    }
+
+    public boolean addBatchGenealogy(pharma.model.BatchGenealogy bg) {
+        String sql = "INSERT INTO batch_genealogy (parent_batch, child_batch, production_order_id, relationship_type)"
+                + " VALUES (?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setString(1, bg.getParentBatch());
+            pstmt.setString(2, bg.getChildBatch());
+            pstmt.setInt(3, bg.getProductionOrderId());
+            pstmt.setString(4, bg.getRelationshipType());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next()) bg.setGenealogyId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error adding batch genealogy: {}", e.getMessage(), e);
+        }
+        return false;
+    }
+
+    public boolean addEventLog(pharma.model.EventLog el) {
+        String sql = "INSERT INTO event_log (event_type, entity_type, entity_id, details, status)"
+                + " VALUES (?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            pstmt.setString(1, el.getEventType());
+            pstmt.setString(2, el.getEntityType());
+            pstmt.setString(3, el.getEntityId());
+            pstmt.setString(4, el.getDetails());
+            pstmt.setString(5, el.getStatus());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    if (rs.next()) el.setEventId(rs.getInt(1));
+                }
+                return true;
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error adding event log: {}", e.getMessage(), e);
+        }
+        return false;
+    }
+
+    public java.util.List<pharma.model.MaterialConsumption> getMaterialConsumptionsForOrder(int orderId) {
+        java.util.List<pharma.model.MaterialConsumption> consumptions = new java.util.ArrayList<>();
+        String sql = "SELECT * FROM production_material_consumption WHERE production_order_id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, orderId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    pharma.model.MaterialConsumption mc = new pharma.model.MaterialConsumption();
+                    mc.setConsumptionId(rs.getInt("consumption_id"));
+                    mc.setProductionOrderId(rs.getInt("production_order_id"));
+                    mc.setMaterialCode(rs.getString("material_code"));
+                    mc.setBatchNumber(rs.getString("batch_number"));
+                    mc.setRequiredQty(rs.getDouble("required_qty"));
+                    mc.setConsumedQty(rs.getDouble("consumed_qty"));
+                    mc.setUom(rs.getString("uom"));
+                    java.sql.Timestamp ts = rs.getTimestamp("created_at");
+                    if (ts != null) mc.setCreatedAt(ts.toLocalDateTime());
+                    consumptions.add(mc);
+                }
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error fetching material consumptions: {}", e.getMessage(), e);
+        }
+        return consumptions;
+    }
 }
