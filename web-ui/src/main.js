@@ -3677,6 +3677,23 @@ function initSSE() {
     agentEventSource = new EventSource(`${API_BASE}/agent/stream`);
     sseInitialized = true;
     
+    agentEventSource.onopen = () => {
+        const logList = document.getElementById('logList');
+        if (logList && logList.innerHTML.includes("Waiting for Javalin REST SSE connection")) {
+            logList.innerHTML = `
+                <div class="log-item system" style="opacity: 0.85; padding: 12px; border-bottom: 1px solid var(--border-color);">
+                  <div class="log-text">
+                    <div class="log-meta" style="margin-bottom: 4px; display: flex; justify-content: space-between;">
+                      <span class="log-agent" style="color: var(--accent-teal); font-weight: 600;">System Gateway</span>
+                      <span class="log-time" style="font-size: 10px; color: var(--text-secondary);">Active</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-primary);">💚 Connection established. Listening for active JADE agent logs...</div>
+                  </div>
+                </div>
+            `;
+        }
+    };
+
     agentEventSource.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
@@ -3695,7 +3712,7 @@ function appendLiveLogItem(el) {
     const logList = document.getElementById('logList');
     if (!logList) return;
 
-    if (logList.innerHTML.includes("Waiting for Javalin REST SSE connection")) {
+    if (logList.innerHTML.includes("Waiting for Javalin REST SSE connection") || logList.innerHTML.includes("Connection established")) {
         logList.innerHTML = '';
     }
 
