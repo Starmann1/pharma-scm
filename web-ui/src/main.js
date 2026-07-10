@@ -2,11 +2,19 @@ import './style.css';
 
 // REST API Configuration
 const API_BASE = "http://localhost:8080/api";
+const SESSION_STORAGE_KEY = "pharmaScm.authSession";
 
 // Local State Store
-let currentView = 'materials';
+let currentView = 'overview';
 let stockSubTab = 'current'; // 'current' or 'transactions'
 let prodSubTab = 'runs'; // 'runs' or 'bom'
+let currentUser = null;
+let shellInitialized = false;
+let authListenersInitialized = false;
+let initCompleted = false;
+let refreshTimerId = null;
+let sseInitialized = false;
+let agentEventSource = null;
 
 let materials = [];
 let suppliers = [];
@@ -23,6 +31,27 @@ let editTargetSupplierId = null;
 const mainViewport = document.getElementById('mainViewport');
 const breadcrumbCurrent = document.getElementById('breadcrumbCurrent');
 const searchInput = document.getElementById('globalSearch');
+const loginScreen = document.getElementById('loginScreen');
+const loginForm = document.getElementById('loginForm');
+const loginEmployeeId = document.getElementById('loginEmployeeId');
+const loginPassword = document.getElementById('loginPassword');
+const togglePasswordVisibility = document.getElementById('togglePasswordVisibility');
+const loginMessage = document.getElementById('loginMessage');
+const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+const userAvatar = document.getElementById('userAvatar');
+const userName = document.getElementById('userName');
+const userRole = document.getElementById('userRole');
+const logoutBtn = document.getElementById('logoutBtn');
+
+const menuItems = [
+    { id: 'menu-overview', view: 'overview', label: 'Overview Dashboard' },
+    { id: 'menu-materials', view: 'materials', label: 'Materials Master' },
+    { id: 'menu-inventory', view: 'inventory', label: 'Stock & Inventory' },
+    { id: 'menu-suppliers', view: 'suppliers', label: 'Suppliers Registry' },
+    { id: 'menu-production', view: 'production', label: 'Production Runs & BOM' },
+    { id: 'menu-compliance', view: 'compliance', label: 'QA Compliance Panel' },
+    { id: 'menu-admin', view: 'admin', label: 'Admin Management' }
+];
 
 // Dialog Nodes
 const addMaterialForm = document.getElementById('addMaterialForm');
@@ -47,31 +76,168 @@ const chatInput = document.getElementById('chatInput');
 const chatList = document.getElementById('chatList');
 const sendChatBtn = document.getElementById('sendChatBtn');
 
+/* --- AUTHENTICATION GATE --- */
+function initAuthListeners() {
+    if (authListenersInitialized) return;
+    authListenersInitialized = true;
+
+    loginForm.addEventListener('submit', handleLoginSubmit);
+    togglePasswordVisibility.addEventListener('click', togglePasswordInput);
+    logoutBtn.addEventListener('click', logout);
+}
+
+function readStoredSession() {
+    try {
+        const rawSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+        if (!rawSession) return null;
+
+        const parsedSession = JSON.parse(rawSession);
+        if (!parsedSession || !parsedSession.userId || !parsedSession.employeeId) {
+            return null;
+        }
+        return parsedSession;
+    } catch (err) {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        return null;
+    }
+}
+
+function persistSession(session) {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+function showLogin(message = '') {
+    document.body.classList.add('login-active');
+    loginScreen.removeAttribute('hidden');
+    setLoginMessage(message, message ? 'info' : '');
+    loginEmployeeId.focus();
+}
+
+function showApplication() {
+    document.body.classList.remove('login-active');
+    loginScreen.setAttribute('hidden', '');
+    applyUserToShell();
+}
+
+function setLoginMessage(message, type) {
+    loginMessage.textContent = message;
+    loginMessage.className = `login-message ${type || ''}`.trim();
+}
+
+function togglePasswordInput() {
+    const isPassword = loginPassword.type === 'password';
+    loginPassword.type = isPassword ? 'text' : 'password';
+    togglePasswordVisibility.textContent = isPassword ? 'Hide' : 'Show';
+    togglePasswordVisibility.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+}
+
+async function handleLoginSubmit(event) {
+    event.preventDefault();
+
+    const employeeId = loginEmployeeId.value.trim();
+    const password = loginPassword.value;
+
+    if (!employeeId || !password.trim()) {
+        setLoginMessage('Employee ID and password are required.', 'error');
+        return;
+    }
+
+    loginSubmitBtn.disabled = true;
+    loginSubmitBtn.textContent = 'Signing in...';
+    setLoginMessage('', '');
+
+    try {
+        const session = await authenticate(employeeId, password);
+        currentUser = session;
+        persistSession(session);
+        loginPassword.value = '';
+        currentView = 'overview';
+        setLoginMessage('Access approved. Loading secure workspace...', 'success');
+        startAuthenticatedShell();
+    } catch (err) {
+        setLoginMessage(err.message || 'Login failed. Please try again.', 'error');
+    } finally {
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.textContent = 'Sign in';
+    }
+}
+
+async function authenticate(employeeId, password) {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId, password })
+    });
+
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(payload.error || 'Unable to authenticate user.');
+    }
+    return payload;
+}
+
+function logout() {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    currentUser = null;
+    if (refreshTimerId) {
+        clearInterval(refreshTimerId);
+        refreshTimerId = null;
+    }
+    if (agentEventSource) {
+        agentEventSource.close();
+        agentEventSource = null;
+        sseInitialized = false;
+    }
+    loginPassword.value = '';
+    showLogin('Session ended. Sign in to continue.');
+}
+
+function applyUserToShell() {
+    if (!currentUser) return;
+
+    const displayName = currentUser.fullName || currentUser.employeeId;
+    userName.textContent = displayName;
+    userRole.textContent = currentUser.roleName || 'Authorized User';
+    userAvatar.textContent = getInitials(displayName);
+}
+
+function getInitials(name) {
+    return name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part.charAt(0).toUpperCase())
+        .join('') || '--';
+}
+
+function startAuthenticatedShell() {
+    showApplication();
+
+    if (!shellInitialized) {
+        shellInitialized = true;
+        initRouter();
+        initFormSubmitListeners();
+    }
+
+    if (!sseInitialized) {
+        initSSE();
+    }
+
+    if (!refreshTimerId) {
+        refreshTimerId = setInterval(() => {
+            loadViewData(currentView);
+        }, 8000);
+    }
+
+    navigateToView(currentView || 'overview');
+}
+
 /* --- ROUTER SETUP --- */
 function initRouter() {
-    const menuItems = [
-        { id: 'menu-overview', view: 'overview', label: 'Overview Dashboard' },
-        { id: 'menu-materials', view: 'materials', label: 'Materials Master' },
-        { id: 'menu-inventory', view: 'inventory', label: 'Stock & Inventory' },
-        { id: 'menu-suppliers', view: 'suppliers', label: 'Suppliers Registry' },
-        { id: 'menu-production', view: 'production', label: 'Production Runs & BOM' },
-        { id: 'menu-compliance', view: 'compliance', label: 'QA Compliance Panel' },
-        { id: 'menu-admin', view: 'admin', label: 'Admin Management' }
-    ];
-
     menuItems.forEach(item => {
         const btn = document.getElementById(item.id);
         if (btn) {
-            btn.addEventListener('click', () => {
-                menuItems.forEach(i => document.getElementById(i.id).classList.remove('active'));
-                btn.classList.add('active');
-                
-                currentView = item.view;
-                breadcrumbCurrent.textContent = item.label;
-                searchInput.value = ''; // Reset search
-                
-                loadViewData(item.view);
-            });
+            btn.addEventListener('click', () => navigateToView(item.view));
         }
     });
 
@@ -82,6 +248,22 @@ function initRouter() {
         sidebarToggle.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
         sidebarToggle.title = sidebar.classList.contains('collapsed') ? 'Expand Menu' : 'Collapse Menu';
     });
+}
+
+function navigateToView(view) {
+    const target = menuItems.find(item => item.view === view) || menuItems[0];
+
+    menuItems.forEach(item => {
+        const menuNode = document.getElementById(item.id);
+        if (menuNode) {
+            menuNode.classList.toggle('active', item.view === target.view);
+        }
+    });
+
+    currentView = target.view;
+    breadcrumbCurrent.textContent = target.label;
+    searchInput.value = '';
+    loadViewData(target.view);
 }
 
 // Load data corresponding to active view
@@ -302,7 +484,7 @@ async function startProductionOrder(orderId) {
         const res = await fetch(`${API_BASE}/production/orders/${orderId}/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: 1 })
+            body: JSON.stringify({ userId: currentUser?.userId || 1 })
         });
         if (!res.ok) {
             const errObj = await res.json().catch(() => ({}));
@@ -999,6 +1181,7 @@ function launchInspectBatchModal(batchNumber) {
     document.getElementById('inspectMaterialCode').value = item.materialCode;
     document.getElementById('inspectQuantity').value = item.quantity;
     document.getElementById('inspectRemarks').value = '';
+    document.getElementById('inspectPerformedBy').value = currentUser?.fullName || currentUser?.employeeId || '';
 
     openModal('inspectBatchModal');
 }
@@ -1021,6 +1204,7 @@ async function launchAddOrderModal() {
             selectBOM.innerHTML += `<option value="${b.bomId}">${b.description} (v${b.versionNumber}) for ${b.materialCode}</option>`;
         });
     }
+    document.getElementById('addOrderCreatedBy').value = currentUser?.userId || 1;
     openModal('addProductionOrderModal');
 }
 
@@ -1121,6 +1305,7 @@ function launchEditSupplierModal(id) {
 function launchStatusModal(id, status) {
     document.getElementById('statusSupplierId').value = id;
     document.getElementById('statusTargetValue').value = status;
+    document.getElementById('statusPerformedBy').value = currentUser?.fullName || currentUser?.employeeId || '';
     document.getElementById('statusModalTitle').textContent = `${status === 'APPROVED' ? 'Approve' : 'Reject'} Supplier compliance`;
     document.getElementById('statusSubmitBtn').textContent = status === 'APPROVED' ? 'Approve Vendor' : 'Reject Vendor';
     openModal('supplierStatusModal');
@@ -1417,9 +1602,12 @@ async function handleChatSubmit() {
 }
 
 function initSSE() {
-    const eventSource = new EventSource(`${API_BASE}/agent/stream`);
+    if (sseInitialized) return;
+
+    agentEventSource = new EventSource(`${API_BASE}/agent/stream`);
+    sseInitialized = true;
     
-    eventSource.onmessage = (event) => {
+    agentEventSource.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
             appendLiveLogItem(data);
@@ -1428,7 +1616,7 @@ function initSSE() {
         }
     };
     
-    eventSource.onerror = (err) => {
+    agentEventSource.onerror = (err) => {
         console.error("SSE stream error: ", err);
     };
 }
@@ -1475,13 +1663,17 @@ chatInput.addEventListener('keydown', (e) => {
 
 /* --- INITIALIZATION LAUNCHER --- */
 function init() {
-    initRouter();
-    initFormSubmitListeners();
-    loadViewData('materials');
-    initSSE();
-    setInterval(() => {
-        loadViewData(currentView);
-    }, 8000);
+    if (initCompleted) return;
+    initCompleted = true;
+
+    initAuthListeners();
+    currentUser = readStoredSession();
+
+    if (currentUser) {
+        startAuthenticatedShell();
+    } else {
+        showLogin();
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);

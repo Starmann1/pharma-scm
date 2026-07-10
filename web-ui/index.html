@@ -9,7 +9,38 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <title>Pharma SCM v1.1 - Dashboard</title>
   </head>
-  <body>
+  <body class="login-active">
+    <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+      <div class="login-ambient login-ambient-one"></div>
+      <div class="login-ambient login-ambient-two"></div>
+      <div class="login-panel">
+        <div class="login-brand">
+          <div class="login-brand-mark">P</div>
+          <div>
+            <p class="login-kicker">Pharma IMS Web Console</p>
+            <h1 id="loginTitle">Controlled access</h1>
+          </div>
+        </div>
+        <form id="loginForm" class="login-form" novalidate>
+          <div class="login-field">
+            <label for="loginEmployeeId">Employee ID</label>
+            <input type="text" id="loginEmployeeId" autocomplete="username" required placeholder="Enter employee ID">
+          </div>
+          <div class="login-field">
+            <label for="loginPassword">Password</label>
+            <div class="password-control">
+              <input type="password" id="loginPassword" autocomplete="current-password" required placeholder="Enter password">
+              <button type="button" id="togglePasswordVisibility" aria-label="Show password">Show</button>
+            </div>
+          </div>
+          <div class="login-message" id="loginMessage" role="status" aria-live="polite"></div>
+          <button type="submit" class="login-submit" id="loginSubmitBtn">Sign in</button>
+        </form>
+        <p class="regulatory-footer">
+          Authorized access only. All activities are monitored and logged per regulatory requirements (FDA / CDSCO / TGA / EFSA).
+        </p>
+      </div>
+    </section>
     <div id="app">
       <!-- SIDEBAR -->
       <aside id="appSidebar">
@@ -18,11 +49,11 @@
           <div class="brand-name">Pharma SCM v1.1</div>
         </div>
         <nav class="sidebar-menu">
-          <a class="menu-item" id="menu-overview">
+          <a class="menu-item active" id="menu-overview">
             <span class="menu-icon">📊</span>
             <span class="menu-label">Overview</span>
           </a>
-          <a class="menu-item active" id="menu-materials">
+          <a class="menu-item" id="menu-materials">
             <span class="menu-icon">💊</span>
             <span class="menu-label">Materials</span>
           </a>
@@ -66,11 +97,12 @@
               <input type="text" id="globalSearch" placeholder="Search...">
             </div>
             <div class="user-profile">
-              <div class="avatar">AD</div>
+              <div class="avatar" id="userAvatar">--</div>
               <div class="user-info">
-                <span class="user-name">Dr. Amit Sharma</span>
-                <span class="user-role">Operations Manager</span>
+                <span class="user-name" id="userName">Not signed in</span>
+                <span class="user-role" id="userRole">No active session</span>
               </div>
+              <button class="logout-btn" id="logoutBtn" type="button">Logout</button>
             </div>
           </div>
         </header>

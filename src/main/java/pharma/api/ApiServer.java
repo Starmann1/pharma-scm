@@ -2,6 +2,9 @@ package pharma.api;
 
 import io.javalin.Javalin;
 import pharma.config.ApplicationServices;
+import pharma.model.Permission;
+import pharma.model.Role;
+import pharma.model.User;
 import pharma.model.Material;
 import pharma.model.Supplier;
 import pharma.model.Stock;
@@ -10,7 +13,9 @@ import pharma.model.BOMHeader;
 import pharma.model.BOMDetail;
 import pharma.model.ProductionOrder;
 import pharma.service.DatabaseService;
+import pharma.service.RoleService;
 import java.util.List;
+import java.util.Set;
 
 public class ApiServer {
     private static Javalin app;
@@ -18,6 +23,7 @@ public class ApiServer {
     @SuppressWarnings("null")
     public static void start(ApplicationServices appServices) {
         DatabaseService dbService = appServices.getDatabaseService();
+        RoleService roleService = new RoleService(dbService);
 
         app = Javalin.create(config -> {
             config.bundledPlugins.enableCors(cors -> {
@@ -31,6 +37,61 @@ public class ApiServer {
         app.exception(Exception.class, (e, ctx) -> {
             e.printStackTrace();
             ctx.status(500).json(new ErrorResponse(e.getMessage()));
+        });
+
+        // --- AUTHENTICATION / RBAC ENDPOINTS ---
+        app.post("/api/auth/login", ctx -> {
+            LoginRequest req = ctx.bodyAsClass(LoginRequest.class);
+            String employeeId = firstNonBlank(req.employeeId, req.username);
+            String password = clean(req.password);
+
+            if (employeeId.isBlank() || password.isBlank()) {
+                ctx.status(400).json(new ErrorResponse("Employee ID and password are required."));
+                return;
+            }
+
+            User user = dbService.getUserByCredentials(employeeId, password);
+            if (user == null) {
+                ctx.status(401).json(new ErrorResponse("Invalid employee ID or password."));
+                return;
+            }
+
+            ctx.json(new AuthSessionResponse(user));
+        });
+
+        app.get("/api/auth/roles", ctx -> {
+            ctx.json(roleService.getAllRoles());
+        });
+
+        app.get("/api/auth/permissions/{role}", ctx -> {
+            Role role = resolveRole(roleService, ctx.pathParam("role"));
+            if (role == null) {
+                ctx.status(404).json(new ErrorResponse("Role not found"));
+                return;
+            }
+
+            List<Permission> permissions = roleService.getAllPermissions();
+            Set<Integer> assignedPermissionIds = roleService.getPermissionIdsForRole(role.getRoleId());
+            ctx.json(new RolePermissionsResponse(role, permissions, assignedPermissionIds));
+        });
+
+        app.put("/api/auth/permissions/{role}", ctx -> {
+            Role role = resolveRole(roleService, ctx.pathParam("role"));
+            if (role == null) {
+                ctx.status(404).json(new ErrorResponse("Role not found"));
+                return;
+            }
+
+            PermissionUpdateRequest req = ctx.bodyAsClass(PermissionUpdateRequest.class);
+            Set<Integer> permissionIds = req.permissionIds == null ? Set.of() : req.permissionIds;
+            int adminUserId = req.adminUserId > 0 ? req.adminUserId : 1;
+
+            boolean updated = roleService.updateRolePermissions(role.getRoleId(), permissionIds, adminUserId);
+            if (updated) {
+                ctx.json(new StatusUpdateResponse("Role permissions updated successfully"));
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to update role permissions"));
+            }
         });
 
         // --- MATERIALS CRUD ENDPOINTS ---
@@ -395,6 +456,41 @@ public class ApiServer {
         app.start(8080);
     }
 
+    private static String clean(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static String firstNonBlank(String primary, String fallback) {
+        String cleanedPrimary = clean(primary);
+        return cleanedPrimary.isBlank() ? clean(fallback) : cleanedPrimary;
+    }
+
+    private static Role resolveRole(RoleService roleService, String roleReference) {
+        String cleanRoleReference = clean(roleReference);
+        if (cleanRoleReference.isBlank()) {
+            return null;
+        }
+
+        Integer roleId = parseInteger(cleanRoleReference);
+        for (Role role : roleService.getAllRoles()) {
+            if (roleId != null && role.getRoleId() == roleId) {
+                return role;
+            }
+            if (role.getRoleName() != null && role.getRoleName().equalsIgnoreCase(cleanRoleReference)) {
+                return role;
+            }
+        }
+        return null;
+    }
+
+    private static Integer parseInteger(String value) {
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     public static void stop() {
         if (app != null) {
             app.stop();
@@ -402,6 +498,70 @@ public class ApiServer {
     }
 
     // Helper DTOs
+    private static class LoginRequest {
+        public String employeeId;
+        public String username;
+        public String password;
+    }
+
+    private static class AuthSessionResponse {
+        private final int userId;
+        private final String employeeId;
+        private final String fullName;
+        private final String roleName;
+        private final Set<String> permissions;
+
+        public AuthSessionResponse(User user) {
+            Role role = user.getRole();
+            this.userId = user.getUserId();
+            this.employeeId = user.getUsername();
+            this.fullName = user.getFullName();
+            this.roleName = role == null ? "" : role.getRoleName();
+            this.permissions = user.getPermissions();
+        }
+
+        @SuppressWarnings("unused")
+        public int getUserId() { return userId; }
+
+        @SuppressWarnings("unused")
+        public String getEmployeeId() { return employeeId; }
+
+        @SuppressWarnings("unused")
+        public String getFullName() { return fullName; }
+
+        @SuppressWarnings("unused")
+        public String getRoleName() { return roleName; }
+
+        @SuppressWarnings("unused")
+        public Set<String> getPermissions() { return permissions; }
+    }
+
+    private static class RolePermissionsResponse {
+        private final Role role;
+        private final List<Permission> permissions;
+        private final Set<Integer> assignedPermissionIds;
+
+        public RolePermissionsResponse(Role role, List<Permission> permissions, Set<Integer> assignedPermissionIds) {
+            this.role = role;
+            this.permissions = permissions;
+            this.assignedPermissionIds = assignedPermissionIds;
+        }
+
+        @SuppressWarnings("unused")
+        public Role getRole() { return role; }
+
+        @SuppressWarnings("unused")
+        public List<Permission> getPermissions() { return permissions; }
+
+        @SuppressWarnings("unused")
+        public Set<Integer> getAssignedPermissionIds() { return assignedPermissionIds; }
+    }
+
+    private static class PermissionUpdateRequest {
+        public Set<Integer> permissionIds;
+        public int adminUserId;
+    }
+
     private static class StatusUpdateRequest {
         public String status;
         public String remarks;
