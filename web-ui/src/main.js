@@ -306,6 +306,15 @@ function navigateToView(view) {
     currentView = target.view;
     breadcrumbCurrent.textContent = target.label;
     searchInput.value = '';
+    
+    // Render immediate loading state to prevent perceived lag/freeze during REST fetches
+    mainViewport.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 400px; color: var(--text-secondary);">
+            <div class="loader-spinner" style="width: 48px; height: 48px; border: 4px solid var(--accent-teal-glow); border-top-color: var(--accent-teal); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+            <div style="font-size: 14px; font-weight: 500; letter-spacing: 0.5px;">Loading ${target.label}...</div>
+        </div>
+    `;
+
     loadViewData(target.view);
 }
 

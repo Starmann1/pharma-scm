@@ -1806,3 +1806,8 @@ tbody tr:hover {
     border-color: rgba(45, 212, 191, 0.25);
 }
 
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
