@@ -33,6 +33,9 @@ let adminSelectedRole = null;
 let adminRolePermissions = null;
 let riskReports = [];
 let aiDecisions = [];
+let qaSelectedBatch = null;
+let qaStatusFilter = 'ALL';
+let qaAllBatches = [];
 
 let editTargetMaterialCode = null;
 let editTargetSupplierId = null;
@@ -543,10 +546,82 @@ async function sendToQATesting(orderId) {
 // 5. QA Compliance REST Callers
 async function fetchComplianceData() {
     try {
-        const res = await fetch(`${API_BASE}/qa/inspections`);
-        if (!res.ok) throw new Error("Failed to load QA inspections");
-        qaList = await res.json();
-        renderComplianceView(qaList);
+        // Fetch active inspections
+        const resQA = await fetch(`${API_BASE}/qa/inspections`);
+        if (resQA.ok) qaList = await resQA.json();
+
+        // Fetch stock to populate approved / rejected batches
+        const resStock = await fetch(`${API_BASE}/stock`);
+        if (resStock.ok) stockList = await resStock.json();
+
+        // Fetch production orders to populate active production runs
+        const resOrders = await fetch(`${API_BASE}/production/orders`);
+        if (resOrders.ok) orderList = await resOrders.json();
+
+        // Combine into a single consolidated inspectable list
+        qaAllBatches = [];
+
+        // Add from active QA inspections
+        qaList.forEach(item => {
+            qaAllBatches.push({
+                batchNumber: item.batchNumber,
+                materialCode: item.materialCode,
+                locationCode: item.locationCode,
+                quantity: item.quantity,
+                reservedQuantity: item.reservedQuantity || 0,
+                availableQuantity: item.availableQuantity || item.quantity,
+                unitCost: item.unitCost || 0.0,
+                expDate: item.expDate,
+                qcStatus: item.qcStatus || 'UNDER_TEST',
+                source: 'QA_INSPECTION'
+            });
+        });
+
+        // Add approved / rejected stock items not already in qaList
+        const qaBatchNumbers = new Set(qaAllBatches.map(b => b.batchNumber));
+        stockList.forEach(item => {
+            if (!qaBatchNumbers.has(item.batchNumber)) {
+                qaAllBatches.push({
+                    batchNumber: item.batchNumber,
+                    materialCode: item.materialCode,
+                    locationCode: item.locationCode,
+                    quantity: item.quantity,
+                    reservedQuantity: item.reservedQuantity || 0,
+                    availableQuantity: item.availableQuantity || item.quantity,
+                    unitCost: item.unitCost || 0.0,
+                    expDate: item.expDate,
+                    qcStatus: item.qcStatus || 'APPROVED',
+                    source: 'STOCK'
+                });
+                qaBatchNumbers.add(item.batchNumber);
+            }
+        });
+
+        // Add active production run batches not already added
+        orderList.forEach(item => {
+            if (!qaBatchNumbers.has(item.batchNumber)) {
+                let qcStatus = 'IN_PRODUCTION';
+                if (item.status === 'Quality-Testing') qcStatus = 'UNDER_TEST';
+                else if (item.status === 'Approved') qcStatus = 'APPROVED';
+                else if (item.status === 'Rejected') qcStatus = 'REJECTED';
+
+                qaAllBatches.push({
+                    batchNumber: item.batchNumber,
+                    materialCode: `BOM-#${item.bomId}`,
+                    locationCode: 'PRODUCTION_LINE',
+                    quantity: item.plannedQty,
+                    reservedQuantity: 0,
+                    availableQuantity: item.actualQty || 0,
+                    unitCost: 0.0,
+                    expDate: null,
+                    qcStatus: qcStatus,
+                    source: 'PRODUCTION'
+                });
+                qaBatchNumbers.add(item.batchNumber);
+            }
+        });
+
+        renderComplianceView(qaAllBatches);
     } catch (err) {
         console.error("API error fetching QA list: ", err);
         showMockQAFallback();
@@ -821,7 +896,13 @@ function showMockQAFallback() {
     qaList = [
         { stockId: 103, materialCode: "MAT-001", locationCode: "QC_HOLD", batchNumber: "B-AMX-08", quantity: 80.0, reservedQuantity: 0.0, availableQuantity: 0.0, unitCost: 45.0, expDate: "2026-08-01", qcStatus: "UNDER_TEST" }
     ];
-    renderComplianceView(qaList);
+    qaAllBatches = [
+        { batchNumber: "B-AMX-08", materialCode: "MAT-001", locationCode: "QC_HOLD", quantity: 80.0, reservedQuantity: 0.0, availableQuantity: 0.0, unitCost: 45.0, expDate: "2026-08-01", qcStatus: "UNDER_TEST", source: "QA_INSPECTION" },
+        { batchNumber: "B-PCM-901", materialCode: "MAT-002", locationCode: "LOC-A1", quantity: 1000.0, reservedQuantity: 0.0, availableQuantity: 1000.0, unitCost: 15.5, expDate: "2028-06-30", qcStatus: "APPROVED", source: "STOCK" },
+        { batchNumber: "B-GLY-22", materialCode: "MAT-003", locationCode: "LOC-B2", quantity: 450.0, reservedQuantity: 0.0, availableQuantity: 450.0, unitCost: 8.2, expDate: "2027-12-15", qcStatus: "APPROVED", source: "STOCK" },
+        { batchNumber: "B-PCM-902", materialCode: "MAT-002", locationCode: "PRODUCTION_LINE", quantity: 500.0, reservedQuantity: 0.0, availableQuantity: 0.0, unitCost: 0.0, expDate: null, qcStatus: "IN_PRODUCTION", source: "PRODUCTION" }
+    ];
+    renderComplianceView(qaAllBatches);
 }
 
 function showMockOverviewStats() {
@@ -2699,62 +2780,353 @@ function renderProductionView() {
 }
 
 // 6. QA Compliance Inspections View
-function renderComplianceView(data) {
+function renderComplianceView() {
+    // Build filter dropdown option tag template
+    const filterOptions = ['ALL', 'QI', 'QUARANTINE', 'IN_PRODUCTION', 'IN_PROCESS_SAMPLE', 'UNDER_TEST', 'APPROVED', 'REJECTED'].map(f => `
+        <option value="${f}" ${qaStatusFilter === f ? 'selected' : ''}>${f}</option>
+    `).join('');
+
+    // Filter list
+    let filtered = qaAllBatches;
+    if (qaStatusFilter !== 'ALL') {
+        filtered = qaAllBatches.filter(b => b.qcStatus === qaStatusFilter);
+    }
+
+    const tableRows = filtered.map(item => {
+        let qcBadge = 'badge-warning';
+        if (item.qcStatus === 'APPROVED' || item.qcStatus === 'RELEASED') qcBadge = 'badge-success';
+        else if (item.qcStatus === 'REJECTED') qcBadge = 'badge-danger';
+        else if (item.qcStatus === 'IN_PRODUCTION') qcBadge = 'badge-primary';
+
+        const isSelected = qaSelectedBatch && qaSelectedBatch.batchNumber === item.batchNumber;
+
+        return `
+            <tr class="qa-batch-row ${isSelected ? 'row-selected' : ''}" data-batch="${item.batchNumber}" style="cursor: pointer; transition: background-color 0.2s;">
+                <td><strong>${item.batchNumber}</strong></td>
+                <td><code>${item.materialCode}</code></td>
+                <td><span class="badge ${qcBadge}">${item.qcStatus}</span></td>
+                <td>${item.quantity.toLocaleString()}</td>
+                <td><code>${item.locationCode}</code></td>
+            </tr>
+        `;
+    }).join('');
+
     mainViewport.innerHTML = `
         <div class="view-header">
-            <h1 class="view-title">QA Quarantine Inspections</h1>
+            <h1 class="view-title">QA Compliance & Quarantine Control</h1>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <label for="qaStatusFilterSelect" style="font-size: 13px; font-weight: 600; color: var(--text-primary);">Filter:</label>
+                <select id="qaStatusFilterSelect" class="form-control" style="background-color: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 4px; font-size: 13px;">
+                    ${filterOptions}
+                </select>
+            </div>
         </div>
 
-        <div class="card-container">
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Batch Number</th>
-                            <th>Material Code</th>
-                            <th>Location</th>
-                            <th>Holding Quantity</th>
-                            <th>Expiry Date</th>
-                            <th>QC Status</th>
-                            <th>Compliance Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="complianceTableBody"></tbody>
-                </table>
+        <div class="qa-split-container">
+            <!-- Left Side: Table -->
+            <div class="card-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px;">
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Batch Number</th>
+                                <th>Material Code</th>
+                                <th>QC Status</th>
+                                <th>Quantity</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows || '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No batches found matching filter</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Right Side: Details Panel -->
+            <div id="qaDetailsPanelContainer"></div>
+        </div>
+    `;
+
+    // Render details panel on the right
+    renderBatchDetailsPanel();
+
+    // Listeners
+    document.getElementById('qaStatusFilterSelect').addEventListener('change', (e) => {
+        qaStatusFilter = e.target.value;
+        renderComplianceView();
+    });
+
+    document.querySelectorAll('.qa-batch-row').forEach(row => {
+        row.addEventListener('click', (e) => {
+            const batchNum = e.currentTarget.getAttribute('data-batch');
+            qaSelectedBatch = qaAllBatches.find(b => b.batchNumber === batchNum);
+            renderComplianceView();
+        });
+    });
+}
+
+function renderBatchDetailsPanel() {
+    const container = document.getElementById('qaDetailsPanelContainer');
+    if (!container) return;
+
+    if (!qaSelectedBatch) {
+        container.innerHTML = `
+            <div class="qa-details-panel" style="text-align: center; color: var(--text-secondary); padding: 40px;">
+                <div style="font-size: 36px; margin-bottom: 12px;">🔬</div>
+                Select a batch from the list to view detailed chemical assay values, parent traceability, and operational controls.
+            </div>
+        `;
+        return;
+    }
+
+    const b = qaSelectedBatch;
+    let qcBadge = 'badge-warning';
+    if (b.qcStatus === 'APPROVED') qcBadge = 'badge-success';
+    else if (b.qcStatus === 'REJECTED') qcBadge = 'badge-danger';
+    else if (b.qcStatus === 'IN_PRODUCTION') qcBadge = 'badge-primary';
+
+    // Status driven action buttons
+    let actionButtonsHtml = '';
+    if (b.qcStatus === 'IN_PRODUCTION') {
+        actionButtonsHtml = `
+            <button class="btn-primary qa-action-btn" id="qaBtnSample" style="flex:1;">⚡ Take IPQC Sample</button>
+            <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="flex:1;">🧬 View Genealogy</button>
+        `;
+    } else if (b.qcStatus === 'IN_PROCESS_SAMPLE') {
+        actionButtonsHtml = `
+            <button class="btn-primary qa-action-btn" id="qaBtnStartTest" style="flex:1;">🔬 Start Testing</button>
+            <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="flex:1;">🧬 View Genealogy</button>
+        `;
+    } else if (b.qcStatus === 'UNDER_TEST' || b.qcStatus === 'QUARANTINE' || b.qcStatus === 'QI') {
+        actionButtonsHtml = `
+            <button class="btn-success qa-action-btn" id="qaBtnApprove" style="background-color: var(--status-green) !important; color: white !important; flex:1;">✅ Approve & Release</button>
+            <button class="btn-danger qa-action-btn" id="qaBtnReject" style="background-color: var(--status-red) !important; color: white !important; flex:1;">❌ Reject Batch</button>
+            <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="width:100%; margin-top:8px;">🧬 View Genealogy</button>
+        `;
+    } else {
+        // Approved or Rejected
+        actionButtonsHtml = `
+            <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="width: 100%;">🧬 View Genealogy</button>
+        `;
+    }
+
+    container.innerHTML = `
+        <div class="qa-details-panel">
+            <div class="qa-details-section">
+                <h3 style="font-size: 15px; font-weight:600; color: var(--text-primary); margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>Batch details: <code>${b.batchNumber}</code></span>
+                    <span class="badge ${qcBadge}">${b.qcStatus}</span>
+                </h3>
+            </div>
+
+            <!-- SECTION 1: BATCH INFORMATION -->
+            <div class="qa-details-section">
+                <div class="qa-section-header">Batch Information</div>
+                <div class="qa-details-grid">
+                    <span class="qa-details-label">Material Code:</span>
+                    <span class="qa-details-value"><code>${b.materialCode}</code></span>
+                    <span class="qa-details-label">Brand Name:</span>
+                    <span class="qa-details-value">${materials.find(m => m.materialCode === b.materialCode)?.brandName || 'N/A'}</span>
+                    <span class="qa-details-label">Source Layer:</span>
+                    <span class="qa-details-value">${b.source}</span>
+                </div>
+            </div>
+
+            <!-- SECTION 2: QUANTITY & LOCATION -->
+            <div class="qa-details-section">
+                <div class="qa-section-header">Quantity & Location</div>
+                <div class="qa-details-grid">
+                    <span class="qa-details-label">Holding Quantity:</span>
+                    <span class="qa-details-value">${b.quantity.toLocaleString()}</span>
+                    <span class="qa-details-label">Available Qty:</span>
+                    <span class="qa-details-value">${b.availableQuantity.toLocaleString()}</span>
+                    <span class="qa-details-label">Location:</span>
+                    <span class="qa-details-value"><code>${b.locationCode}</code></span>
+                </div>
+            </div>
+
+            <!-- SECTION 3: DATES -->
+            <div class="qa-details-section">
+                <div class="qa-section-header">Assay & Expiration Dates</div>
+                <div class="qa-details-grid">
+                    <span class="qa-details-label">Expiry Date:</span>
+                    <span class="qa-details-value">${b.expDate || 'N/A'}</span>
+                    <span class="qa-details-label">Assay Cost:</span>
+                    <span class="qa-details-value">$${b.unitCost.toFixed(2)}</span>
+                </div>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="qa-details-section">
+                <div class="qa-section-header">Workflow Compliance Actions</div>
+                <div class="qa-action-buttons">
+                    ${actionButtonsHtml}
+                </div>
             </div>
         </div>
     `;
 
-    const bodyNode = document.getElementById('complianceTableBody');
-    bodyNode.innerHTML = '';
-
-    if (data.length === 0) {
-        bodyNode.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No batches currently held in QA quarantine</td></tr>`;
-    } else {
-        data.forEach(item => {
-            const tr = document.createElement('tr');
-            
-            tr.innerHTML = `
-                <td><strong>${item.batchNumber}</strong></td>
-                <td>${item.materialCode}</td>
-                <td><code>${item.locationCode}</code></td>
-                <td>${item.quantity}</td>
-                <td>${item.expDate || '-'}</td>
-                <td><span class="badge badge-warning">${item.qcStatus}</span></td>
-                <td>
-                    <button class="btn-primary inspect-batch-btn" data-batch="${item.batchNumber}" style="padding:4px 10px; font-size:10px;">🔬 Run Inspections</button>
-                </td>
-            `;
-            bodyNode.appendChild(tr);
+    // Event listeners
+    const btnSample = document.getElementById('qaBtnSample');
+    if (btnSample) {
+        btnSample.addEventListener('click', async () => {
+            if (!confirm(`Are you sure you want to take an IPQC sample for batch ${b.batchNumber}?\nThis will transition the batch to UNDER_TEST.`)) return;
+            try {
+                const res = await fetch(`${API_BASE}/qa/inspections/${b.batchNumber}/sample`, { method: 'POST' });
+                if (!res.ok) throw new Error("Failed to take sample");
+                alert("Sample logged successfully!");
+                await fetchComplianceData();
+            } catch (err) {
+                // Mock
+                b.qcStatus = 'UNDER_TEST';
+                alert("Sample logged successfully (Mock Mode).");
+                renderComplianceView();
+            }
         });
     }
 
-    document.querySelectorAll('.inspect-batch-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const batch = e.currentTarget.getAttribute('data-batch');
-            launchInspectBatchModal(batch);
+    const btnStartTest = document.getElementById('qaBtnStartTest');
+    if (btnStartTest) {
+        btnStartTest.addEventListener('click', async () => {
+            if (!confirm(`Start chemical assay testing for batch ${b.batchNumber}?`)) return;
+            try {
+                const res = await fetch(`${API_BASE}/qa/inspections/${b.batchNumber}/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'UNDER_TEST' })
+                });
+                if (!res.ok) throw new Error("Failed to update status");
+                alert("Testing run initialized.");
+                await fetchComplianceData();
+            } catch (err) {
+                // Mock
+                b.qcStatus = 'UNDER_TEST';
+                alert("Testing run initialized (Mock Mode).");
+                renderComplianceView();
+            }
         });
-    });
+    }
+
+    const btnApprove = document.getElementById('qaBtnApprove');
+    if (btnApprove) {
+        btnApprove.addEventListener('click', async () => {
+            const remarks = prompt("Enter approval remarks / release rationale *:");
+            if (remarks === null) return;
+            if (remarks.trim() === '') {
+                alert("Remarks are required for release.");
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/qa/inspections/${b.batchNumber}/inspect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'APPROVED', remarks: remarks.trim(), performedBy: currentUser?.employeeName || 'QC Inspector' })
+                });
+                if (!res.ok) throw new Error("Failed to approve batch");
+                alert("Batch released to inventory successfully!");
+                await fetchComplianceData();
+            } catch (err) {
+                // Mock
+                b.qcStatus = 'APPROVED';
+                alert("Batch released to inventory (Mock Mode).");
+                renderComplianceView();
+            }
+        });
+    }
+
+    const btnReject = document.getElementById('qaBtnReject');
+    if (btnReject) {
+        btnReject.addEventListener('click', async () => {
+            const remarks = prompt("Enter rejection remarks / hazard rationale *:");
+            if (remarks === null) return;
+            if (remarks.trim() === '') {
+                alert("Remarks are required for QC quarantine rejection.");
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/qa/inspections/${b.batchNumber}/inspect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'REJECTED', remarks: remarks.trim(), performedBy: currentUser?.employeeName || 'QC Inspector' })
+                });
+                if (!res.ok) throw new Error("Failed to reject batch");
+                alert("Batch successfully rejected and quarantined.");
+                await fetchComplianceData();
+            } catch (err) {
+                // Mock
+                b.qcStatus = 'REJECTED';
+                alert("Batch rejected (Mock Mode).");
+                renderComplianceView();
+            }
+        });
+    }
+
+    const btnGenealogy = document.getElementById('qaBtnGenealogy');
+    if (btnGenealogy) {
+        btnGenealogy.addEventListener('click', () => {
+            showGenealogyModal(b.batchNumber);
+        });
+    }
+}
+
+async function showGenealogyModal(batchNumber) {
+    let parents = [];
+    try {
+        const res = await fetch(`${API_BASE}/qa/inspections/${batchNumber}/genealogy`);
+        if (res.ok) parents = await res.json();
+    } catch (err) {
+        console.warn("Genealogy api fetch failed, loading fallback: ", err);
+    }
+
+    if (parents.length === 0) {
+        // Fallback mock parents based on batch prefix
+        if (batchNumber.includes("PCM-901") || batchNumber.includes("PCM-902")) {
+            parents = ["B-RAW-PCM-01 (Raw Paracetamol)", "B-RAW-GLY-02 (Raw Glycerol)"];
+        } else if (batchNumber.includes("AMX")) {
+            parents = ["B-RAW-AMX-08 (Raw Amoxicillin API)"];
+        } else {
+            parents = ["No parent batch lineage found (Raw Material origin)"];
+        }
+    }
+
+    const parentsListHtml = parents.map(p => `
+        <li style="padding: 10px; background-color: var(--bg-elevated); border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; font-family: monospace; color: var(--text-primary);">
+            🔗 Parent: ${p}
+        </li>
+    `).join('');
+
+    // We can reuse or instantiate a custom dynamic modal overlay
+    const modalId = "qaGenealogyModal";
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.className = "modal-overlay";
+        modalEl.id = modalId;
+        document.body.appendChild(modalEl);
+    }
+
+    modalEl.innerHTML = `
+        <div class="modal-window" style="width: 480px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Batch Genealogy & Traceability</h2>
+                <button class="modal-close" onclick="closeModal('${modalId}')">✖</button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Genealogy trace for batch <strong>${batchNumber}</strong>:
+                </p>
+                <ul style="display: flex; flex-direction: column; gap: 10px; list-style: none; padding: 0; margin: 0;">
+                    ${parentsListHtml}
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal('${modalId}')" style="width: 100%;">Close Traceability</button>
+            </div>
+        </div>
+    `;
+
+    openModal(modalId);
 }
 
 /* --- MODAL FORMS DATA LOADERS --- */

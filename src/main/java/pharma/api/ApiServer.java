@@ -504,6 +504,24 @@ public class ApiServer {
             ctx.json(new StatusUpdateResponse("Inspection completed successfully. Status: " + req.status));
         });
 
+        app.get("/api/qa/inspections/{batch}/genealogy", ctx -> {
+            String batch = ctx.pathParam("batch");
+            ctx.json(dbService.getBatchGenealogy(batch));
+        });
+
+        app.post("/api/qa/inspections/{batch}/sample", ctx -> {
+            String batch = ctx.pathParam("batch");
+            dbService.takeSampleForQC(batch, 1);
+            ctx.json(new StatusUpdateResponse("IPQC sample taken. Status updated to UNDER_TEST"));
+        });
+
+        app.post("/api/qa/inspections/{batch}/status", ctx -> {
+            String batch = ctx.pathParam("batch");
+            OrderStatusUpdateRequest req = ctx.bodyAsClass(OrderStatusUpdateRequest.class);
+            dbService.updateQCStatus(batch, req.status.toUpperCase(), 1);
+            ctx.json(new StatusUpdateResponse("QC status updated to " + req.status));
+        });
+
         // --- XAI OBSERVE & CHAT OVERLAY ENDPOINTS ---
         app.sse("/api/agent/stream", client -> {
             client.keepAlive();

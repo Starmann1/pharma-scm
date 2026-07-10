@@ -1488,3 +1488,69 @@ tr:hover td {
     margin-top: 8px;
 }
 
+/* QA Compliance Split-Pane Layout */
+.qa-split-container {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.qa-details-panel {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.qa-details-section {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+}
+
+.qa-details-section:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+
+.qa-section-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-teal);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.qa-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+    font-size: 12px;
+}
+
+.qa-details-label {
+    color: var(--text-secondary);
+}
+
+.qa-details-value {
+    color: var(--text-primary);
+    font-weight: 550;
+    text-align: right;
+}
+
+.qa-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+@media (max-width: 1000px) {
+    .qa-split-container {
+        grid-template-columns: 1fr;
+    }
+}
+
