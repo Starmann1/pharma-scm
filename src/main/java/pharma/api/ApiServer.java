@@ -15,6 +15,8 @@ import pharma.model.ProductionOrder;
 import pharma.model.Location;
 import pharma.model.PurchaseOrder;
 import pharma.model.GRN;
+import pharma.dto.MaterialAvailabilityDTO;
+import pharma.dto.RiskReportDTO;
 import pharma.service.DatabaseService;
 import pharma.service.RoleService;
 import java.util.List;
@@ -349,6 +351,48 @@ public class ApiServer {
             } else {
                 ctx.status(500).json(new ErrorResponse("Failed to create GRN"));
             }
+        });
+
+        // --- REPORTS ENDPOINTS ---
+        app.get("/api/reports/stock-value", ctx -> {
+            ctx.json(dbService.getDetailedInventoryReport());
+        });
+
+        app.get("/api/reports/low-stock", ctx -> {
+            ctx.json(appServices.getInventoryService().findLowStockMaterials());
+        });
+
+        app.get("/api/reports/expiring", ctx -> {
+            List<Stock> allStock = dbService.getDetailedInventoryReport();
+            java.time.LocalDate today = java.time.LocalDate.now();
+            java.time.LocalDate sixMonthsFromNow = today.plusMonths(6);
+            List<Stock> expiring = allStock.stream()
+                .filter(s -> s.getExpDate() != null && 
+                             !s.getExpDate().isBefore(today) && 
+                             !s.getExpDate().isAfter(sixMonthsFromNow))
+                .toList();
+            ctx.json(expiring);
+        });
+
+        app.get("/api/reports/supplier-performance", ctx -> {
+            List<Supplier> suppliers = dbService.getAllSuppliers();
+            List<SupplierPerformanceResponse> performance = new java.util.ArrayList<>();
+            for (Supplier s : suppliers) {
+                RiskReportDTO report = appServices.getRiskService().scoreSupplierRisk(s.getSupplierId());
+                performance.add(new SupplierPerformanceResponse(
+                    s.getSupplierId(),
+                    s.getSupplierName(),
+                    report.getDrivers(),
+                    report.getRiskScore(),
+                    report.getSeverity(),
+                    s.getSupplierStatus()
+                ));
+            }
+            ctx.json(performance);
+        });
+
+        app.get("/api/reports/grn-history", ctx -> {
+            ctx.json(dbService.getGRNs());
         });
 
         // --- STOCK / INVENTORY ENDPOINTS ---
@@ -734,6 +778,24 @@ public class ApiServer {
     private static class CreateBOMRequest {
         public BOMHeader header;
         public List<BOMDetail> details;
+    }
+
+    private static class SupplierPerformanceResponse {
+        public int supplierId;
+        public String supplierName;
+        public List<String> drivers;
+        public double riskScore;
+        public String severity;
+        public String status;
+
+        public SupplierPerformanceResponse(int supplierId, String supplierName, List<String> drivers, double riskScore, String severity, String status) {
+            this.supplierId = supplierId;
+            this.supplierName = supplierName;
+            this.drivers = drivers;
+            this.riskScore = riskScore;
+            this.severity = severity;
+            this.status = status;
+        }
     }
 
     private static class CreateGRNRequest {

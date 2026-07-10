@@ -26,6 +26,8 @@ let qaList = [];
 let locations = [];
 let purchaseOrders = [];
 let grns = [];
+let activeReport = 'stock-val';
+let reportData = [];
 
 let editTargetMaterialCode = null;
 let editTargetSupplierId = null;
@@ -295,6 +297,8 @@ async function loadViewData(view) {
         await fetchComplianceData();
     } else if (view === 'overview') {
         await fetchOverviewData();
+    } else if (view === 'reports') {
+        await fetchReportData(activeReport);
     } else {
         renderPlaceholderView(view);
     }
@@ -817,6 +821,46 @@ function showMockOverviewStats() {
     renderOverviewView();
 }
 
+// 9. Reports REST Callers
+async function fetchReportData(reportType) {
+    try {
+        const res = await fetch(`${API_BASE}/reports/${reportType}`);
+        if (!res.ok) throw new Error("Failed to load report data");
+        reportData = await res.json();
+        renderReportsView();
+    } catch (err) {
+        console.error("API error fetching reports: ", err);
+        loadMockReportData(reportType);
+        renderReportsView();
+    }
+}
+
+function loadMockReportData(reportType) {
+    if (reportType === 'stock-value') {
+        reportData = [
+            { stockId: 101, materialCode: "MAT-002", brandName: "Paracetamol API", batchNumber: "B-PCM-901", availableQuantity: 1000.0, unitCost: 15.5, expDate: "2028-06-30", qcStatus: "APPROVED" },
+            { stockId: 102, materialCode: "MAT-003", brandName: "Glycerol Excipient", batchNumber: "B-GLY-22", availableQuantity: 450.0, unitCost: 8.2, expDate: "2027-12-15", qcStatus: "APPROVED" }
+        ];
+    } else if (reportType === 'low-stock') {
+        reportData = [
+            { materialCode: "MAT-002", reorderLevel: 2000, availableQty: 1000.0, reservedQty: 200.0, belowReorder: true }
+        ];
+    } else if (reportType === 'expiring') {
+        reportData = [
+            { stockId: 103, materialCode: "MAT-001", brandName: "Amoxicillin 500mg", batchNumber: "B-AMX-08", availableQuantity: 80.0, unitCost: 45.0, expDate: "2026-08-01", qcStatus: "UNDER_TEST" }
+        ];
+    } else if (reportType === 'supplier-performance') {
+        reportData = [
+            { supplierId: 1, supplierName: "Bayer Chemicals Ltd", drivers: ["Late delivery rate: 5.26%", "Rejection rate: 0.00%", "Capacity score: 0.80"], riskScore: 0.08, severity: "LOW", status: "APPROVED" },
+            { supplierId: 2, supplierName: "Global API Dist", drivers: ["Late delivery rate: 25.00%", "Rejection rate: 10.00%", "Capacity score: 0.50"], riskScore: 0.35, severity: "MEDIUM", status: "APPROVED" }
+        ];
+    } else if (reportType === 'grn-history') {
+        reportData = [
+            { grnId: 1, poId: 12, supplierName: "Bayer Chemicals Ltd", receivedDate: "2026-07-09", receivedBy: 3, status: "APPROVED" }
+        ];
+    }
+}
+
 /* --- VIEW RENDERERS --- */
 
 // 0. Placeholder View for Unimplemented Modules
@@ -835,6 +879,293 @@ function renderPlaceholderView(view) {
             <button class="btn-primary" onclick="navigateToView('overview')">Return to Overview</button>
         </div>
     `;
+}
+
+// 9. Reports View Renderers
+function renderReportsView() {
+    mainViewport.innerHTML = `
+        <div class="view-header">
+            <h1 class="view-title">Reporting & Analytics</h1>
+            <button class="btn-primary" id="exportCsvBtn">Export to CSV</button>
+        </div>
+
+        <div class="view-tabs-header">
+            <button class="tab-btn ${activeReport === 'stock-value' ? 'active' : ''}" onclick="switchReportTab('stock-value')">Stock Value</button>
+            <button class="tab-btn ${activeReport === 'low-stock' ? 'active' : ''}" onclick="switchReportTab('low-stock')">Low Stock / Reorder</button>
+            <button class="tab-btn ${activeReport === 'expiring' ? 'active' : ''}" onclick="switchReportTab('expiring')">Expiring Batches</button>
+            <button class="tab-btn ${activeReport === 'supplier-performance' ? 'active' : ''}" onclick="switchReportTab('supplier-performance')">Supplier Performance</button>
+            <button class="tab-btn ${activeReport === 'grn-history' ? 'active' : ''}" onclick="switchReportTab('grn-history')">GRN History</button>
+        </div>
+
+        <div id="reportSummaryContainer"></div>
+
+        <div class="card-container">
+            <div class="table-responsive">
+                <table id="reportDataTable">
+                    <thead id="reportTableHeader"></thead>
+                    <tbody id="reportTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('exportCsvBtn').addEventListener('click', exportReportToCSV);
+    renderReportSummaryCard();
+    renderReportTable();
+}
+
+function switchReportTab(reportType) {
+    activeReport = reportType;
+    fetchReportData(reportType);
+}
+
+window.switchReportTab = switchReportTab; // Make it globally accessible
+
+function renderReportSummaryCard() {
+    const summaryContainer = document.getElementById('reportSummaryContainer');
+    if (!summaryContainer) return;
+    summaryContainer.innerHTML = '';
+
+    if (activeReport === 'stock-value') {
+        const totalVal = reportData.reduce((sum, item) => sum + ((item.availableQuantity || 0) * (item.unitCost || 0)), 0);
+        summaryContainer.innerHTML = `
+            <div class="kpi-grid">
+                <div class="kpi-card teal">
+                    <div class="kpi-title">Total Inventory Valuation</div>
+                    <div class="kpi-value">$${totalVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div class="kpi-desc">Valuation of all current warehouse stock</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-title">Total Batches</div>
+                    <div class="kpi-value">${reportData.length}</div>
+                    <div class="kpi-desc">Total individual batch entries tracked</div>
+                </div>
+            </div>
+        `;
+    } else if (activeReport === 'low-stock') {
+        summaryContainer.innerHTML = `
+            <div class="kpi-grid">
+                <div class="kpi-card amber">
+                    <div class="kpi-title">Low Stock Materials</div>
+                    <div class="kpi-value">${reportData.length}</div>
+                    <div class="kpi-desc">Active materials below safety reorder level</div>
+                </div>
+            </div>
+        `;
+    } else if (activeReport === 'expiring') {
+        summaryContainer.innerHTML = `
+            <div class="kpi-grid">
+                <div class="kpi-card amber">
+                    <div class="kpi-title">Expiring Batches (6 Months)</div>
+                    <div class="kpi-value">${reportData.length}</div>
+                    <div class="kpi-desc">Stock items requiring immediate processing/disposition</div>
+                </div>
+            </div>
+        `;
+    } else if (activeReport === 'supplier-performance') {
+        const highRisk = reportData.filter(s => s.riskScore > 0.7).length;
+        summaryContainer.innerHTML = `
+            <div class="kpi-grid">
+                <div class="kpi-card teal">
+                    <div class="kpi-title">Total Suppliers Scored</div>
+                    <div class="kpi-value">${reportData.length}</div>
+                    <div class="kpi-desc">Active approved vendors tracked for delivery and quality</div>
+                </div>
+                <div class="kpi-card amber">
+                    <div class="kpi-title">High Risk Vendors</div>
+                    <div class="kpi-value">${highRisk}</div>
+                    <div class="kpi-desc">Vendors requiring performance review/disposition</div>
+                </div>
+            </div>
+        `;
+    } else if (activeReport === 'grn-history') {
+        summaryContainer.innerHTML = `
+            <div class="kpi-grid">
+                <div class="kpi-card green">
+                    <div class="kpi-title">Total Receptions</div>
+                    <div class="kpi-value">${reportData.length}</div>
+                    <div class="kpi-desc">Total Goods Received Notes (GRN) generated</div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function renderReportTable() {
+    const headNode = document.getElementById('reportTableHeader');
+    const bodyNode = document.getElementById('reportTableBody');
+
+    if (!headNode || !bodyNode) return;
+    headNode.innerHTML = '';
+    bodyNode.innerHTML = '';
+
+    if (reportData.length === 0) {
+        headNode.innerHTML = `<tr><th>Data</th></tr>`;
+        bodyNode.innerHTML = `<tr><td style="text-align: center; color: var(--text-secondary);">No records found matching this report.</td></tr>`;
+        return;
+    }
+
+    if (activeReport === 'stock-value') {
+        headNode.innerHTML = `
+            <tr>
+                <th>Material Code</th>
+                <th>Brand Name</th>
+                <th>Batch Number</th>
+                <th>Storage Location</th>
+                <th>Qty Available</th>
+                <th>Unit Cost</th>
+                <th>Total Valuation</th>
+                <th>Status</th>
+            </tr>
+        `;
+        reportData.forEach(item => {
+            const tr = document.createElement('tr');
+            const valuation = (item.availableQuantity || 0) * (item.unitCost || 0);
+            tr.innerHTML = `
+                <td>${item.materialCode}</td>
+                <td><strong>${item.brandName || '-'}</strong></td>
+                <td>${item.batchNumber}</td>
+                <td>${item.locationCode || '-'}</td>
+                <td>${item.availableQuantity.toLocaleString()}</td>
+                <td>$${item.unitCost.toFixed(2)}</td>
+                <td><strong>$${valuation.toFixed(2)}</strong></td>
+                <td><span class="badge ${item.qcStatus === 'APPROVED' ? 'badge-success' : 'badge-warning'}">${item.qcStatus}</span></td>
+            `;
+            bodyNode.appendChild(tr);
+        });
+    } else if (activeReport === 'low-stock') {
+        headNode.innerHTML = `
+            <tr>
+                <th>Material Code</th>
+                <th>Reorder Safety Level</th>
+                <th>Available Quantity</th>
+                <th>Reserved Quantity</th>
+                <th>Deficit</th>
+            </tr>
+        `;
+        reportData.forEach(item => {
+            const tr = document.createElement('tr');
+            const deficit = Math.max(0, item.reorderLevel - item.availableQty);
+            tr.innerHTML = `
+                <td>${item.materialCode}</td>
+                <td>${item.reorderLevel.toLocaleString()}</td>
+                <td><span class="text-danger" style="font-weight:600;">${item.availableQty.toLocaleString()}</span></td>
+                <td>${item.reservedQty.toLocaleString()}</td>
+                <td><strong>${deficit.toLocaleString()}</strong></td>
+            `;
+            bodyNode.appendChild(tr);
+        });
+    } else if (activeReport === 'expiring') {
+        headNode.innerHTML = `
+            <tr>
+                <th>Material Code</th>
+                <th>Brand Name</th>
+                <th>Batch Number</th>
+                <th>Location</th>
+                <th>Quantity</th>
+                <th>Expiration Date</th>
+                <th>QC Status</th>
+            </tr>
+        `;
+        reportData.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.materialCode}</td>
+                <td><strong>${item.brandName || '-'}</strong></td>
+                <td>${item.batchNumber}</td>
+                <td>${item.locationCode || '-'}</td>
+                <td>${(item.availableQuantity || item.quantity).toLocaleString()}</td>
+                <td><span class="text-warning" style="font-weight:600;">${item.expDate}</span></td>
+                <td><span class="badge badge-warning">${item.qcStatus}</span></td>
+            `;
+            bodyNode.appendChild(tr);
+        });
+    } else if (activeReport === 'supplier-performance') {
+        headNode.innerHTML = `
+            <tr>
+                <th>Vendor ID</th>
+                <th>Supplier Name</th>
+                <th>Performance Metrics</th>
+                <th>Calculated Risk Score</th>
+                <th>Severity</th>
+                <th>Status</th>
+            </tr>
+        `;
+        reportData.forEach(item => {
+            const tr = document.createElement('tr');
+            const driversList = (item.drivers || []).map(d => `<div>• ${d}</div>`).join('');
+            let severityBadge = 'badge-success';
+            if (item.severity === 'MEDIUM') severityBadge = 'badge-warning';
+            else if (item.severity === 'HIGH' || item.severity === 'CRITICAL') severityBadge = 'badge-danger';
+            
+            tr.innerHTML = `
+                <td>${item.supplierId}</td>
+                <td><strong>${item.supplierName}</strong></td>
+                <td style="font-size:11px; line-height:1.4;">${driversList || 'No metrics logged'}</td>
+                <td><strong>${item.riskScore.toFixed(3)}</strong></td>
+                <td><span class="badge ${severityBadge}">${item.severity}</span></td>
+                <td><span class="badge badge-success">${item.status}</span></td>
+            `;
+            bodyNode.appendChild(tr);
+        });
+    } else if (activeReport === 'grn-history') {
+        headNode.innerHTML = `
+            <tr>
+                <th>GRN ID</th>
+                <th>PO ID</th>
+                <th>Supplier Name</th>
+                <th>Reception Date</th>
+                <th>Verified By</th>
+                <th>Status</th>
+            </tr>
+        `;
+        reportData.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>GRN-${String(item.grnId).padStart(4, '0')}</td>
+                <td>PO-${String(item.poId).padStart(4, '0')}</td>
+                <td><strong>${item.supplierName}</strong></td>
+                <td>${item.receivedDate}</td>
+                <td>User #${item.receivedBy || 'System'}</td>
+                <td><span class="badge badge-success">${item.status}</span></td>
+            `;
+            bodyNode.appendChild(tr);
+        });
+    }
+}
+
+function exportReportToCSV() {
+    const table = document.getElementById('reportDataTable');
+    if (!table) return;
+
+    let csvContent = "";
+    
+    // Add Headers
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => {
+        return `"${th.textContent.trim().replace(/"/g, '""')}"`;
+    });
+    csvContent += headers.join(",") + "\n";
+    
+    // Add Rows
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    rows.forEach(row => {
+        const cells = Array.from(row.querySelectorAll('td')).map(td => {
+            let text = td.textContent.trim();
+            text = text.replace(/•/g, '').replace(/\s+/g, ' ');
+            return `"${text.replace(/"/g, '""')}"`;
+        });
+        csvContent += cells.join(",") + "\n";
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `pharma_report_${activeReport}_${new Date().toISOString().slice(0,10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // 4. Storage Locations View
