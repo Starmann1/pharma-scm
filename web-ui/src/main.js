@@ -2618,15 +2618,41 @@ function initFormSubmitListeners() {
     });
 
     // Add Production Order
-    addProductionOrderForm.addEventListener('submit', (e) => {
+    addProductionOrderForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const bomId = parseInt(document.getElementById('addOrderBomId').value);
+        const plannedQty = parseFloat(document.getElementById('addOrderPlannedQty').value);
+
         const payload = {
             batchNumber: document.getElementById('addOrderBatchNumber').value.trim(),
-            bomId: parseInt(document.getElementById('addOrderBomId').value),
-            plannedQty: parseFloat(document.getElementById('addOrderPlannedQty').value),
+            bomId: bomId,
+            plannedQty: plannedQty,
             createdBy: parseInt(document.getElementById('addOrderCreatedBy').value),
             notes: document.getElementById('addOrderNotes').value.trim()
         };
+
+        // Check BOM feasibility / shortfalls first
+        try {
+            const res = await fetch(`${API_BASE}/production/feasibility?bomId=${bomId}&plannedQty=${plannedQty}`);
+            if (res.ok) {
+                const availability = await res.json();
+                const shortfalls = availability.filter(a => !a.available);
+                if (shortfalls.length > 0) {
+                    let warnMsg = "Material Shortage Warning! The following raw materials have insufficient stock for this run:\n\n";
+                    shortfalls.forEach(s => {
+                        const deficit = s.requiredQuantity - s.availableQuantity;
+                        warnMsg += `- Material: ${s.materialCode}\n  Required: ${s.requiredQuantity.toLocaleString()}\n  Available: ${s.availableQuantity.toLocaleString()} (Shortfall: ${deficit.toLocaleString()})\n\n`;
+                    });
+                    warnMsg += "Do you still want to proceed with scheduling this production order?";
+                    if (!confirm(warnMsg)) {
+                        return; // Abort order creation
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn("Feasibility check skipped or failed: ", err);
+        }
+
         createProductionOrder(payload);
     });
 

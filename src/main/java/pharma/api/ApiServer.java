@@ -441,6 +441,14 @@ public class ApiServer {
             ctx.json(orders);
         });
 
+        app.get("/api/production/feasibility", ctx -> {
+            int bomId = Integer.parseInt(ctx.queryParam("bomId"));
+            double plannedQty = Double.parseDouble(ctx.queryParam("plannedQty"));
+            List<MaterialAvailabilityDTO> availability = appServices.getProductionService()
+                .checkBomMaterialAvailability(bomId, plannedQty);
+            ctx.json(availability);
+        });
+
         app.post("/api/production/orders", ctx -> {
             ProductionOrder order = ctx.bodyAsClass(ProductionOrder.class);
             order.setStatus(ProductionOrder.ProductionStatus.PLANNED);
