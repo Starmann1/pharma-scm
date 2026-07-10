@@ -78,3 +78,38 @@ To prevent the LLM from executing destructive actions:
 2. AI agents **cannot** bypass the service layer.
 3. All AI actions are executed via strictly typed Java `@Tool` methods that contain built-in validation logic.
 4. All AI decisions are logged immutably in the `ai_decisions` table for auditability.
+
+---
+
+## 6. High-Level Gateway & Multi-Agent Coordination
+
+The following sequence diagram outlines how the modern HTTP Web Console bridges into the JADE agent container via the Java gateway layer:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Web UI Console
+    participant Javalin as Javalin API Server
+    participant Gateway as AgentGateway
+    participant Coordinator as CoordinatorAgent
+    participant Agent as Specialized Agent (JADE)
+    participant Gemini as Gemini AI / Database
+
+    Client->>Javalin: HTTP POST /api/ai/scan (JSON payload)
+    Javalin->>Gateway: dispatchAction(action, data)
+    Note over Gateway: Generates correlation txId<br/>Wraps into ACL REQUEST message
+    Gateway->>Coordinator: JADE ACL MESSAGE (REQUEST, correlationId)
+    Coordinator->>Agent: Routes to specific behaviour (ACL REQUEST)
+    Agent->>Gemini: Invoke Tool Call / SOP RAG Search / DB SQL Query
+    Gemini-->>Agent: Returns analysis context
+    Agent-->>Coordinator: Task Completed (ACL INFORM)
+    Coordinator-->>Gateway: ACL INFORM (correlationId, result JSON)
+    Note over Gateway: Matches transaction correlationId<br/>Completes callback future
+    Gateway-->>Javalin: Returns result DTO
+    Javalin-->>Client: HTTP response 200 OK (JSON results)
+```
+
+### JADE Integration Instructions
+1. **Correlation Tracking:** Every request dispatched from the Javalin web server to the JADE platform must include a unique transaction UUID.
+2. **Non-blocking Callbacks:** Javalin API handlers must wait for JADE callbacks asynchronously using Java's `CompletableFuture` to avoid blocking main server threads.
+3. **Fail-safe Fallbacks:** If the JADE container is stopped or offline, the gateway must fall back gracefully to a degraded mock mode to ensure API stability.
