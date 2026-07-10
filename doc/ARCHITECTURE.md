@@ -2,7 +2,7 @@
 
 ## Project Vision
 
-The Agentic Pharmaceutical Supply Chain Management System is an enterprise desktop platform for upstream pharmaceutical manufacturing operations. It is intended to evolve from a conventional Java Swing and MySQL inventory management system into an intelligent, agent-assisted pharmaceutical manufacturing platform.
+The Agentic Pharmaceutical Supply Chain Management System is an enterprise platform for upstream pharmaceutical manufacturing operations. In version 1.1, the system evolved from a conventional Java Swing desktop application into a web console powered by a Javalin REST API backend and a Vite+Vanilla JS frontend, connected to an intelligent JADE-assisted pharmaceutical manufacturing agent platform.
 
 The platform will support supplier qualification, procurement, raw material control, inventory management, production planning, batch manufacturing, in-process quality control, quality assurance, batch release, auditability, compliance monitoring, risk analysis, and knowledge-assisted decision support.
 

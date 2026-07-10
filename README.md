@@ -20,10 +20,10 @@ The system manages upstream pharmaceutical manufacturing operations, enforcing s
 
 ```mermaid
 graph TD
-    subgraph UI ["Java Swing Desktop Client"]
-        D[Dashboards]
-        M[Material/Inventory Panels]
-        P[Procurement/GRN Dialogs]
+    subgraph UI ["Premium Web-UI Console (Vite + Vanilla JS)"]
+        D[Dashboards & KPI Summaries]
+        M[Material/Inventory Control]
+        P[Procurement/GRN Receipts]
         Q[Quality & Risk Dashboards]
     end
 
@@ -62,7 +62,7 @@ graph TD
 ```
 
 ### Key Upgrades in v1.1
-1. **Dual Database Dialect Support:** A robust `JdbcSqlDialect` layer allows the application to run seamlessly on both **MySQL** and **PostgreSQL** without changing the Java Swing UI or the underlying agents.
+1. **Dual Database Dialect Support:** A robust `JdbcSqlDialect` layer allows the application to run seamlessly on both **MySQL** and **PostgreSQL** without changing the Web UI Console or the underlying agents.
 2. **God-Class Deconstruction:** The legacy massive `DatabaseService` has been systematically decomposed into domain-specific, dialect-aware JDBC repositories (e.g., `PurchaseOrderJdbcRepository`, `GRNJdbcRepository`).
 3. **Advanced AI Integration:** Deep integration of Google's Gemini models via LangChain4j for risk analysis, supplier evaluations, and document-grounded standard operating procedure (SOP) queries.
 
@@ -98,7 +98,7 @@ Existing deterministic Java services are exposed to the LLM via `@Tool` annotati
 The `KnowledgeAgent` uses `GoogleAiEmbeddingModel` to ingest local SOP documents (PDF/Text) into an `InMemoryEmbeddingStore`. When a user queries the system via the UI, the agent performs semantic search to provide highly accurate, cited answers regarding manufacturing protocols.
 
 ### 3. AI Decision Dashboard
-A dedicated Java Swing dashboard provides observability into the AI's autonomous decisions. Human supervisors can review the AI's confidence scores, read its "Agent Trace" (chain of thought), and manually approve or reject high-risk autonomous actions.
+A dedicated Web UI dashboard panel provides observability into the AI's autonomous decisions. Human supervisors can review the AI's confidence scores, read its "Agent Trace" (chain of thought), and manually approve or reject high-risk autonomous actions.
 
 ---
 
@@ -117,7 +117,7 @@ All detailed technical documentation has been organized under the `doc/` directo
 ## 🛠️ Technology Stack
 
 *   **Runtime Environment**: Java Development Kit (JDK) 21
-*   **GUI Library**: Java Swing / AWT (FlatLaf Dark Theme)
+*   **GUI Library**: Premium Web Console (Vite / Vanilla JS / Vanilla CSS / Light-Dark Themes)
 *   **Database**: MySQL 8.0+ AND PostgreSQL 15+
 *   **Connection Pool & Access**: HikariCP & Native JDBC (Dialect-Aware)
 *   **Build & Dependency Management**: Apache Maven 3.9+
@@ -176,9 +176,16 @@ mvn clean compile
 ```
 
 ### 5. Running the Application
-Start the desktop application. The JADE container will bootstrap automatically, initialize the LangChain4j tool registries, and launch the Swing GUI.
-```cmd
+Start the Javalin REST API backend and the JADE agent container:
+```bash
 mvn exec:java
+```
+
+Then, start the Vite Web UI development server in a separate terminal:
+```bash
+cd web-ui
+npm install
+npm run dev
 ```
 
 ---
