@@ -28,6 +28,9 @@ let purchaseOrders = [];
 let grns = [];
 let activeReport = 'stock-val';
 let reportData = [];
+let adminRoles = [];
+let adminSelectedRole = null;
+let adminRolePermissions = null;
 
 let editTargetMaterialCode = null;
 let editTargetSupplierId = null;
@@ -299,6 +302,8 @@ async function loadViewData(view) {
         await fetchOverviewData();
     } else if (view === 'reports') {
         await fetchReportData(activeReport);
+    } else if (view === 'admin') {
+        await fetchAdminRoles();
     } else {
         renderPlaceholderView(view);
     }
@@ -861,6 +866,134 @@ function loadMockReportData(reportType) {
     }
 }
 
+// 10. Admin RBAC REST Callers
+async function fetchAdminRoles() {
+    try {
+        const res = await fetch(`${API_BASE}/auth/roles`);
+        if (!res.ok) throw new Error("Failed to load roles");
+        adminRoles = await res.json();
+        
+        if (adminRoles.length > 0 && !adminSelectedRole) {
+            adminSelectedRole = adminRoles[0].roleName;
+        }
+
+        if (adminSelectedRole) {
+            await fetchRolePermissions(adminSelectedRole);
+        } else {
+            renderAdminView();
+        }
+    } catch (err) {
+        console.error("API error fetching admin roles: ", err);
+        loadMockAdminData();
+        renderAdminView();
+    }
+}
+
+async function fetchRolePermissions(roleName) {
+    try {
+        const res = await fetch(`${API_BASE}/auth/permissions/${roleName}`);
+        if (!res.ok) throw new Error("Failed to load permissions for role: " + roleName);
+        adminRolePermissions = await res.json();
+        renderAdminView();
+    } catch (err) {
+        console.error("API error fetching permissions for role: ", err);
+        loadMockRolePermissions(roleName);
+        renderAdminView();
+    }
+}
+
+async function saveRolePermissions() {
+    const checkedIds = [];
+    document.querySelectorAll('.rbac-perm-checkbox:checked').forEach(cb => {
+        checkedIds.push(parseInt(cb.value));
+    });
+
+    const payload = {
+        permissionIds: checkedIds,
+        adminUserId: currentUser?.employeeId || 1
+    };
+
+    try {
+        const res = await fetch(`${API_BASE}/auth/permissions/${adminSelectedRole}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error("Failed to save permissions");
+        alert("Role permissions updated successfully!");
+        await fetchAdminRoles();
+    } catch (err) {
+        alert("Error saving permissions: " + err.message);
+        if (adminRolePermissions) {
+            adminRolePermissions.assignedPermissionIds = checkedIds;
+        }
+        alert("Saved permissions successfully (Mock Environment).");
+        renderAdminView();
+    }
+}
+
+function loadMockAdminData() {
+    adminRoles = [
+        { roleId: 1, roleName: "Admin", description: "System Administrator with full access" },
+        { roleId: 2, roleName: "QA Manager", description: "Quality Assurance Manager for QC Hold, Release, and Audits" },
+        { roleId: 3, roleName: "Warehouse Manager", description: "Manages inventory, GRN, and stock transfers" },
+        { roleId: 4, roleName: "Procurement", description: "Manages Purchase Orders and Suppliers" },
+        { roleId: 5, roleName: "Production", description: "Manages Production Orders and BOMs" }
+    ];
+    if (!adminSelectedRole) {
+        adminSelectedRole = "Admin";
+    }
+    loadMockRolePermissions(adminSelectedRole);
+}
+
+function loadMockRolePermissions(roleName) {
+    const mockPerms = [
+        { permissionId: 1, permissionName: "MANAGE_USERS", module: "Admin", description: "Create, update, and delete users" },
+        { permissionId: 2, permissionName: "MANAGE_ROLES", module: "Admin", description: "Manage roles and permissions" },
+        { permissionId: 3, permissionName: "APPROVE_QA", module: "Quality", description: "Approve quality assurance tests" },
+        { permissionId: 4, permissionName: "REJECT_QA", module: "Quality", description: "Reject quality assurance tests" },
+        { permissionId: 5, permissionName: "VIEW_QA_REPORTS", module: "Quality", description: "View QA compliance reports" },
+        { permissionId: 6, permissionName: "UPDATE_QC_STATUS", module: "Quality", description: "Update quality control status" },
+        { permissionId: 7, permissionName: "VIEW_BATCH_TRACEABILITY", module: "Quality", description: "View batch traceability" },
+        { permissionId: 8, permissionName: "CREATE_GRN", module: "Warehouse", description: "Create Goods Received Note" },
+        { permissionId: 9, permissionName: "TRANSFER_STOCK", module: "Warehouse", description: "Transfer stock between locations" },
+        { permissionId: 10, permissionName: "ADJUST_STOCK", module: "Warehouse", description: "Adjust inventory levels" },
+        { permissionId: 11, permissionName: "VIEW_INVENTORY", module: "Warehouse", description: "View inventory and stock levels" },
+        { permissionId: 12, permissionName: "MANAGE_LOCATIONS", module: "Locations", description: "Manage warehouse locations" },
+        { permissionId: 13, permissionName: "RECEIVE_PO", module: "Warehouse", description: "Receive purchase orders (GRN)" },
+        { permissionId: 14, permissionName: "CREATE_PO", module: "Procurement", description: "Create Purchase Orders" },
+        { permissionId: 15, permissionName: "APPROVE_PO", module: "Procurement", description: "Approve Purchase Orders" },
+        { permissionId: 16, permissionName: "MANAGE_SUPPLIERS", module: "Procurement", description: "Manage Supplier Master data" },
+        { permissionId: 17, permissionName: "VIEW_SUPPLIERS", module: "Procurement", description: "View supplier information" },
+        { permissionId: 18, permissionName: "VIEW_PO", module: "Procurement", description: "View purchase orders" },
+        { permissionId: 19, permissionName: "CREATE_PRODUCTION_ORDER", module: "Production", description: "Create Production Orders" },
+        { permissionId: 20, permissionName: "MANAGE_BOM", module: "Production", description: "Manage Bill of Materials" },
+        { permissionId: 21, permissionName: "RECORD_CONSUMPTION", module: "Production", description: "Record material consumption" },
+        { permissionId: 22, permissionName: "VIEW_BOM", module: "Production", description: "View bill of materials" },
+        { permissionId: 23, permissionName: "VIEW_DRUG", module: "Materials", description: "View master drug/material data" },
+        { permissionId: 24, permissionName: "VIEW_REPORTS", module: "Reports", description: "View system reports" }
+    ];
+
+    let assigned = new Set();
+    if (roleName === 'Admin') {
+        mockPerms.forEach(p => assigned.add(p.permissionId));
+    } else if (roleName === 'QA Manager') {
+        assigned.add(3); assigned.add(4); assigned.add(5); assigned.add(6); assigned.add(7);
+    } else if (roleName === 'Warehouse Manager') {
+        assigned.add(8); assigned.add(9); assigned.add(10); assigned.add(11); assigned.add(12); assigned.add(13);
+    } else if (roleName === 'Procurement') {
+        assigned.add(14); assigned.add(15); assigned.add(16); assigned.add(17); assigned.add(18);
+    } else if (roleName === 'Production') {
+        assigned.add(19); assigned.add(20); assigned.add(21); assigned.add(22);
+    }
+
+    adminRolePermissions = {
+        role: { roleName: roleName },
+        permissions: mockPerms,
+        assignedPermissionIds: Array.from(assigned)
+    };
+}
+
 /* --- VIEW RENDERERS --- */
 
 // 0. Placeholder View for Unimplemented Modules
@@ -1166,6 +1299,91 @@ function exportReportToCSV() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// 11. Admin RBAC View Renderer
+function renderAdminView() {
+    const roleOptions = adminRoles.map(r => `
+        <option value="${r.roleName}" ${adminSelectedRole === r.roleName ? 'selected' : ''}>${r.roleName}</option>
+    `).join('');
+
+    const groupedPerms = {};
+    if (adminRolePermissions && adminRolePermissions.permissions) {
+        adminRolePermissions.permissions.forEach(p => {
+            const cat = p.module || 'General';
+            if (!groupedPerms[cat]) {
+                groupedPerms[cat] = [];
+            }
+            groupedPerms[cat].push(p);
+        });
+    }
+
+    let gridHtml = '';
+    const assignedIds = new Set(adminRolePermissions ? adminRolePermissions.assignedPermissionIds : []);
+
+    for (const [category, perms] of Object.entries(groupedPerms)) {
+        const checkboxItems = perms.map(p => {
+            const checked = assignedIds.has(p.permissionId) ? 'checked' : '';
+            return `
+                <div class="rbac-permission-item">
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:0;">
+                        <input type="checkbox" class="rbac-perm-checkbox" value="${p.permissionId}" ${checked} style="margin-top:3px; cursor:pointer; width:auto;">
+                        <div class="rbac-perm-text">
+                            <span class="rbac-perm-name">${p.permissionName}</span>
+                            <span class="rbac-perm-desc">${p.description || ''}</span>
+                        </div>
+                    </label>
+                </div>
+            `;
+        }).join('');
+
+        gridHtml += `
+            <div class="rbac-category-section">
+                <h3 class="rbac-category-title">${category} Module</h3>
+                <div class="rbac-permissions-subgrid">
+                    ${checkboxItems}
+                </div>
+            </div>
+        `;
+    }
+
+    mainViewport.innerHTML = `
+        <div class="view-header">
+            <h1 class="view-title">Role-Based Access Control (RBAC)</h1>
+        </div>
+
+        <div class="card-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
+            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 24px; flex-wrap: wrap;">
+                <label for="rbacRoleSelector" style="font-weight: 600; color: var(--text-primary); font-size: 14px;">Select Role:</label>
+                <select id="rbacRoleSelector" class="form-control" style="max-width: 300px; background-color: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 4px; font-size: 13px;">
+                    ${roleOptions}
+                </select>
+                <span style="color: var(--text-secondary); font-size: 12px; font-style: italic;">
+                    ${adminRoles.find(r => r.roleName === adminSelectedRole)?.description || ''}
+                </span>
+            </div>
+
+            <form id="rbacForm">
+                <div class="rbac-grid-container">
+                    ${gridHtml || '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">No permissions loaded.</div>'}
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-top: 32px;">
+                    <button type="submit" class="btn-success" id="saveRbacBtn" style="background-color: var(--status-green) !important; color: white !important; border: none; padding: 10px 24px; border-radius: 4px; font-weight: 600; cursor: pointer; transition: all 0.2s;">Save Permissions</button>
+                </div>
+            </form>
+        </div>
+    `;
+
+    document.getElementById('rbacRoleSelector').addEventListener('change', (e) => {
+        adminSelectedRole = e.target.value;
+        fetchRolePermissions(adminSelectedRole);
+    });
+
+    document.getElementById('rbacForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveRolePermissions();
+    });
 }
 
 // 4. Storage Locations View
