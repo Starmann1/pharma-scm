@@ -134,15 +134,11 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     autonumber
-    box Gray Procurement & Supplier Negotiation (Contract-Net Protocol)
     participant PWA as ProcurementWorkflowAgent
     participant SA as SupplierAgent
-    end
-    box LightBlue Quality Assurance & Cognitive Reasoning
     participant QA as QAAgent
     participant AI as AIReasoningAgent
     participant DB as Database/Services
-    end
 
     Note over PWA: LowStockMonitorBehaviour<br/>(TickerBehaviour every 15s)
     PWA->>SA: JADE ACL: CFP (Call For Proposal)
