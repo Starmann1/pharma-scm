@@ -1220,3 +1220,57 @@ tr:hover td {
     }
 }
 
+/* Phase 2: PO and GRN UI layout helpers */
+.po-item-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    padding: 12px;
+    border-radius: 6px;
+}
+
+.po-item-row .form-group {
+    margin-bottom: 0;
+}
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 4px;
+}
+
+.grn-item-header {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 2fr 2fr;
+    gap: 12px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.grn-item-row-inputs {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 2fr 2fr;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.grn-item-row-inputs span {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.grn-item-row-inputs input {
+    margin-bottom: 0;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+

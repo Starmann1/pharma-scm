@@ -23,6 +23,9 @@ let txList = [];
 let bomList = [];
 let orderList = [];
 let qaList = [];
+let locations = [];
+let purchaseOrders = [];
+let grns = [];
 
 let editTargetMaterialCode = null;
 let editTargetSupplierId = null;
@@ -47,9 +50,15 @@ const menuItems = [
     { id: 'menu-overview', view: 'overview', label: 'Overview Dashboard' },
     { id: 'menu-materials', view: 'materials', label: 'Materials Master' },
     { id: 'menu-inventory', view: 'inventory', label: 'Stock & Inventory' },
+    { id: 'menu-locations', view: 'locations', label: 'Storage Locations' },
     { id: 'menu-suppliers', view: 'suppliers', label: 'Suppliers Registry' },
+    { id: 'menu-po', view: 'po', label: 'Purchase Orders' },
+    { id: 'menu-grn', view: 'grn', label: 'GRN Receipt Logs' },
     { id: 'menu-production', view: 'production', label: 'Production Runs & BOM' },
     { id: 'menu-compliance', view: 'compliance', label: 'QA Compliance Panel' },
+    { id: 'menu-reports', view: 'reports', label: 'System Reports' },
+    { id: 'menu-risk', view: 'risk', label: 'Risk Analysis Dashboard' },
+    { id: 'menu-ai', view: 'ai', label: 'AI Decision Panel' },
     { id: 'menu-admin', view: 'admin', label: 'Admin Management' }
 ];
 
@@ -274,6 +283,12 @@ async function loadViewData(view) {
         await fetchSuppliers();
     } else if (view === 'inventory') {
         await fetchStockData();
+    } else if (view === 'locations') {
+        await fetchLocations();
+    } else if (view === 'po') {
+        await fetchPurchaseOrders();
+    } else if (view === 'grn') {
+        await fetchGRNs();
     } else if (view === 'production') {
         await fetchProductionData();
     } else if (view === 'compliance') {
@@ -560,6 +575,193 @@ async function fetchOverviewData() {
     }
 }
 
+// 6. Locations REST Callers
+async function fetchLocations() {
+    try {
+        const res = await fetch(`${API_BASE}/locations`);
+        if (!res.ok) throw new Error("Failed to load locations");
+        locations = await res.json();
+        renderLocationsView(locations);
+    } catch (err) {
+        console.error("API error fetching locations: ", err);
+        showMockLocationsFallback();
+    }
+}
+
+async function createLocation(location) {
+    try {
+        const res = await fetch(`${API_BASE}/locations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(location)
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to create location");
+        }
+        closeModal('addLocationModal');
+        addLocationForm.reset();
+        await fetchLocations();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+async function updateLocation(code, location) {
+    try {
+        const res = await fetch(`${API_BASE}/locations/${code}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(location)
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to update location");
+        }
+        closeModal('editLocationModal');
+        editLocationForm.reset();
+        await fetchLocations();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+async function deleteLocation(code) {
+    if (!confirm(`Are you sure you want to delete location ${code}?`)) return;
+    try {
+        const res = await fetch(`${API_BASE}/locations/${code}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to delete location");
+        }
+        await fetchLocations();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+// 7. Purchase Orders REST Callers
+async function fetchPurchaseOrders() {
+    try {
+        const res = await fetch(`${API_BASE}/purchase-orders`);
+        if (!res.ok) throw new Error("Failed to load purchase orders");
+        purchaseOrders = await res.json();
+        renderPurchaseOrdersView(purchaseOrders);
+    } catch (err) {
+        console.error("API error fetching POs: ", err);
+        showMockPoFallback();
+    }
+}
+
+async function createPurchaseOrder(po) {
+    try {
+        const res = await fetch(`${API_BASE}/purchase-orders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(po)
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to create purchase order");
+        }
+        closeModal('addPurchaseOrderModal');
+        addPurchaseOrderForm.reset();
+        document.getElementById('poItemsList').innerHTML = '';
+        await fetchPurchaseOrders();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+async function deletePurchaseOrder(id) {
+    if (!confirm(`Are you sure you want to delete Purchase Order #${id}?`)) return;
+    try {
+        const res = await fetch(`${API_BASE}/purchase-orders/${id}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to delete purchase order");
+        }
+        await fetchPurchaseOrders();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+async function receivePurchaseOrder(id) {
+    try {
+        const res = await fetch(`${API_BASE}/purchase-orders/${id}/receive`, {
+            method: 'POST'
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to mark purchase order as received");
+        }
+        await fetchPurchaseOrders();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+// 8. GRN REST Callers
+async function fetchGRNs() {
+    try {
+        const res = await fetch(`${API_BASE}/grn`);
+        if (!res.ok) throw new Error("Failed to load GRNs");
+        grns = await res.json();
+        renderGRNView(grns);
+    } catch (err) {
+        console.error("API error fetching GRNs: ", err);
+        showMockGrnFallback();
+    }
+}
+
+async function createGRN(grnPayload) {
+    try {
+        const res = await fetch(`${API_BASE}/grn`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(grnPayload)
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to verify and save GRN");
+        }
+        closeModal('createGrnModal');
+        createGrnForm.reset();
+        await fetchGRNs();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+function showMockLocationsFallback() {
+    locations = [
+        { locationCode: "RAW_STORES_A", locationName: "Raw Materials Storage A", description: "Standard cold-bay storage", capacity: 100 },
+        { locationCode: "LIQUID_BAY_1", locationName: "Liquid Ingredients Bay 1", description: "Hazardous storage environment", capacity: 50 },
+        { locationCode: "FG_STORES_WH", locationName: "Finished Goods Warehouse", description: "Standard temperature finished goods storage", capacity: 250 }
+    ];
+    renderLocationsView(locations);
+}
+
+function showMockPoFallback() {
+    purchaseOrders = [
+        { id: 1001, supplierId: 1, supplierName: "Bayer Chemicals Ltd", orderDate: "2026-07-08", expectedDate: "2026-07-22", totalAmount: 15500.00, status: "Pending" },
+        { id: 1002, supplierId: 2, supplierName: "Global API Dist", orderDate: "2026-07-09", expectedDate: "2026-07-23", totalAmount: 4800.00, status: "Received" }
+    ];
+    renderPurchaseOrdersView(purchaseOrders);
+}
+
+function showMockGrnFallback() {
+    grns = [
+        { id: 5001, purchaseOrderId: 1002, supplierName: "Global API Dist", receivedDate: "2026-07-10", receivedBy: "admin", status: "Verified" }
+    ];
+    renderGRNView(grns);
+}
+
 /* --- FALLBACK DATA WRAPPERS --- */
 function showMockMaterialsFallback() {
     materials = [
@@ -617,6 +819,479 @@ function showMockOverviewStats() {
 
 /* --- VIEW RENDERERS --- */
 
+// 0. Placeholder View for Unimplemented Modules
+function renderPlaceholderView(view) {
+    const title = menuItems.find(item => item.view === view)?.label || "Module";
+    mainViewport.innerHTML = `
+        <div class="view-header">
+            <h1 class="view-title">${title}</h1>
+        </div>
+        <div class="card-container" style="padding: 40px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+            <div style="font-size: 48px; margin-bottom: 16px; animation: pulse 2s infinite;">🚧</div>
+            <h2 style="font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">${title} View</h2>
+            <p style="color: var(--text-secondary); max-width: 450px; margin: 0 auto 24px auto; font-size: 14px;">
+                This module is currently under development as part of the implementation plan. Parlay multi-agent coordination metrics will be displayed here soon.
+            </p>
+            <button class="btn-primary" onclick="navigateToView('overview')">Return to Overview</button>
+        </div>
+    `;
+}
+
+// 4. Storage Locations View
+function renderLocationsView(data) {
+    mainViewport.innerHTML = `
+        <div class="view-header">
+            <h1 class="view-title">Storage Locations</h1>
+            <button class="btn-primary" id="openAddLocationBtn">+ Add Location</button>
+        </div>
+
+        <div class="card-container">
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Location Code</th>
+                            <th>Location Name</th>
+                            <th>Description</th>
+                            <th>Capacity (pallets)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="locationsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    const bodyNode = document.getElementById('locationsTableBody');
+    bodyNode.innerHTML = '';
+
+    if (data.length === 0) {
+        bodyNode.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No locations defined. Add a location to get started.</td></tr>`;
+    } else {
+        data.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${item.locationCode}</strong></td>
+                <td>${item.locationName}</td>
+                <td>${item.description || '-'}</td>
+                <td>${item.capacity}</td>
+                <td>
+                    <div class="action-group">
+                        <button class="action-btn edit-location-btn" data-code="${item.locationCode}">✏️</button>
+                        <button class="action-btn delete-location-btn" data-code="${item.locationCode}">🗑️</button>
+                    </div>
+                </td>
+            `;
+            bodyNode.appendChild(tr);
+        });
+    }
+
+    document.getElementById('openAddLocationBtn').addEventListener('click', () => openModal('addLocationModal'));
+
+    document.querySelectorAll('.edit-location-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const code = e.currentTarget.getAttribute('data-code');
+            const loc = locations.find(l => l.locationCode === code);
+            if (loc) {
+                document.getElementById('editLocCode').value = loc.locationCode;
+                document.getElementById('editLocCodeDisplay').value = loc.locationCode;
+                document.getElementById('editLocName').value = loc.locationName;
+                document.getElementById('editLocDesc').value = loc.description || '';
+                document.getElementById('editLocCapacity').value = loc.capacity;
+                openModal('editLocationModal');
+            }
+        });
+    });
+
+    document.querySelectorAll('.delete-location-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const code = e.currentTarget.getAttribute('data-code');
+            deleteLocation(code);
+        });
+    });
+}
+
+// 5. Purchase Orders View
+function renderPurchaseOrdersView(data) {
+    mainViewport.innerHTML = `
+        <div class="view-header">
+            <h1 class="view-title">Purchase Orders</h1>
+            <button class="btn-primary" id="openAddPoBtn">+ Create PO</button>
+        </div>
+
+        <div class="card-container">
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Supplier</th>
+                            <th>Order Date</th>
+                            <th>Expected Date</th>
+                            <th>Total Cost</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="poTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    const bodyNode = document.getElementById('poTableBody');
+    bodyNode.innerHTML = '';
+
+    if (data.length === 0) {
+        bodyNode.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No purchase orders found.</td></tr>`;
+    } else {
+        data.forEach(item => {
+            const tr = document.createElement('tr');
+            let statusBadge = 'badge-warning';
+            if (item.status === 'Received') statusBadge = 'badge-success';
+            if (item.status === 'Shipped') statusBadge = 'badge-info';
+
+            const canDelete = item.status !== 'Received';
+            const canReceive = item.status !== 'Received';
+
+            tr.innerHTML = `
+                <td>#${item.id}</td>
+                <td><strong>${item.supplierName}</strong></td>
+                <td>${item.orderDate}</td>
+                <td>${item.expectedDate}</td>
+                <td>$${Number(item.totalAmount).toFixed(2)}</td>
+                <td><span class="badge ${statusBadge}">${item.status}</span></td>
+                <td>
+                    <div class="action-group">
+                        ${canReceive ? `<button class="action-btn receive-po-btn" data-id="${item.id}" title="Receive Shipment">🚚</button>` : ''}
+                        ${canDelete ? `<button class="action-btn delete-po-btn" data-id="${item.id}" title="Delete PO">🗑️</button>` : ''}
+                    </div>
+                </td>
+            `;
+            bodyNode.appendChild(tr);
+        });
+    }
+
+    document.getElementById('openAddPoBtn').addEventListener('click', async () => {
+        const supplierSelect = document.getElementById('poSupplierId');
+        supplierSelect.innerHTML = '';
+        
+        try {
+            const res = await fetch(`${API_BASE}/suppliers`);
+            if (res.ok) suppliers = await res.json();
+        } catch (e) {
+            console.error("Error loading suppliers: ", e);
+        }
+
+        const approved = suppliers.filter(s => s.supplierStatus === 'APPROVED');
+        if (approved.length === 0) {
+            alert("No approved suppliers available. Please approve a supplier first.");
+            return;
+        }
+
+        approved.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.supplierId;
+            opt.textContent = `${s.supplierName} (ID: ${s.supplierId})`;
+            supplierSelect.appendChild(opt);
+        });
+
+        const twoWeeks = new Date();
+        twoWeeks.setDate(twoWeeks.getDate() + 14);
+        document.getElementById('poExpectedDate').value = twoWeeks.toISOString().split('T')[0];
+
+        document.getElementById('poItemsList').innerHTML = '';
+        document.getElementById('poTotalAmountDisplay').textContent = '0.00';
+        
+        addPoItemRow();
+
+        openModal('addPurchaseOrderModal');
+    });
+
+    document.querySelectorAll('.delete-po-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = parseInt(e.currentTarget.getAttribute('data-id'));
+            deletePurchaseOrder(id);
+        });
+    });
+
+    document.querySelectorAll('.receive-po-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const id = parseInt(e.currentTarget.getAttribute('data-id'));
+            const po = purchaseOrders.find(p => p.id === id);
+            if (po) {
+                try {
+                    const res = await fetch(`${API_BASE}/purchase-orders/${id}`);
+                    const fullPo = await res.json();
+                    
+                    document.getElementById('grnPoId').value = fullPo.id;
+                    document.getElementById('grnPoNumberDisplay').value = fullPo.id;
+                    document.getElementById('grnSupplierDisplay').value = fullPo.supplierName;
+                    
+                    const grnItemsList = document.getElementById('grnItemsList');
+                    grnItemsList.innerHTML = `
+                        <div class="grn-item-header">
+                            <span>Material Code</span>
+                            <span>PO Qty</span>
+                            <span>Received Qty *</span>
+                            <span>Batch *</span>
+                            <span>Expiry Date *</span>
+                        </div>
+                    `;
+
+                    const itemsRes = await fetch(`${API_BASE}/purchase-orders/${id}/items`);
+                    const poItems = await itemsRes.json();
+                    
+                    poItems.forEach((item, index) => {
+                        const row = document.createElement('div');
+                        row.className = 'grn-item-row-inputs';
+                        
+                        const defaultBatch = `B-${item.materialCode}-${Date.now().toString().slice(-6)}`;
+                        const nextYear = new Date();
+                        nextYear.setFullYear(nextYear.getFullYear() + 2);
+                        const defaultExpiry = nextYear.toISOString().split('T')[0];
+
+                        row.innerHTML = `
+                            <span><strong>${item.materialCode}</strong></span>
+                            <span>${item.quantity}</span>
+                            <input type="number" class="grn-qty" data-index="${index}" data-material="${item.materialCode}" required min="1" max="${item.quantity * 2}" value="${item.quantity}">
+                            <input type="text" class="grn-batch" data-index="${index}" required placeholder="Batch No" value="${defaultBatch}">
+                            <input type="date" class="grn-expiry" data-index="${index}" required value="${defaultExpiry}">
+                        `;
+                        grnItemsList.appendChild(row);
+                    });
+
+                    openModal('createGrnModal');
+                } catch (err) {
+                    console.error("Error launching GRN receipt modal: ", err);
+                    alert("Error loading PO items: " + err.message);
+                }
+            }
+        });
+    });
+}
+
+// 6. Goods Received Notes (GRN) View
+function renderGRNView(data) {
+    mainViewport.innerHTML = `
+        <div class="view-header">
+            <h1 class="view-title">Goods Received Notes (GRN)</h1>
+            <button class="btn-primary" id="openGrnPoSelectorBtn">+ New GRN from PO</button>
+        </div>
+
+        <div class="card-container">
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>GRN ID</th>
+                            <th>PO ID</th>
+                            <th>Supplier</th>
+                            <th>Received Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="grnTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    const bodyNode = document.getElementById('grnTableBody');
+    bodyNode.innerHTML = '';
+
+    if (data.length === 0) {
+        bodyNode.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No GRN logs available.</td></tr>`;
+    } else {
+        data.forEach(item => {
+            const tr = document.createElement('tr');
+            let statusBadge = 'badge-success';
+            if (item.status === 'Quarantined' || item.status === 'Verified') statusBadge = 'badge-success';
+
+            tr.innerHTML = `
+                <td>#${item.id}</td>
+                <td>#${item.purchaseOrderId}</td>
+                <td><strong>${item.supplierName}</strong></td>
+                <td>${item.receivedDate}</td>
+                <td><span class="badge ${statusBadge}">${item.status}</span></td>
+                <td>
+                    <button class="action-btn view-grn-details-btn" data-id="${item.id}">👁️ View Details</button>
+                </td>
+            `;
+            bodyNode.appendChild(tr);
+        });
+    }
+
+    document.getElementById('openGrnPoSelectorBtn').addEventListener('click', async () => {
+        try {
+            const res = await fetch(`${API_BASE}/purchase-orders`);
+            if (res.ok) purchaseOrders = await res.json();
+        } catch (e) {
+            console.error("Error reloading POs: ", e);
+        }
+
+        const pending = purchaseOrders.filter(p => p.status !== 'Received');
+        if (pending.length === 0) {
+            alert("No pending purchase orders available for receipt.");
+            return;
+        }
+
+        const choice = prompt(`Select a Purchase Order ID from the following pending list:\n\n${pending.map(p => `${p.id}: ${p.supplierName}`).join('\n')}`);
+        
+        if (choice) {
+            const poId = parseInt(choice.trim());
+            const selectedPo = pending.find(p => p.id === poId);
+            if (selectedPo) {
+                document.getElementById('grnPoId').value = selectedPo.id;
+                document.getElementById('grnPoNumberDisplay').value = selectedPo.id;
+                document.getElementById('grnSupplierDisplay').value = selectedPo.supplierName;
+                
+                const grnItemsList = document.getElementById('grnItemsList');
+                grnItemsList.innerHTML = `<div class="grn-item-header"><span>Material Code</span><span>PO Qty</span><span>Received Qty *</span><span>Batch *</span><span>Expiry Date *</span></div>`;
+                
+                const itemsRes = await fetch(`${API_BASE}/purchase-orders/${selectedPo.id}/items`);
+                const poItems = await itemsRes.json();
+                
+                poItems.forEach((item, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'grn-item-row-inputs';
+                    const defaultBatch = `B-${item.materialCode}-${Date.now().toString().slice(-6)}`;
+                    const nextYear = new Date();
+                    nextYear.setFullYear(nextYear.getFullYear() + 2);
+                    const defaultExpiry = nextYear.toISOString().split('T')[0];
+
+                    row.innerHTML = `
+                        <span><strong>${item.materialCode}</strong></span>
+                        <span>${item.quantity}</span>
+                        <input type="number" class="grn-qty" data-index="${index}" data-material="${item.materialCode}" required min="1" max="${item.quantity * 2}" value="${item.quantity}">
+                        <input type="text" class="grn-batch" data-index="${index}" required placeholder="Batch No" value="${defaultBatch}">
+                        <input type="date" class="grn-expiry" data-index="${index}" required value="${defaultExpiry}">
+                    `;
+                    grnItemsList.appendChild(row);
+                });
+                openModal('createGrnModal');
+            } else {
+                alert("Invalid PO ID selected.");
+            }
+        }
+    });
+
+    document.querySelectorAll('.view-grn-details-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const id = parseInt(e.currentTarget.getAttribute('data-id'));
+            try {
+                const res = await fetch(`${API_BASE}/grn/${id}`);
+                if (!res.ok) throw new Error("Failed to load GRN details");
+                const grn = await res.json();
+                
+                document.getElementById('viewGrnId').value = grn.id;
+                document.getElementById('viewGrnPoId').value = grn.purchaseOrderId;
+                document.getElementById('viewGrnSupplier').value = grn.supplierName;
+                document.getElementById('viewGrnDate').value = grn.receivedDate;
+                document.getElementById('viewGrnReceivedBy').value = grn.receivedBy;
+                document.getElementById('viewGrnStatus').value = grn.status;
+                
+                const itemsContainer = document.getElementById('viewGrnItemsTableContainer');
+                itemsContainer.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Material Code</th>
+                                <th>Batch Number</th>
+                                <th>Quantity Received</th>
+                                <th>Expiry Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="viewGrnItemsTableBody"></tbody>
+                    </table>
+                `;
+                
+                const tableBody = document.getElementById('viewGrnItemsTableBody');
+                grn.items.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong>${item.materialCode}</strong></td>
+                        <td>${item.batchNumber}</td>
+                        <td>${item.quantityReceived}</td>
+                        <td>${item.expiryDate}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+
+                openModal('viewGrnDetailsModal');
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        });
+    });
+}
+
+// PO Items Dynamic Rows Handler
+async function addPoItemRow() {
+    try {
+        const res = await fetch(`${API_BASE}/materials`);
+        if (res.ok) materials = await res.json();
+    } catch (e) {
+        console.error("Error loading materials for PO dropdown: ", e);
+    }
+
+    const activeMaterials = materials.filter(m => m.active);
+    if (activeMaterials.length === 0) {
+        alert("No active materials available to order.");
+        return;
+    }
+
+    const container = document.getElementById('poItemsList');
+    const index = container.children.length;
+    const row = document.createElement('div');
+    row.className = 'po-item-row';
+    row.setAttribute('data-index', index);
+
+    let optionsHtml = activeMaterials.map(m => `<option value="${m.materialCode}" data-name="${m.brandName}">${m.materialCode} - ${m.brandName}</option>`).join('');
+
+    row.innerHTML = `
+        <div class="form-group" style="flex: 2;">
+            <label>Material *</label>
+            <select class="po-item-material" required>
+                ${optionsHtml}
+            </select>
+        </div>
+        <div class="form-group" style="flex: 1;">
+            <label>Quantity *</label>
+            <input type="number" class="po-item-qty" min="1" required value="100">
+        </div>
+        <div class="form-group" style="flex: 1;">
+            <label>Unit Price ($) *</label>
+            <input type="number" class="po-item-price" min="0.01" step="0.01" required value="10.00">
+        </div>
+        <button type="button" class="btn-secondary btn-small remove-po-row-btn" style="margin-bottom: 6px; padding: 8px 12px; border-color: var(--accent-red); color: var(--accent-red); font-size: 14px;">🗑️</button>
+    `;
+
+    container.appendChild(row);
+
+    row.querySelector('.po-item-qty').addEventListener('input', calculatePoTotal);
+    row.querySelector('.po-item-price').addEventListener('input', calculatePoTotal);
+    row.querySelector('.remove-po-row-btn').addEventListener('click', () => {
+        row.remove();
+        calculatePoTotal();
+    });
+
+    calculatePoTotal();
+}
+
+function calculatePoTotal() {
+    let total = 0;
+    document.querySelectorAll('.po-item-row').forEach(row => {
+        const qty = parseFloat(row.querySelector('.po-item-qty').value) || 0;
+        const price = parseFloat(row.querySelector('.po-item-price').value) || 0;
+        total += qty * price;
+    });
+    document.getElementById('poTotalAmountDisplay').textContent = total.toFixed(2);
+}
+
+// 1. Overview Dashboard View
 // 1. Overview Dashboard View
 function renderOverviewView() {
     const totalMaterials = materials.length;
@@ -1450,6 +2125,68 @@ function initFormSubmitListeners() {
 
         submitQADecision(batch, decision, remarks, user);
     });
+
+    // Add Location
+    document.getElementById('addLocationForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const payload = {
+            locationCode: document.getElementById('locCode').value.trim(),
+            locationName: document.getElementById('locName').value.trim(),
+            description: document.getElementById('locDesc').value.trim(),
+            capacity: parseInt(document.getElementById('locCapacity').value)
+        };
+        createLocation(payload);
+    });
+
+    // Edit Location
+    document.getElementById('editLocationForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const code = document.getElementById('editLocCode').value;
+        const payload = {
+            locationCode: code,
+            locationName: document.getElementById('editLocName').value.trim(),
+            description: document.getElementById('editLocDesc').value.trim(),
+            capacity: parseInt(document.getElementById('editLocCapacity').value)
+        };
+        updateLocation(code, payload);
+    });
+
+    // Add Purchase Order
+    document.getElementById('addPurchaseOrderForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const items = [];
+        document.querySelectorAll('.po-item-row').forEach(row => {
+            const materialCode = row.querySelector('.po-item-material').value;
+            const quantity = parseInt(row.querySelector('.po-item-qty').value);
+            const unitPrice = parseFloat(row.querySelector('.po-item-price').value);
+            items.push({ materialCode, quantity, unitPrice });
+        });
+
+        if (items.length === 0) {
+            alert("Please add at least one item to the purchase order.");
+            return;
+        }
+
+        const payload = {
+            supplierId: parseInt(document.getElementById('poSupplierId').value),
+            expectedDate: document.getElementById('poExpectedDate').value,
+            items: items,
+            totalAmount: parseFloat(document.getElementById('poTotalAmountDisplay').textContent)
+        };
+        
+        createPurchaseOrder(payload);
+    });
+
+    // Create GRN Verification
+    document.getElementById('createGrnForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const poId = parseInt(document.getElementById('grnPoId').value);
+        createGRN({ poId });
+    });
+
+    // Dynamic row builder button
+    document.getElementById('addPoItemBtn').addEventListener('click', addPoItemRow);
 }
 
 /* --- SEARCH FILTER (ROUTED TO CURRENT VIEW) --- */

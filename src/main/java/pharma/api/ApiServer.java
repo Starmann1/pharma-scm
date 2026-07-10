@@ -12,6 +12,9 @@ import pharma.model.InventoryTransaction;
 import pharma.model.BOMHeader;
 import pharma.model.BOMDetail;
 import pharma.model.ProductionOrder;
+import pharma.model.Location;
+import pharma.model.PurchaseOrder;
+import pharma.model.GRN;
 import pharma.service.DatabaseService;
 import pharma.service.RoleService;
 import java.util.List;
@@ -199,6 +202,152 @@ public class ApiServer {
                 ctx.json(new StatusUpdateResponse("Supplier status updated successfully"));
             } else {
                 ctx.status(500).json(new ErrorResponse("Failed to update supplier status"));
+            }
+        });
+
+        // --- LOCATIONS CRUD ENDPOINTS ---
+        app.get("/api/locations", ctx -> {
+            ctx.json(dbService.getLocations());
+        });
+
+        app.get("/api/locations/{code}", ctx -> {
+            String code = ctx.pathParam("code");
+            Location loc = dbService.getLocationById(code);
+            if (loc != null) {
+                ctx.json(loc);
+            } else {
+                ctx.status(404).json(new ErrorResponse("Location not found"));
+            }
+        });
+
+        app.post("/api/locations", ctx -> {
+            Location loc = ctx.bodyAsClass(Location.class);
+            boolean success = dbService.addLocation(loc.getLocationCode(), loc.getLocationName(), loc.getDescription(), loc.getCapacity());
+            if (success) {
+                ctx.status(201).json(loc);
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to create location"));
+            }
+        });
+
+        app.put("/api/locations/{code}", ctx -> {
+            String code = ctx.pathParam("code");
+            Location loc = ctx.bodyAsClass(Location.class);
+            boolean success = dbService.updateLocation(code, loc.getLocationName(), loc.getDescription(), loc.getCapacity());
+            if (success) {
+                loc.setLocationCode(code);
+                ctx.json(loc);
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to update location"));
+            }
+        });
+
+        app.delete("/api/locations/{code}", ctx -> {
+            String code = ctx.pathParam("code");
+            boolean success = dbService.deleteLocation(code);
+            if (success) {
+                ctx.status(204);
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to delete location or location not found"));
+            }
+        });
+
+        // --- PURCHASE ORDERS ENDPOINTS ---
+        app.get("/api/purchase-orders", ctx -> {
+            ctx.json(dbService.getPurchaseOrders());
+        });
+
+        app.get("/api/purchase-orders/{id}", ctx -> {
+            String id = ctx.pathParam("id");
+            PurchaseOrder po = dbService.getPurchaseOrderById(id);
+            if (po != null) {
+                ctx.json(po);
+            } else {
+                ctx.status(404).json(new ErrorResponse("Purchase Order not found"));
+            }
+        });
+
+        app.get("/api/purchase-orders/{id}/items", ctx -> {
+            int poId = Integer.parseInt(ctx.pathParam("id"));
+            ctx.json(dbService.getPurchaseOrderItems(poId));
+        });
+
+        app.post("/api/purchase-orders", ctx -> {
+            PurchaseOrder po = ctx.bodyAsClass(PurchaseOrder.class);
+            if (po.getOrderDate() == null) {
+                po.setOrderDate(java.time.LocalDate.now());
+            }
+            if (po.getExpectedDate() == null) {
+                po.setExpectedDate(java.time.LocalDate.now().plusWeeks(2));
+            }
+            po.setStatus("Pending");
+            boolean success = dbService.createPurchaseOrder(po);
+            if (success) {
+                ctx.status(201).json(po);
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to create purchase order"));
+            }
+        });
+
+        app.put("/api/purchase-orders/{id}", ctx -> {
+            PurchaseOrder po = ctx.bodyAsClass(PurchaseOrder.class);
+            po.setId(Integer.parseInt(ctx.pathParam("id")));
+            boolean success = dbService.updatePurchaseOrder(po);
+            if (success) {
+                ctx.json(po);
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to update purchase order"));
+            }
+        });
+
+        app.delete("/api/purchase-orders/{id}", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            PurchaseOrder po = dbService.getPurchaseOrderById(String.valueOf(id));
+            if (po == null) {
+                ctx.status(404).json(new ErrorResponse("Purchase Order not found"));
+                return;
+            }
+            if ("Received".equalsIgnoreCase(po.getStatus())) {
+                ctx.status(400).json(new ErrorResponse("Cannot delete order because it already has received stock."));
+                return;
+            }
+            dbService.deletePurchaseOrder(id);
+            ctx.status(204);
+        });
+
+        app.post("/api/purchase-orders/{id}/receive", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            dbService.receivePurchaseOrderShipment(id);
+            ctx.json(new StatusUpdateResponse("Purchase order shipment received successfully"));
+        });
+
+        // --- GOODS RECEIVED NOTES (GRN) ENDPOINTS ---
+        app.get("/api/grn", ctx -> {
+            ctx.json(dbService.getGRNs());
+        });
+
+        app.get("/api/grn/{id}", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            GRN grn = dbService.getGRNById(id);
+            if (grn != null) {
+                ctx.json(grn);
+            } else {
+                ctx.status(404).json(new ErrorResponse("GRN not found"));
+            }
+        });
+
+        app.post("/api/grn", ctx -> {
+            CreateGRNRequest req = ctx.bodyAsClass(CreateGRNRequest.class);
+            PurchaseOrder po = dbService.getPurchaseOrderById(String.valueOf(req.poId));
+            if (po == null) {
+                ctx.status(404).json(new ErrorResponse("Purchase Order not found"));
+                return;
+            }
+            boolean success = dbService.createGRNFromPO(po);
+            if (success) {
+                ctx.status(201).json(new StatusUpdateResponse("GRN created successfully"));
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to create GRN"));
             }
         });
 
@@ -585,6 +734,10 @@ public class ApiServer {
     private static class CreateBOMRequest {
         public BOMHeader header;
         public List<BOMDetail> details;
+    }
+
+    private static class CreateGRNRequest {
+        public int poId;
     }
 
     private static class StartOrderRequest {

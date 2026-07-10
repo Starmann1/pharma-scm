@@ -54,34 +54,6 @@
             <span class="menu-label">Overview</span>
           </a>
           <a class="menu-item" id="menu-materials">
-            <span class="menu-icon">💊</span>
-            <span class="menu-label">Materials</span>
-          </a>
-          <a class="menu-item" id="menu-inventory">
-            <span class="menu-icon">📦</span>
-            <span class="menu-label">Inventory & Stock</span>
-          </a>
-          <a class="menu-item" id="menu-suppliers">
-            <span class="menu-icon">🤝</span>
-            <span class="menu-label">Suppliers</span>
-          </a>
-          <a class="menu-item" id="menu-production">
-            <span class="menu-icon">⚙️</span>
-            <span class="menu-label">Production</span>
-          </a>
-          <a class="menu-item" id="menu-compliance">
-            <span class="menu-icon">🛡️</span>
-            <span class="menu-label">QA Compliance</span>
-          </a>
-          <a class="menu-item" id="menu-admin">
-            <span class="menu-icon">👤</span>
-            <span class="menu-label">Admin Management</span>
-          </a>
-        </nav>
-        <div class="sidebar-footer">
-          <button class="toggle-btn" id="sidebarToggle" title="Collapse Menu">◀</button>
-        </div>
-      </aside>
 
       <!-- MAIN APP CONTAINER -->
       <div class="main-container">
@@ -671,6 +643,206 @@
             <button type="submit" class="btn-primary">Submit Release Decision</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Add Location Modal -->
+    <div class="modal-overlay" id="addLocationModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Add New Location</h3>
+          <button class="close-btn" onclick="closeModal('addLocationModal')">&times;</button>
+        </div>
+        <form id="addLocationForm">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="locCode">Location Code *</label>
+              <input type="text" id="locCode" required placeholder="e.g. WH-SEC-A">
+            </div>
+            <div class="form-group">
+              <label for="locName">Location Name *</label>
+              <input type="text" id="locName" required placeholder="e.g. Warehouse Section A">
+            </div>
+            <div class="form-group">
+              <label for="locDesc">Description</label>
+              <input type="text" id="locDesc" placeholder="e.g. Cold storage area for raw materials">
+            </div>
+            <div class="form-group">
+              <label for="locCapacity">Capacity (pallets) *</label>
+              <input type="number" id="locCapacity" required min="1" placeholder="e.g. 50">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('addLocationModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Add Location</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Location Modal -->
+    <div class="modal-overlay" id="editLocationModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Edit Location</h3>
+          <button class="close-btn" onclick="closeModal('editLocationModal')">&times;</button>
+        </div>
+        <form id="editLocationForm">
+          <input type="hidden" id="editLocCode">
+          <div class="modal-body">
+            <div class="form-group">
+              <label>Location Code</label>
+              <input type="text" id="editLocCodeDisplay" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+            <div class="form-group">
+              <label for="editLocName">Location Name *</label>
+              <input type="text" id="editLocName" required>
+            </div>
+            <div class="form-group">
+              <label for="editLocDesc">Description</label>
+              <input type="text" id="editLocDesc">
+            </div>
+            <div class="form-group">
+              <label for="editLocCapacity">Capacity (pallets) *</label>
+              <input type="number" id="editLocCapacity" required min="1">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('editLocationModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Add Purchase Order Modal -->
+    <div class="modal-overlay" id="addPurchaseOrderModal">
+      <div class="modal-card" style="max-width: 700px;">
+        <div class="modal-header">
+          <h3>Create Purchase Order</h3>
+          <button class="close-btn" onclick="closeModal('addPurchaseOrderModal')">&times;</button>
+        </div>
+        <form id="addPurchaseOrderForm">
+          <div class="modal-body">
+            <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="poSupplierId">Supplier *</label>
+                <select id="poSupplierId" required>
+                  <!-- Supplier options loaded dynamically -->
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="poExpectedDate">Expected Delivery Date *</label>
+                <input type="date" id="poExpectedDate" required>
+              </div>
+            </div>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px;">
+              <h4 style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <span>Order Items</span>
+                <button type="button" class="btn-secondary btn-small" id="addPoItemBtn">+ Add Item</button>
+              </h4>
+              <div id="poItemsList" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+                <!-- PO Item Rows Added Dynamically -->
+              </div>
+              <div style="text-align: right; font-weight: 600; font-size: 1.1em; color: var(--text-bright);">
+                Total Amount: $<span id="poTotalAmountDisplay">0.00</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('addPurchaseOrderModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Create Purchase Order</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Create GRN Modal -->
+    <div class="modal-overlay" id="createGrnModal">
+      <div class="modal-card" style="max-width: 800px;">
+        <div class="modal-header">
+          <h3>Create GRN from PO</h3>
+          <button class="close-btn" onclick="closeModal('createGrnModal')">&times;</button>
+        </div>
+        <form id="createGrnForm">
+          <input type="hidden" id="grnPoId">
+          <div class="modal-body">
+            <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px; opacity: 0.8;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label>PO Number</label>
+                <input type="text" id="grnPoNumberDisplay" readonly style="opacity: 0.6; cursor: not-allowed;">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label>Supplier</label>
+                <input type="text" id="grnSupplierDisplay" readonly style="opacity: 0.6; cursor: not-allowed;">
+              </div>
+            </div>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px;">
+              <h4 style="margin-bottom: 12px;">Verify Received Items</h4>
+              <div id="grnItemsList" style="max-height: 300px; overflow-y: auto;">
+                <!-- GRN Item Fields Loaded Dynamically -->
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('createGrnModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Verify and Save GRN</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- View GRN Details Modal -->
+    <div class="modal-overlay" id="viewGrnDetailsModal">
+      <div class="modal-card" style="max-width: 800px;">
+        <div class="modal-header">
+          <h3>GRN Receipt Details</h3>
+          <button class="close-btn" onclick="closeModal('viewGrnDetailsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px; opacity: 0.8;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>GRN ID</label>
+              <input type="text" id="viewGrnId" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>PO ID</label>
+              <input type="text" id="viewGrnPoId" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+          </div>
+          <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px; opacity: 0.8;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>Supplier</label>
+              <input type="text" id="viewGrnSupplier" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>Received Date</label>
+              <input type="text" id="viewGrnDate" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+          </div>
+          <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px; opacity: 0.8;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>Received By</label>
+              <input type="text" id="viewGrnReceivedBy" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>Status</label>
+              <input type="text" id="viewGrnStatus" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px;">
+            <h4 style="margin-bottom: 12px;">Received Materials List</h4>
+            <div id="viewGrnItemsTableContainer">
+              <!-- Render read only table -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-primary" onclick="closeModal('viewGrnDetailsModal')">Close</button>
+        </div>
       </div>
     </div>
 

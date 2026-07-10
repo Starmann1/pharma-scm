@@ -15,19 +15,19 @@ public class PurchaseOrder {
 
     // Nested class to represent items within the Purchase Order
     public static class PurchaseOrderItem {
-        // 💡 FIX 1: Changed to String to match the DB's material_code (VARCHAR)
         private String materialCode;
         private int quantity;
         private double unitPrice;
 
-        // 💡 FIX 2: Updated constructor argument
+        public PurchaseOrderItem() {
+        }
+
         public PurchaseOrderItem(String materialCode, int quantity, double unitPrice) {
             this.materialCode = materialCode;
             this.quantity = quantity;
             this.unitPrice = unitPrice;
         }
 
-        // 💡 FIX 3: Updated getter method
         public String getMaterialCode() {
             return materialCode;
         }
@@ -39,7 +39,18 @@ public class PurchaseOrder {
         public double getUnitPrice() {
             return unitPrice;
         }
-        // Removed old getDrugId() method
+
+        public void setMaterialCode(String materialCode) {
+            this.materialCode = materialCode;
+        }
+
+        public void setQuantity(int quantity) {
+            this.quantity = quantity;
+        }
+
+        public void setUnitPrice(double unitPrice) {
+            this.unitPrice = unitPrice;
+        }
     }
 
     private List<PurchaseOrderItem> items;
@@ -108,9 +119,29 @@ public class PurchaseOrder {
         return items;
     }
 
+    // Default constructor for Jackson
+    public PurchaseOrder() {
+    }
+
     // Setters
     public void setId(int id) {
         this.id = id;
+    }
+
+    public void setSupplierId(int supplierId) {
+        this.supplierId = supplierId;
+    }
+
+    public void setSupplierName(String supplierName) {
+        this.supplierName = supplierName;
+    }
+
+    public void setOrderDate(LocalDate orderDate) {
+        this.orderDate = orderDate;
+    }
+
+    public void setExpectedDate(LocalDate expectedDate) {
+        this.expectedDate = expectedDate;
     }
 
     public void setTotalAmount(double totalAmount) {
@@ -119,6 +150,10 @@ public class PurchaseOrder {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public void setItems(List<PurchaseOrderItem> items) {
+        this.items = items;
     }
 
     public String getPurchaseOrderById() {
