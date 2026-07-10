@@ -26,9 +26,9 @@ public class DatabaseSeeder {
             supplier.setContactPerson("John Doe");
             supplier.setAddress("123 Pharma Lane, NY");
             supplier.setEmail("contact@globalpharma.com");
-            supplier.setPhoneNumber("+1234567890");
+            supplier.setPhone("+1234567890");
             supplier.setGstin("GSTIN12345");
-            supplier.setDrugLicenseNumber("DLN98765");
+            supplier.setDrugLicenseNo("DLN98765");
             supplier.setPaymentTerms("Net 30");
             int supplierId = dbService.addSupplier(supplier);
             System.out.println("Inserted Supplier with ID: " + supplierId);

@@ -7,11 +7,8 @@ import pharma.model.ProductionOrder;
 import pharma.model.Stock;
 import pharma.repository.QARepository;
 import pharma.service.DatabaseService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class QAJdbcRepository implements QARepository {
-    private static final Logger logger = LoggerFactory.getLogger(QAJdbcRepository.class);
     private final DatabaseService databaseService;
     private final JdbcSqlDialect d;
 
@@ -113,17 +110,11 @@ public class QAJdbcRepository implements QARepository {
                 throw new SQLException("Unable to determine released location for material type: " + materialType);
             }
 
-            String updateSql = "UPDATE " + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY) + " SET qc_status = ? " +
-                    (targetLocation != null ? ", location_code = ? " : "") +
-                    "WHERE batch_number = ?";
+            String updateSql = "UPDATE " + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY) + " SET qc_status = ?, location_code = ? WHERE batch_number = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
                 pstmt.setString(1, finalBatchStatus);
-                if (targetLocation != null) {
-                    pstmt.setString(2, targetLocation);
-                    pstmt.setString(3, batchNumber);
-                } else {
-                    pstmt.setString(2, batchNumber);
-                }
+                pstmt.setString(2, targetLocation);
+                pstmt.setString(3, batchNumber);
                 pstmt.executeUpdate();
             }
 

@@ -1,6 +1,5 @@
 package pharma.service;
 
-import pharma.model.Role;
 import pharma.model.User;
 import pharma.repository.jdbc.UserJdbcRepository;
 

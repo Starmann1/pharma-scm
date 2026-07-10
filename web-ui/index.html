@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Pharma SCM v1.1 - Dashboard</title>
+  </head>
+  <body>
+    <div id="app">
+      <!-- SIDEBAR -->
+      <aside id="appSidebar">
+        <div class="sidebar-brand">
+          <div class="brand-icon">P</div>
+          <div class="brand-name">Pharma SCM v1.1</div>
+        </div>
+        <nav class="sidebar-menu">
+          <a class="menu-item" id="menu-overview">
+            <span class="menu-icon">📊</span>
+            <span class="menu-label">Overview</span>
+          </a>
+          <a class="menu-item active" id="menu-materials">
+            <span class="menu-icon">💊</span>
+            <span class="menu-label">Materials</span>
+          </a>
+          <a class="menu-item" id="menu-inventory">
+            <span class="menu-icon">📦</span>
+            <span class="menu-label">Inventory & Stock</span>
+          </a>
+          <a class="menu-item" id="menu-suppliers">
+            <span class="menu-icon">🤝</span>
+            <span class="menu-label">Suppliers</span>
+          </a>
+          <a class="menu-item" id="menu-production">
+            <span class="menu-icon">⚙️</span>
+            <span class="menu-label">Production</span>
+          </a>
+          <a class="menu-item" id="menu-compliance">
+            <span class="menu-icon">🛡️</span>
+            <span class="menu-label">QA Compliance</span>
+          </a>
+          <a class="menu-item" id="menu-admin">
+            <span class="menu-icon">👤</span>
+            <span class="menu-label">Admin Management</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
+          <button class="toggle-btn" id="sidebarToggle" title="Collapse Menu">◀</button>
+        </div>
+      </aside>
+
+      <!-- MAIN APP CONTAINER -->
+      <div class="main-container">
+        <!-- TOPBAR -->
+        <header>
+          <div class="breadcrumb">
+            <span>Operations</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active" id="breadcrumbCurrent">Materials Module</span>
+          </div>
+          <div class="topbar-actions">
+            <div class="search-box">
+              <input type="text" id="globalSearch" placeholder="Search...">
+            </div>
+            <div class="user-profile">
+              <div class="avatar">AD</div>
+              <div class="user-info">
+                <span class="user-name">Dr. Amit Sharma</span>
+                <span class="user-role">Operations Manager</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- CORE CONTENT VIEWPORT -->
+        <main id="mainViewport">
+          <div class="view-header">
+            <h1 class="view-title">Active Materials Master</h1>
+            <button class="btn-primary" id="openAddMaterialBtn">+ Add New Material</button>
+          </div>
+
+          <!-- Materials Table Card -->
+          <div class="card-container">
+            <div class="table-responsive">
+              <table id="materialsTable">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Brand Name</th>
+                    <th>Generic Name</th>
+                    <th>Formulation</th>
+                    <th>Strength</th>
+                    <th>Type</th>
+                    <th>UoM</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="materialsTableBody">
+                  <!-- Dynamic content loaded via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <!-- FLOATING AI & MULTI-AGENT OVERLAY -->
+      <div class="xai-widget">
+        <!-- Floating Dialog Panel -->
+        <div class="xai-panel" id="xaiPanel">
+          <div class="xai-header">
+            <div class="xai-title-group">
+              <div class="xai-header-dot"></div>
+              <div>
+                <div class="xai-title">Explainable AI (XAI) Overlay</div>
+                <div class="xai-subtitle">Observing JADE Multi-Agent SCM</div>
+              </div>
+            </div>
+            <button class="xai-close-btn" id="xaiClose" title="Hide Panel">✖</button>
+          </div>
+          
+          <!-- View Tabs -->
+          <div class="xai-tabs">
+            <div class="xai-tab active" id="tabLogs">Live Agent Logs</div>
+            <div class="xai-tab" id="tabChat">AI Explainability Chat</div>
+          </div>
+
+          <div class="xai-body">
+            <!-- View 1: Real-time Multi-agent activity logs -->
+            <div class="xai-view active" id="viewLogs">
+              <div class="log-list" id="logList">
+                <div class="log-item procurement">
+                  <div class="log-text">
+                    <div class="log-meta">
+                      <span class="log-agent">ProcurementAgent</span>
+                      <span class="log-time">Just now</span>
+                    </div>
+                    Waiting for Javalin REST SSE connection to start JADE agent stream...
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- View 2: Conversational XAI Chatbot -->
+            <div class="xai-view" id="viewChat">
+              <div class="chat-list" id="chatList">
+                <div class="chat-msg bot">
+                  Hello! I am the explainable SCM system co-pilot. Ask me any details about SCM operations, suppliers, or batch quality.
+                  <div class="chat-msg-time">Just now</div>
+                </div>
+              </div>
+              
+              <!-- Chat Input -->
+              <div class="chat-footer">
+                <div class="chat-input-wrapper">
+                  <input type="text" id="chatInput" placeholder="Ask AI: e.g. Why is Paracetamol ordered?">
+                </div>
+                <button class="send-msg-btn" id="sendChatBtn">➔</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Floating Button Trigger -->
+        <button class="xai-trigger" id="xaiTrigger">
+          <div class="xai-badge" id="xaiPulse"></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- MODAL DIALOGS -->
+
+    <!-- Add Material Modal -->
+    <div class="modal-overlay" id="addMaterialModal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h2 class="modal-title">Add New Material</h2>
+          <button class="modal-close" onclick="closeModal('addMaterialModal')">✖</button>
+        </div>
+        <form id="addMaterialForm">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="addMaterialCode">Material Code *</label>
+              <input type="text" id="addMaterialCode" required placeholder="e.g. MAT-008">
+            </div>
+            <div class="form-group">
+              <label for="addBrandName">Brand Name *</label>
+              <input type="text" id="addBrandName" required placeholder="e.g. Aspirin 100mg">
+            </div>
+            <div class="form-group">
+              <label for="addGenericName">Generic Name</label>
+              <input type="text" id="addGenericName" placeholder="e.g. Acetylsalicylic Acid">
+            </div>
+            <div class="form-group">
+              <label for="addManufacturer">Manufacturer</label>
+              <input type="text" id="addManufacturer" placeholder="e.g. Bayer AG">
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addFormulation">Formulation</label>
+                <input type="text" id="addFormulation" placeholder="e.g. Tablet">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addStrength">Strength</label>
+                <input type="text" id="addStrength" placeholder="e.g. 100 mg">
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addMaterialType">Material Type *</label>
+                <select id="addMaterialType" required>
+                  <option value="RAW_MATERIAL">Raw Material</option>
+                  <option value="EXCIPIENT">Excipient</option>
+                  <option value="PACKAGING">Packaging</option>
+                  <option value="INTERMEDIATE">Intermediate</option>
+                  <option value="FINISHED_GOOD">Finished Good</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addUnitOfMeasure">Unit of Measure *</label>
+                <select id="addUnitOfMeasure" required>
+                  <option value="KILOGRAM">Kilogram</option>
+                  <option value="LITRE">Litre</option>
+                  <option value="UNIT">Unit</option>
+                  <option value="BOX">Box</option>
+                  <option value="ROLL">Roll</option>
+                  <option value="PIECE">Piece</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addReorderLevel">Reorder Level *</label>
+                <input type="number" id="addReorderLevel" required value="100" min="0">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0; align-self: center; flex-direction: row; align-items: center; gap: 8px;">
+                <input type="checkbox" id="addIsActive" checked style="width: auto;">
+                <label for="addIsActive" style="margin-top: 4px;">Is Active</label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('addMaterialModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Add Material</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Material Modal -->
+    <div class="modal-overlay" id="editMaterialModal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Material</h2>
+          <button class="modal-close" onclick="closeModal('editMaterialModal')">✖</button>
+        </div>
+        <form id="editMaterialForm">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="editMaterialCode">Material Code</label>
+              <input type="text" id="editMaterialCode" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+            <div class="form-group">
+              <label for="editBrandName">Brand Name *</label>
+              <input type="text" id="editBrandName" required>
+            </div>
+            <div class="form-group">
+              <label for="editGenericName">Generic Name</label>
+              <input type="text" id="editGenericName">
+            </div>
+            <div class="form-group">
+              <label for="editManufacturer">Manufacturer</label>
+              <input type="text" id="editManufacturer">
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editFormulation">Formulation</label>
+                <input type="text" id="editFormulation">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editStrength">Strength</label>
+                <input type="text" id="editStrength">
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editMaterialType">Material Type *</label>
+                <select id="editMaterialType" required>
+                  <option value="RAW_MATERIAL">Raw Material</option>
+                  <option value="EXCIPIENT">Excipient</option>
+                  <option value="PACKAGING">Packaging</option>
+                  <option value="INTERMEDIATE">Intermediate</option>
+                  <option value="FINISHED_GOOD">Finished Good</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editUnitOfMeasure">Unit of Measure *</label>
+                <select id="editUnitOfMeasure" required>
+                  <option value="KILOGRAM">Kilogram</option>
+                  <option value="LITRE">Litre</option>
+                  <option value="UNIT">Unit</option>
+                  <option value="BOX">Box</option>
+                  <option value="ROLL">Roll</option>
+                  <option value="PIECE">Piece</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editReorderLevel">Reorder Level *</label>
+                <input type="number" id="editReorderLevel" required min="0">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0; align-self: center; flex-direction: row; align-items: center; gap: 8px;">
+                <input type="checkbox" id="editIsActive" style="width: auto;">
+                <label for="editIsActive" style="margin-top: 4px;">Is Active</label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('editMaterialModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Add Supplier Modal -->
+    <div class="modal-overlay" id="addSupplierModal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h2 class="modal-title">Add New Supplier</h2>
+          <button class="modal-close" onclick="closeModal('addSupplierModal')">✖</button>
+        </div>
+        <form id="addSupplierForm">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="addSupplierName">Supplier Name *</label>
+              <input type="text" id="addSupplierName" required placeholder="e.g. Acme Pharma Chemicals">
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addContactPerson">Contact Person</label>
+                <input type="text" id="addContactPerson" placeholder="e.g. John Doe">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addSupplierPhone">Phone Number</label>
+                <input type="text" id="addSupplierPhone" placeholder="e.g. +91 99999 88888">
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addSupplierEmail">Email Address</label>
+                <input type="email" id="addSupplierEmail" placeholder="e.g. contact@acmepharma.com">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addSupplierPaymentTerms">Payment Terms</label>
+                <input type="text" id="addSupplierPaymentTerms" placeholder="e.g. Net 30">
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addSupplierGstin">GSTIN *</label>
+                <input type="text" id="addSupplierGstin" required placeholder="e.g. 27AAAAA0000A1Z5">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addSupplierLicense">Drug License Number *</label>
+                <input type="text" id="addSupplierLicense" required placeholder="e.g. DL-12345/67">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+              <label for="addSupplierAddress">Address</label>
+              <input type="text" id="addSupplierAddress" placeholder="e.g. Plot 42, GIDC, Mumbai">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('addSupplierModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Add Supplier</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Supplier Modal -->
+    <div class="modal-overlay" id="editSupplierModal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h2 class="modal-title">Edit Supplier</h2>
+          <button class="modal-close" onclick="closeModal('editSupplierModal')">✖</button>
+        </div>
+        <form id="editSupplierForm">
+          <div class="modal-body">
+            <input type="hidden" id="editSupplierId">
+            <div class="form-group">
+              <label for="editSupplierName">Supplier Name *</label>
+              <input type="text" id="editSupplierName" required>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editContactPerson">Contact Person</label>
+                <input type="text" id="editContactPerson">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editSupplierPhone">Phone Number</label>
+                <input type="text" id="editSupplierPhone">
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editSupplierEmail">Email Address</label>
+                <input type="email" id="editSupplierEmail">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editSupplierPaymentTerms">Payment Terms</label>
+                <input type="text" id="editSupplierPaymentTerms">
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editSupplierGstin">GSTIN *</label>
+                <input type="text" id="editSupplierGstin" required>
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="editSupplierLicense">Drug License Number *</label>
+                <input type="text" id="editSupplierLicense" required>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+              <label for="editSupplierAddress">Address</label>
+              <input type="text" id="editSupplierAddress">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('editSupplierModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Supplier Status Update Modal (Workflow Approval/Rejection) -->
+    <div class="modal-overlay" id="supplierStatusModal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h2 class="modal-title" id="statusModalTitle">Approve/Reject Supplier</h2>
+          <button class="modal-close" onclick="closeModal('supplierStatusModal')">✖</button>
+        </div>
+        <form id="supplierStatusForm">
+          <input type="hidden" id="statusSupplierId">
+          <input type="hidden" id="statusTargetValue">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="statusRemarks">Audit Remarks / Rationale *</label>
+              <input type="text" id="statusRemarks" required placeholder="e.g. Audit documentation checked. Supplier meets GMP norms.">
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+              <label for="statusPerformedBy">Performed By (Inspector Signature) *</label>
+              <input type="text" id="statusPerformedBy" required value="Dr. Amit Sharma">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('supplierStatusModal')">Cancel</button>
+            <button type="submit" class="btn-primary" id="statusSubmitBtn">Submit Decision</button>
+          </div>
+        </form>
+      </div>
+    <!-- Add Production Order Modal -->
+    <div class="modal-overlay" id="addProductionOrderModal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h2 class="modal-title">Start Production Batch Run</h2>
+          <button class="modal-close" onclick="closeModal('addProductionOrderModal')">✖</button>
+        </div>
+        <form id="addProductionOrderForm">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="addOrderBatchNumber">Unique Batch Number *</label>
+              <input type="text" id="addOrderBatchNumber" required placeholder="e.g. B-PCM-902">
+            </div>
+            <div class="form-group">
+              <label for="addOrderBomId">Select Bill of Materials (BOM) *</label>
+              <select id="addOrderBomId" required>
+                <!-- Filled dynamically by JS -->
+              </select>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addOrderPlannedQty">Planned Target Quantity *</label>
+                <input type="number" id="addOrderPlannedQty" required min="1" placeholder="e.g. 500">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addOrderCreatedBy">Created By User ID *</label>
+                <input type="number" id="addOrderCreatedBy" required value="1">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+              <label for="addOrderNotes">Production Notes</label>
+              <input type="text" id="addOrderNotes" placeholder="e.g. Morning shift production run.">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('addProductionOrderModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Create Production Order</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Add BOM Modal -->
+    <div class="modal-overlay" id="addBomModal">
+      <div class="modal-window" style="width: 540px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Define New BOM Formulation</h2>
+          <button class="modal-close" onclick="closeModal('addBomModal')">✖</button>
+        </div>
+        <form id="addBomForm">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="addBomMaterialCode">Target Finished Good Material *</label>
+              <select id="addBomMaterialCode" required>
+                <!-- Filled dynamically by JS -->
+              </select>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px;">
+              <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                <label for="addBomDescription">Formulation Description *</label>
+                <input type="text" id="addBomDescription" required placeholder="e.g. Standard Paracetamol 500mg recipe">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="addBomVersion">Version Number *</label>
+                <input type="number" id="addBomVersion" required value="1" min="1">
+              </div>
+            </div>
+
+            <!-- Ingredients definition section -->
+            <div style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+              <h3 style="font-size:12px; font-weight:600; margin-bottom: 12px; color: var(--text-primary);">Ingredients Details</h3>
+              
+              <!-- Ingredient Row 1 -->
+              <div style="display:flex; gap:8px; margin-bottom: 10px; align-items:flex-end;">
+                <div class="form-group" style="flex:2; margin-bottom: 0;">
+                  <label style="font-size:9px;">Ingredient 1 *</label>
+                  <select id="bomIng1" required>
+                    <!-- Filled dynamically -->
+                  </select>
+                </div>
+                <div class="form-group" style="flex:1; margin-bottom: 0;">
+                  <label style="font-size:9px;">Qty (per unit)*</label>
+                  <input type="number" step="any" id="bomIng1Qty" required placeholder="e.g. 1.0">
+                </div>
+                <div class="form-group" style="flex:1; margin-bottom: 0;">
+                  <label style="font-size:9px;">UoM *</label>
+                  <select id="bomIng1Uom" required>
+                    <option value="KILOGRAM">Kilogram</option>
+                    <option value="LITRE">Litre</option>
+                    <option value="UNIT">Unit</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Ingredient Row 2 -->
+              <div style="display:flex; gap:8px; margin-bottom: 10px; align-items:flex-end;">
+                <div class="form-group" style="flex:2; margin-bottom: 0;">
+                  <label style="font-size:9px;">Ingredient 2</label>
+                  <select id="bomIng2">
+                    <option value="">-- None --</option>
+                    <!-- Filled dynamically -->
+                  </select>
+                </div>
+                <div class="form-group" style="flex:1; margin-bottom: 0;">
+                  <label style="font-size:9px;">Qty</label>
+                  <input type="number" step="any" id="bomIng2Qty" placeholder="e.g. 0.5">
+                </div>
+                <div class="form-group" style="flex:1; margin-bottom: 0;">
+                  <label style="font-size:9px;">UoM</label>
+                  <select id="bomIng2Uom">
+                    <option value="KILOGRAM">Kilogram</option>
+                    <option value="LITRE">Litre</option>
+                    <option value="UNIT">Unit</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('addBomModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Save BOM</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Inspect Batch Modal (QA Quality Inspection) -->
+    <div class="modal-overlay" id="inspectBatchModal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <h2 class="modal-title">Record QC Audit & Chemical Assays</h2>
+          <button class="modal-close" onclick="closeModal('inspectBatchModal')">✖</button>
+        </div>
+        <form id="inspectBatchForm">
+          <div class="modal-body">
+            <div class="form-group font-row" style="display: flex; gap: 12px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="inspectBatchNumber">Batch Number</label>
+                <input type="text" id="inspectBatchNumber" readonly style="opacity: 0.6; cursor: not-allowed;">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="inspectMaterialCode">Material Code</label>
+                <input type="text" id="inspectMaterialCode" readonly style="opacity: 0.6; cursor: not-allowed;">
+              </div>
+            </div>
+            <div class="form-group font-row" style="display: flex; gap: 12px; margin-top: 16px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="inspectQuantity">Total Batch Qty</label>
+                <input type="text" id="inspectQuantity" readonly style="opacity: 0.6; cursor: not-allowed;">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="inspectQcDecision">Release Decision *</label>
+                <select id="inspectQcDecision" required>
+                  <option value="APPROVED">APPROVED (Release to Warehouse)</option>
+                  <option value="REJECTED">REJECTED (Move to Rejected Area)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+              <label for="inspectRemarks">Audit Analysis Remarks *</label>
+              <input type="text" id="inspectRemarks" required placeholder="e.g. Assays verify 99.8% purity. Meets pharmaceutical release criteria.">
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+              <label for="inspectPerformedBy">Sign-off Analyst Signature *</label>
+              <input type="text" id="inspectPerformedBy" required value="Dr. Amit Sharma">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeModal('inspectBatchModal')">Cancel</button>
+            <button type="submit" class="btn-primary">Submit Release Decision</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Script Entrypoint -->
+    <script type="module" src="/src/main.js"></script>
+    <script>
+      // Global Modal Helpers
+      window.openModal = function(id) {
+        document.getElementById(id).classList.add('active');
+      };
+      window.closeModal = function(id) {
+        document.getElementById(id).classList.remove('active');
+      };
+    </script>
+  </body>
+</html>

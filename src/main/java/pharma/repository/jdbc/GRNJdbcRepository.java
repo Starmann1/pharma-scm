@@ -96,10 +96,11 @@ public class GRNJdbcRepository {
 
     /**
      * Returns line items for a specific GRN.
+     * Aligned with schema.
      */
     public List<GRNItem> findItemsByGrnId(int grnId) {
         List<GRNItem> items = new ArrayList<>();
-        String sql = "SELECT drug_id, batch_number, quantity_received, expiry_date"
+        String sql = "SELECT material_code, batch_number, quantity_received, expiry_date"
                 + " FROM " + d.table(JdbcSqlDialect.Table.GRN_ITEM)
                 + " WHERE grn_id = ?";
 
@@ -142,7 +143,7 @@ public class GRNJdbcRepository {
         String insertGrnSql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.GOODS_RECEIVED_NOTE)
                 + " (po_id, received_date, received_by, status) VALUES (?, " + d.nowExpression() + ", ?, ?)";
         String insertGrnItemSql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.GRN_ITEM)
-                + " (grn_id, drug_id, batch_number, quantity_received, expiry_date) VALUES (?, ?, ?, ?, ?)";
+                + " (grn_id, material_code, batch_number, quantity_received, expiry_date) VALUES (?, ?, ?, ?, ?)";
         String upsertStockSql = stockRepository.upsertStockSql();
         String insertTxSql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.INVENTORY_TRANSACTION)
                 + " (material_code, batch_number, location_code, transaction_type, quantity,"
@@ -287,7 +288,7 @@ public class GRNJdbcRepository {
     private GRNItem mapGrnItem(ResultSet rs) throws SQLException {
         java.sql.Date expiryDate = rs.getDate("expiry_date");
         return new GRNItem(
-                rs.getString("drug_id"),
+                rs.getString("material_code"),
                 rs.getString("batch_number"),
                 rs.getInt("quantity_received"),
                 expiryDate != null ? expiryDate.toLocalDate() : null);
@@ -298,7 +299,7 @@ public class GRNJdbcRepository {
      */
     private List<PurchaseOrderItem> loadPoItemsWithinTransaction(Connection conn, int poId) throws SQLException {
         List<PurchaseOrderItem> items = new ArrayList<>();
-        String sql = "SELECT drug_id, quantity, unit_price FROM "
+        String sql = "SELECT material_code, quantity, unit_price FROM "
                 + d.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM)
                 + " WHERE po_id = ?";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -306,7 +307,7 @@ public class GRNJdbcRepository {
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     items.add(new PurchaseOrderItem(
-                            rs.getString("drug_id"),
+                            rs.getString("material_code"),
                             rs.getInt("quantity"),
                             rs.getDouble("unit_price")));
                 }

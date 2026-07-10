@@ -4,8 +4,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import pharma.config.PostgresTestContainerBase;
 import pharma.model.Material;
-import pharma.model.Role;
-import pharma.model.Supplier;
 import pharma.model.User;
 import pharma.repository.jdbc.*;
 import pharma.service.DatabaseService;
@@ -19,7 +17,6 @@ public class PostgresSmokeTestSuite extends PostgresTestContainerBase {
     private DatabaseService dbService;
     private UserJdbcRepository userRepo;
     private MaterialJdbcRepository materialRepo;
-    private SupplierJdbcRepository supplierRepo;
 
     @BeforeEach
     void setUp() {
@@ -27,7 +24,6 @@ public class PostgresSmokeTestSuite extends PostgresTestContainerBase {
         userRepo = dbService.getUserRepository();
         // Since material and supplier repo aren't exposed cleanly via getters, we instantiate them directly
         materialRepo = new MaterialJdbcRepository(dbService);
-        supplierRepo = new SupplierJdbcRepository(dbService);
     }
 
     @Test

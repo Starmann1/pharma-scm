@@ -1,0 +1,456 @@
+package pharma.api;
+
+import io.javalin.Javalin;
+import pharma.config.ApplicationServices;
+import pharma.model.Material;
+import pharma.model.Supplier;
+import pharma.model.Stock;
+import pharma.model.InventoryTransaction;
+import pharma.model.BOMHeader;
+import pharma.model.BOMDetail;
+import pharma.model.ProductionOrder;
+import pharma.service.DatabaseService;
+import java.util.List;
+
+public class ApiServer {
+    private static Javalin app;
+
+    @SuppressWarnings("null")
+    public static void start(ApplicationServices appServices) {
+        DatabaseService dbService = appServices.getDatabaseService();
+
+        app = Javalin.create(config -> {
+            config.bundledPlugins.enableCors(cors -> {
+                cors.addRule(rule -> {
+                    rule.anyHost();
+                });
+            });
+        });
+
+        // Global Exception Handler
+        app.exception(Exception.class, (e, ctx) -> {
+            e.printStackTrace();
+            ctx.status(500).json(new ErrorResponse(e.getMessage()));
+        });
+
+        // --- MATERIALS CRUD ENDPOINTS ---
+        app.get("/api/materials", ctx -> {
+            List<Material> materials = dbService.getAllMaterials();
+            ctx.json(materials);
+        });
+
+        app.get("/api/materials/{code}", ctx -> {
+            String code = ctx.pathParam("code");
+            Material material = dbService.getDrugByMaterialCode(code);
+            if (material != null) {
+                ctx.json(material);
+            } else {
+                ctx.status(404).json(new ErrorResponse("Material not found"));
+            }
+        });
+
+        app.post("/api/materials", ctx -> {
+            Material material = ctx.bodyAsClass(Material.class);
+            dbService.addMaterial(material);
+            ctx.status(201).json(material);
+        });
+
+        app.put("/api/materials/{code}", ctx -> {
+            String code = ctx.pathParam("code");
+            Material material = ctx.bodyAsClass(Material.class);
+            material.setMaterialCode(code);
+            boolean updated = dbService.updateDrug(material);
+            if (updated) {
+                ctx.json(material);
+            } else {
+                ctx.status(404).json(new ErrorResponse("Failed to update material or material not found"));
+            }
+        });
+
+        app.delete("/api/materials/{code}", ctx -> {
+            String code = ctx.pathParam("code");
+            boolean deleted = dbService.deleteDrug(code);
+            if (deleted) {
+                ctx.status(204);
+            } else {
+                ctx.status(404).json(new ErrorResponse("Failed to delete material or material not found"));
+            }
+        });
+
+        // --- SUPPLIERS CRUD ENDPOINTS ---
+        app.get("/api/suppliers", ctx -> {
+            List<Supplier> suppliers = dbService.getAllSuppliers();
+            ctx.json(suppliers);
+        });
+
+        app.get("/api/suppliers/{id}", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            Supplier supplier = dbService.getSupplierById(id);
+            if (supplier != null) {
+                ctx.json(supplier);
+            } else {
+                ctx.status(404).json(new ErrorResponse("Supplier not found"));
+            }
+        });
+
+        app.post("/api/suppliers", ctx -> {
+            Supplier supplier = ctx.bodyAsClass(Supplier.class);
+            int newId = dbService.addSupplier(supplier);
+            supplier.setSupplierId(newId);
+            ctx.status(201).json(supplier);
+        });
+
+        app.put("/api/suppliers/{id}", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            Supplier supplier = ctx.bodyAsClass(Supplier.class);
+            supplier.setSupplierId(id);
+            boolean updated = dbService.updateSupplier(supplier);
+            if (updated) {
+                ctx.json(supplier);
+            } else {
+                ctx.status(404).json(new ErrorResponse("Failed to update supplier"));
+            }
+        });
+
+        app.delete("/api/suppliers/{id}", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            boolean deleted = dbService.deleteSupplier(id);
+            if (deleted) {
+                ctx.status(204);
+            } else {
+                ctx.status(404).json(new ErrorResponse("Failed to delete supplier"));
+            }
+        });
+
+        app.patch("/api/suppliers/{id}/status", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            StatusUpdateRequest req = ctx.bodyAsClass(StatusUpdateRequest.class);
+            boolean success = false;
+            if ("APPROVED".equalsIgnoreCase(req.status)) {
+                success = dbService.approveSupplier(id, req.remarks, req.performedBy);
+            } else if ("REJECTED".equalsIgnoreCase(req.status)) {
+                success = dbService.rejectSupplier(id, req.remarks, req.performedBy);
+            } else {
+                ctx.status(400).json(new ErrorResponse("Invalid status value. Use APPROVED or REJECTED."));
+                return;
+            }
+            if (success) {
+                ctx.json(new StatusUpdateResponse("Supplier status updated successfully"));
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to update supplier status"));
+            }
+        });
+
+        // --- STOCK / INVENTORY ENDPOINTS ---
+        app.get("/api/stock", ctx -> {
+            List<Stock> stock = dbService.getDetailedInventoryReport();
+            ctx.json(stock);
+        });
+
+        app.get("/api/stock/transactions", ctx -> {
+            List<InventoryTransaction> transactions = dbService.getInventoryTransactions();
+            ctx.json(transactions);
+        });
+
+        app.post("/api/stock/transactions", ctx -> {
+            InventoryTransaction tx = ctx.bodyAsClass(InventoryTransaction.class);
+            boolean success = dbService.addInventoryTransaction(tx);
+            if (success) {
+                ctx.status(201).json(tx);
+            } else {
+                ctx.status(500).json(new ErrorResponse("Failed to write inventory transaction"));
+            }
+        });
+
+        // --- BOM (BILL OF MATERIALS) ENDPOINTS ---
+        app.get("/api/bom", ctx -> {
+            List<BOMHeader> boms = dbService.getAllBOMs();
+            ctx.json(boms);
+        });
+
+        app.get("/api/bom/{id}/ingredients", ctx -> {
+            int bomId = Integer.parseInt(ctx.pathParam("id"));
+            List<BOMDetail> ingredients = dbService.getBOMIngredients(bomId);
+            ctx.json(ingredients);
+        });
+
+        app.post("/api/bom", ctx -> {
+            CreateBOMRequest req = ctx.bodyAsClass(CreateBOMRequest.class);
+            int newBomId = dbService.createBOM(req.header, req.details);
+            req.header.setBomId(newBomId);
+            ctx.status(201).json(req.header);
+        });
+
+        // --- PRODUCTION ORDERS ENDPOINTS ---
+        app.get("/api/production/orders", ctx -> {
+            List<ProductionOrder> orders = dbService.getAllProductionOrders();
+            ctx.json(orders);
+        });
+
+        app.post("/api/production/orders", ctx -> {
+            ProductionOrder order = ctx.bodyAsClass(ProductionOrder.class);
+            order.setStatus(ProductionOrder.ProductionStatus.PLANNED);
+            if (order.getProductionDate() == null) {
+                order.setProductionDate(java.time.LocalDate.now());
+            }
+            int newId = dbService.createProductionOrder(order);
+            order.setOrderId(newId);
+            ctx.status(201).json(order);
+        });
+
+        app.post("/api/production/orders/{id}/start", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            StartOrderRequest req = ctx.bodyAsClass(StartOrderRequest.class);
+            int userId = req.userId > 0 ? req.userId : 1; // default admin user
+            dbService.executeProductionRun(id, userId);
+            ctx.json(new StatusUpdateResponse("Production run executed successfully"));
+        });
+
+        app.post("/api/production/orders/{id}/status", ctx -> {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            OrderStatusUpdateRequest req = ctx.bodyAsClass(OrderStatusUpdateRequest.class);
+            dbService.updateProductionOrderStatus(id, req.status);
+            
+            // Auto-trigger QA sampling when transitioning to Quality-Testing
+            if ("Quality-Testing".equalsIgnoreCase(req.status)) {
+                ProductionOrder order = dbService.getProductionOrderById(id);
+                if (order != null) {
+                    dbService.takeSampleForQC(order.getBatchNumber(), 1); // 1 = admin user
+                }
+            }
+            ctx.json(new StatusUpdateResponse("Production order status updated successfully"));
+        });
+
+        // --- QA / QUALITY COMPLIANCE ENDPOINTS ---
+        app.get("/api/qa/inspections", ctx -> {
+            List<Stock> all = dbService.getDetailedInventoryReport();
+            List<Stock> pending = all.stream()
+                .filter(s -> "QUARANTINE".equalsIgnoreCase(s.getQcStatus()) || 
+                             "UNDER_TEST".equalsIgnoreCase(s.getQcStatus()) ||
+                             "QI".equalsIgnoreCase(s.getQcStatus()))
+                .toList();
+            ctx.json(pending);
+        });
+
+        app.post("/api/qa/inspections/{batch}/inspect", ctx -> {
+            String batch = ctx.pathParam("batch");
+            InspectRequest req = ctx.bodyAsClass(InspectRequest.class);
+            
+            // Update batch QC status in repositories (sets location based on type, e.g. FINISHED_GOODS_WAREHOUSE)
+            dbService.updateQCStatus(batch, req.status.toUpperCase(), 1); // 1 = admin user
+            
+            ctx.json(new StatusUpdateResponse("Inspection completed successfully. Status: " + req.status));
+        });
+
+        // --- XAI OBSERVE & CHAT OVERLAY ENDPOINTS ---
+        app.sse("/api/agent/stream", client -> {
+            client.keepAlive();
+            
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+                .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+            java.util.concurrent.ScheduledExecutorService scheduler = 
+                java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+            
+            final java.util.concurrent.atomic.AtomicInteger lastId = 
+                new java.util.concurrent.atomic.AtomicInteger(0);
+            
+            List<pharma.model.EventLog> initialLogs = dbService.getLatestEventLogs(10);
+            if (!initialLogs.isEmpty()) {
+                java.util.Collections.reverse(initialLogs);
+                for (pharma.model.EventLog el : initialLogs) {
+                    try {
+                        client.sendEvent(mapper.writeValueAsString(el));
+                    } catch (Exception ex) {}
+                    lastId.set(Math.max(lastId.get(), el.getEventId()));
+                }
+            }
+
+            java.util.concurrent.ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
+                try {
+                    List<pharma.model.EventLog> logs = dbService.getLatestEventLogs(10);
+                    java.util.List<pharma.model.EventLog> newLogs = new java.util.ArrayList<>();
+                    for (pharma.model.EventLog el : logs) {
+                        if (el.getEventId() > lastId.get()) {
+                            newLogs.add(el);
+                        }
+                    }
+                    if (!newLogs.isEmpty()) {
+                        java.util.Collections.reverse(newLogs);
+                        for (pharma.model.EventLog el : newLogs) {
+                            try {
+                                client.sendEvent(mapper.writeValueAsString(el));
+                            } catch (Exception ex) {}
+                            lastId.set(Math.max(lastId.get(), el.getEventId()));
+                        }
+                    }
+                } catch (Exception e) {
+                    // client closed or scheduler failed
+                }
+            }, 3, 3, java.util.concurrent.TimeUnit.SECONDS);
+
+            client.onClose(() -> {
+                future.cancel(true);
+                scheduler.shutdown();
+            });
+        });
+
+        app.post("/api/agent/chat", ctx -> {
+            ChatRequestPayload req = ctx.bodyAsClass(ChatRequestPayload.class);
+            
+            pharma.dto.AIReasoningRequestDTO reasoningReq = new pharma.dto.AIReasoningRequestDTO(
+                "EXPLAINABILITY_CHAT", 
+                req.message, 
+                "User initiated QA or SCM explainability check via REST API."
+            );
+            
+            pharma.dto.AgentRequestEnvelope<pharma.dto.AIReasoningRequestDTO> envelope = 
+                new pharma.dto.AgentRequestEnvelope<>(
+                    pharma.agent.ontology.AgentActions.AI_REASONING,
+                    1,
+                    30000L,
+                    reasoningReq
+                );
+            
+            try {
+                java.util.concurrent.CompletableFuture<pharma.dto.AgentResponseEnvelope<?>> future = 
+                    pharma.App.getAgentGateway().submit(envelope);
+                pharma.dto.AgentResponseEnvelope<?> res = future.get(8, java.util.concurrent.TimeUnit.SECONDS);
+                if (res.getResponseStatus() == pharma.agent.ontology.AgentStatuses.SUCCESS) {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    pharma.dto.AIReasoningResultDTO result = mapper.convertValue(res.getPayload(), pharma.dto.AIReasoningResultDTO.class);
+                    String reply = "";
+                    if (result.getExtractedData() instanceof java.util.Map<?, ?> map) {
+                        Object val = map.get("explanation");
+                        if (val == null) {
+                            val = map.get("analysis");
+                        }
+                        reply = String.valueOf(val != null ? val : map.toString());
+                    } else {
+                        reply = String.valueOf(result.getExtractedData());
+                    }
+                    ctx.json(new ChatResponsePayload(reply));
+                    return;
+                }
+            } catch (Exception e) {
+                // fall through to smart resolver fallback
+            }
+
+            // Fallback resolver
+            String norm = req.message.toLowerCase();
+            String replyMarkdown;
+            if (norm.contains("qa") || norm.contains("quarantine") || norm.contains("test") || norm.contains("inspect")) {
+                List<Stock> qList = dbService.getDetailedInventoryReport().stream()
+                    .filter(s -> !"APPROVED".equalsIgnoreCase(s.getQcStatus()) && !"RELEASED".equalsIgnoreCase(s.getQcStatus()))
+                    .toList();
+                if (qList.isEmpty()) {
+                    replyMarkdown = "### 🔬 Quality Compliance Status\n\nNo batches are currently held in QA quarantine. All warehouse stock is released.";
+                } else {
+                    StringBuilder sb = new StringBuilder("### 🔬 Quality Compliance Status\n\nI detected **" + qList.size() + "** batch(es) currently under quarantine / QC hold:\n\n");
+                    for (Stock s : qList) {
+                        sb.append("- **Batch ").append(s.getBatchNumber()).append("** (Material: `").append(s.getMaterialCode()).append("`)\n");
+                        sb.append("  - Current Location: `").append(s.getLocationCode()).append("`\n");
+                        sb.append("  - Status: *").append(s.getQcStatus()).append("*\n");
+                        sb.append("  - Quantity: ").append(s.getQuantity()).append("\n");
+                    }
+                    sb.append("\n*Action recommended:* Log into the **QA Compliance Panel** to record chemical assay parameters and release or reject these batches.");
+                    replyMarkdown = sb.toString();
+                }
+            } else if (norm.contains("production") || norm.contains("order") || norm.contains("bom") || norm.contains("run")) {
+                List<ProductionOrder> orders = dbService.getAllProductionOrders();
+                StringBuilder sb = new StringBuilder("### ⚡ Production Execution Summary\n\nThere are **" + orders.size() + "** production order(s) registered on the JADE platform:\n\n");
+                for (ProductionOrder o : orders) {
+                    sb.append("- **Order #").append(o.getOrderId()).append("** (Batch: ").append(o.getBatchNumber()).append(")\n");
+                    sb.append("  - Recipe BOM ID: #").append(o.getBomId()).append("\n");
+                    sb.append("  - Planned Qty: ").append(o.getPlannedQty()).append("\n");
+                    sb.append("  - Status: `").append(o.getStatus()).append("`\n");
+                }
+                replyMarkdown = sb.toString();
+            } else if (norm.contains("supplier") || norm.contains("vendor")) {
+                List<Supplier> sups = dbService.getAllSuppliers();
+                StringBuilder sb = new StringBuilder("### 🤝 Onboarded Vendors Registry\n\nI found **" + sups.size() + "** registered suppliers:\n\n");
+                for (Supplier s : sups) {
+                    sb.append("- **").append(s.getSupplierName()).append("** (ID: ").append(s.getSupplierId()).append(")\n");
+                    sb.append("  - Compliance Status: *").append(s.getSupplierStatus()).append("*\n");
+                    sb.append("  - License: `").append(s.getDrugLicenseNo()).append("` | Phone: *").append(s.getPhone()).append("*\n");
+                }
+                replyMarkdown = sb.toString();
+            } else if (norm.contains("stock") || norm.contains("inventory") || norm.contains("warehouse")) {
+                List<Stock> stocks = dbService.getDetailedInventoryReport();
+                double totalVal = stocks.stream().mapToDouble(s -> s.getQuantity() * s.getUnitCost()).sum();
+                StringBuilder sb = new StringBuilder("### 📦 Stock & Inventory Auditing\n\nTotal warehouse lines: **" + stocks.size() + "**\n");
+                sb.append("Estimated stock valuation: **$").append(String.format("%.2f", totalVal)).append("**\n\n");
+                sb.append("Top inventory batches:\n");
+                stocks.stream().limit(5).forEach(s -> {
+                    sb.append("- Batch `").append(s.getBatchNumber()).append("` (Material: ").append(s.getMaterialCode()).append(") - Qty: ").append(s.getQuantity()).append(" [").append(s.getQcStatus()).append("]\n");
+                });
+                replyMarkdown = sb.toString();
+            } else {
+                replyMarkdown = "### 🤖 Pharma SCM Co-pilot\n\nHello! I am your agentic SCM explainability companion. I can query the JADE platform to help you analyze supply chain operations.\n\nTry asking me questions about:\n1. **Stock levels** (*'What is the stock status?'*)\n2. **Suppliers** (*'List our approved suppliers'*)\n3. **Production orders** (*'Show active runs'*)\n4. **QA Inspections** (*'Why are batches in quarantine?'*)";
+            }
+            ctx.json(new ChatResponsePayload(replyMarkdown));
+        });
+
+        app.start(8080);
+    }
+
+    public static void stop() {
+        if (app != null) {
+            app.stop();
+        }
+    }
+
+    // Helper DTOs
+    private static class StatusUpdateRequest {
+        public String status;
+        public String remarks;
+        public String performedBy;
+    }
+
+    private static class StatusUpdateResponse {
+        private final String message;
+        public StatusUpdateResponse(String message) { this.message = message; }
+        @SuppressWarnings("unused")
+        public String getMessage() { return message; }
+    }
+
+    private static class ErrorResponse {
+        private final String error;
+        public ErrorResponse(String error) { this.error = error; }
+        @SuppressWarnings("unused")
+        public String getError() { return error; }
+    }
+
+    private static class CreateBOMRequest {
+        public BOMHeader header;
+        public List<BOMDetail> details;
+    }
+
+    private static class StartOrderRequest {
+        public int userId;
+    }
+
+    private static class OrderStatusUpdateRequest {
+        public String status;
+    }
+
+    private static class InspectRequest {
+        public String status;
+        @SuppressWarnings("unused")
+        public String remarks;
+        @SuppressWarnings("unused")
+        public String performedBy;
+    }
+
+    private static class ChatRequestPayload {
+        public String message;
+    }
+
+    private static class ChatResponsePayload {
+        private final String reply;
+        public ChatResponsePayload(String reply) { this.reply = reply; }
+        @SuppressWarnings("unused")
+        public String getReply() { return reply; }
+    }
+}

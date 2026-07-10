@@ -160,4 +160,26 @@ public class BOMJdbcRepository implements BOMRepository {
         }
         return boms;
     }
+
+    @Override
+    public List<BOMHeader> getAllBOMs() throws SQLException, ClassNotFoundException {
+        List<BOMHeader> boms = new ArrayList<>();
+        String sql = "SELECT * FROM " + sqlDialect.table(JdbcSqlDialect.Table.BOM_HEADER) + " ORDER BY bom_id DESC";
+        try (Connection conn = databaseService.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                boms.add(new BOMHeader(
+                        rs.getInt("bom_id"),
+                        rs.getString("material_code"),
+                        rs.getInt("version_number"),
+                        rs.getBoolean("is_active"),
+                        rs.getDate("effective_date").toLocalDate(),
+                        rs.getString("description"),
+                        rs.getTimestamp("created_at").toLocalDateTime(),
+                        rs.getTimestamp("updated_at").toLocalDateTime()));
+            }
+        }
+        return boms;
+    }
 }

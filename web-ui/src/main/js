@@ -1,0 +1,313 @@
+import './style.css';
+
+// Central REST API config
+const API_BASE = "http://localhost:8080/api";
+
+// Local state
+let materials = [];
+let editTargetCode = null;
+
+// DOM Elements
+const sidebarToggle = document.getElementById('sidebarToggle');
+const sidebar = document.getElementById('appSidebar');
+const materialsTableBody = document.getElementById('materialsTableBody');
+const searchInput = document.getElementById('globalSearch');
+const openAddBtn = document.getElementById('openAddMaterialBtn');
+const addForm = document.getElementById('addMaterialForm');
+const editForm = document.getElementById('editMaterialForm');
+
+// XAI Elements
+const xaiTrigger = document.getElementById('xaiTrigger');
+const xaiPanel = document.getElementById('xaiPanel');
+const xaiClose = document.getElementById('xaiClose');
+const xaiPulse = document.getElementById('xaiPulse');
+const tabLogs = document.getElementById('tabLogs');
+const tabChat = document.getElementById('tabChat');
+const viewLogs = document.getElementById('viewLogs');
+const viewChat = document.getElementById('viewChat');
+const chatInput = document.getElementById('chatInput');
+const chatList = document.getElementById('chatList');
+const sendChatBtn = document.getElementById('sendChatBtn');
+
+/* --- SIDEBAR TOGGLE --- */
+sidebarToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('collapsed');
+    if (sidebar.classList.contains('collapsed')) {
+        sidebarToggle.textContent = '▶';
+        sidebarToggle.title = 'Expand Menu';
+    } else {
+        sidebarToggle.textContent = '◀';
+        sidebarToggle.title = 'Collapse Menu';
+    }
+});
+
+/* --- API CALLS --- */
+
+// Fetch all materials
+async function fetchMaterials() {
+    try {
+        const res = await fetch(`${API_BASE}/materials`);
+        if (!res.ok) throw new Error("Failed to load materials catalog");
+        materials = await res.json();
+        renderMaterialsTable(materials);
+    } catch (err) {
+        console.error("API error fetching materials: ", err);
+        showMockDataFallback();
+    }
+}
+
+// Create material
+async function createMaterial(material) {
+    try {
+        const res = await fetch(`${API_BASE}/materials`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(material)
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to create material record");
+        }
+        closeModal('addMaterialModal');
+        addForm.reset();
+        await fetchMaterials();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+// Update material
+async function updateMaterial(code, material) {
+    try {
+        const res = await fetch(`${API_BASE}/materials/${code}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(material)
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to update material record");
+        }
+        closeModal('editMaterialModal');
+        await fetchMaterials();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+// Delete material
+async function deleteMaterial(code) {
+    if (!confirm(`Are you sure you want to delete material ${code}?`)) return;
+    try {
+        const res = await fetch(`${API_BASE}/materials/${code}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) {
+            const errObj = await res.json().catch(() => ({}));
+            throw new Error(errObj.error || "Failed to delete material record");
+        }
+        await fetchMaterials();
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+/* --- RENDER LOGIC --- */
+
+function renderMaterialsTable(data) {
+    materialsTableBody.innerHTML = '';
+    if (data.length === 0) {
+        materialsTableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-secondary);">No materials found</td></tr>`;
+        return;
+    }
+
+    data.forEach(item => {
+        const tr = document.createElement('tr');
+        
+        // Type color badge mapping
+        let typeClass = 'badge-success';
+        if (item.materialType === 'PACKAGING') typeClass = 'badge-warning';
+        if (item.materialType === 'FINISHED_GOOD') typeClass = 'badge-success';
+        if (item.materialType === 'RAW_MATERIAL') typeClass = 'badge-success';
+        
+        // Active badge
+        const statusBadge = item.active 
+            ? `<span class="badge badge-success">Active</span>` 
+            : `<span class="badge badge-danger">Inactive</span>`;
+
+        tr.innerHTML = `
+            <td>${item.materialCode}</td>
+            <td><strong>${item.brandName}</strong></td>
+            <td>${item.genericName || '-'}</td>
+            <td>${item.formulation || '-'}</td>
+            <td>${item.strength || '-'}</td>
+            <td><span class="badge ${typeClass}">${item.materialType}</span></td>
+            <td>${item.unitOfMeasure}</td>
+            <td>${statusBadge}</td>
+            <td>
+                <div class="action-group">
+                    <button class="action-btn edit-btn" data-code="${item.materialCode}" title="Edit Material">✏️</button>
+                    <button class="action-btn delete-btn" data-code="${item.materialCode}" title="Delete Material">🗑️</button>
+                </div>
+            </td>
+        `;
+        materialsTableBody.appendChild(tr);
+    });
+
+    // Attach row action listeners
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const code = e.currentTarget.getAttribute('data-code');
+            launchEditModal(code);
+        });
+    });
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const code = e.currentTarget.getAttribute('data-code');
+            deleteMaterial(code);
+        });
+    });
+}
+
+function showMockDataFallback() {
+    materials = [
+        { materialCode: "MAT-001", brandName: "Amoxicillin 500mg", genericName: "Amoxicillin Trihydrate", formulation: "Capsule", strength: "500 mg", materialType: "FINISHED_GOOD", unitOfMeasure: "BOX", active: true },
+        { materialCode: "MAT-002", brandName: "Paracetamol API", genericName: "Paracetamol USP", formulation: "Powder", strength: "100% Pure", materialType: "RAW_MATERIAL", unitOfMeasure: "KILOGRAM", active: true },
+        { materialCode: "MAT-003", brandName: "Glycerol Excipient", genericName: "Glycerine BP", formulation: "Liquid", strength: "99.5%", materialType: "EXCIPIENT", unitOfMeasure: "LITRE", active: true },
+        { materialCode: "MAT-004", brandName: "PVC Blister Foil", genericName: "Polyvinyl Chloride", formulation: "Roll", strength: "250 micron", materialType: "PACKAGING", unitOfMeasure: "ROLL", active: true }
+    ];
+    renderMaterialsTable(materials);
+}
+
+/* --- MODAL DIALOG FLOWS --- */
+
+openAddBtn.addEventListener('click', () => openModal('addMaterialModal'));
+
+// Add form submit
+addForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const newMaterial = {
+        materialCode: document.getElementById('addMaterialCode').value.trim(),
+        brandName: document.getElementById('addBrandName').value.trim(),
+        genericName: document.getElementById('addGenericName').value.trim(),
+        manufacturer: document.getElementById('addManufacturer').value.trim(),
+        formulation: document.getElementById('addFormulation').value.trim(),
+        strength: document.getElementById('addStrength').value.trim(),
+        materialType: document.getElementById('addMaterialType').value,
+        unitOfMeasure: document.getElementById('addUnitOfMeasure').value,
+        reorderLevel: parseInt(document.getElementById('addReorderLevel').value),
+        active: document.getElementById('addIsActive').checked
+    };
+    createMaterial(newMaterial);
+});
+
+// Edit modal launching
+function launchEditModal(code) {
+    const item = materials.find(m => m.materialCode === code);
+    if (!item) return;
+
+    editTargetCode = code;
+    document.getElementById('editMaterialCode').value = item.materialCode;
+    document.getElementById('editBrandName').value = item.brandName;
+    document.getElementById('editGenericName').value = item.genericName || '';
+    document.getElementById('editManufacturer').value = item.manufacturer || '';
+    document.getElementById('editFormulation').value = item.formulation || '';
+    document.getElementById('editStrength').value = item.strength || '';
+    document.getElementById('editMaterialType').value = item.materialType;
+    document.getElementById('editUnitOfMeasure').value = item.unitOfMeasure;
+    document.getElementById('editReorderLevel').value = item.reorderLevel || 100;
+    document.getElementById('editIsActive').checked = item.active;
+
+    openModal('editMaterialModal');
+}
+
+// Edit form submit
+editForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const updatedMaterial = {
+        materialCode: editTargetCode,
+        brandName: document.getElementById('editBrandName').value.trim(),
+        genericName: document.getElementById('editGenericName').value.trim(),
+        manufacturer: document.getElementById('editManufacturer').value.trim(),
+        formulation: document.getElementById('editFormulation').value.trim(),
+        strength: document.getElementById('editStrength').value.trim(),
+        materialType: document.getElementById('editMaterialType').value,
+        unitOfMeasure: document.getElementById('editUnitOfMeasure').value,
+        reorderLevel: parseInt(document.getElementById('editReorderLevel').value),
+        active: document.getElementById('editIsActive').checked
+    };
+    updateMaterial(editTargetCode, updatedMaterial);
+});
+
+/* --- SEARCH FILTER --- */
+searchInput.addEventListener('input', () => {
+    const query = searchInput.value.toLowerCase().trim();
+    const filtered = materials.filter(item => {
+        return item.materialCode.toLowerCase().includes(query) ||
+               item.brandName.toLowerCase().includes(query) ||
+               (item.genericName && item.genericName.toLowerCase().includes(query)) ||
+               item.materialType.toLowerCase().includes(query);
+    });
+    renderMaterialsTable(filtered);
+});
+
+/* --- FLOATING AI WIDGET --- */
+xaiTrigger.addEventListener('click', () => {
+    xaiPanel.style.display = 'flex';
+    xaiPulse.style.display = 'none'; // Clear pulse
+});
+
+xaiClose.addEventListener('click', () => {
+    xaiPanel.style.display = 'none';
+});
+
+tabLogs.addEventListener('click', () => {
+    tabLogs.classList.add('active');
+    tabChat.classList.remove('active');
+    viewLogs.classList.add('active');
+    viewChat.classList.remove('active');
+});
+
+tabChat.addEventListener('click', () => {
+    tabLogs.classList.remove('active');
+    tabChat.classList.add('active');
+    viewLogs.classList.remove('active');
+    viewChat.classList.add('active');
+});
+
+// Chat Append Helpers
+function appendChatMessage(sender, text) {
+    const msg = document.createElement('div');
+    msg.className = `chat-msg ${sender}`;
+    msg.innerHTML = `
+        ${text}
+        <div class="chat-msg-time">Just now</div>
+    `;
+    chatList.appendChild(msg);
+    chatList.scrollTop = chatList.scrollHeight;
+}
+
+function handleChatSubmit() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    appendChatMessage('user', text);
+    chatInput.value = '';
+
+    setTimeout(() => {
+        let reply = "I've ingested your query. Since SCM agent SSE lines aren't connected yet, here's a mockup response: ProcurementAgent holds Paracetamol API reorder transactions. Quality testing results are pending.";
+        if (text.toLowerCase().includes('materials') || text.toLowerCase().includes('active')) {
+            reply = `Materials catalog currently holds ${materials.length} active records in target Postgres db.`;
+        }
+        appendChatMessage('bot', reply);
+    }, 1000);
+}
+
+sendChatBtn.addEventListener('click', handleChatSubmit);
+chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleChatSubmit();
+});
+
+/* --- INITIALIZATION --- */
+fetchMaterials();
+setInterval(fetchMaterials, 8000); // Polling every 8s

@@ -92,10 +92,11 @@ public class PurchaseOrderJdbcRepository {
 
     /**
      * Returns the line items for a given purchase order.
+     * Aligned with schema.
      */
     public List<PurchaseOrderItem> findItemsByPoId(int poId) throws SQLException, ClassNotFoundException {
         List<PurchaseOrderItem> items = new ArrayList<>();
-        String sql = "SELECT drug_id, quantity, unit_price FROM "
+        String sql = "SELECT material_code, quantity, unit_price FROM "
                 + d.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM)
                 + " WHERE po_id = ?";
 
@@ -105,7 +106,7 @@ public class PurchaseOrderJdbcRepository {
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     items.add(new PurchaseOrderItem(
-                            rs.getString("drug_id"),
+                            rs.getString("material_code"),
                             rs.getInt("quantity"),
                             rs.getDouble("unit_price")));
                 }
@@ -356,7 +357,7 @@ public class PurchaseOrderJdbcRepository {
 
     private void insertItems(Connection conn, int poId, List<PurchaseOrderItem> items) throws SQLException {
         String sql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM)
-                + " (po_id, drug_id, quantity, unit_price) VALUES (?, ?, ?, ?)";
+                + " (po_id, material_code, quantity, unit_price) VALUES (?, ?, ?, ?)";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             for (PurchaseOrderItem item : items) {
                 pstmt.setInt(1, poId);

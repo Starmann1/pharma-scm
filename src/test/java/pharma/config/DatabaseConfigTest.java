@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+@SuppressWarnings("null")
 class DatabaseConfigTest {
     @Test
     void explicitlySetMysqlUsingExistingDbSettings() {

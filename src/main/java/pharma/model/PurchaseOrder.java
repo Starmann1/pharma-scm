@@ -76,7 +76,7 @@ public class PurchaseOrder {
         this.items = of.stream()
                 .filter(item -> item instanceof PurchaseOrderItem)
                 .map(item -> (PurchaseOrderItem) item)
-                .collect(java.util.ArrayList::new, java.util.ArrayList::add, java.util.ArrayList::addAll);
+                .collect(() -> new java.util.ArrayList<>(), (list, item) -> list.add(item), (list1, list2) -> list1.addAll(list2));
     }
 
     // Getters

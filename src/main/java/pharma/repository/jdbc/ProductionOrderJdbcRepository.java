@@ -396,6 +396,34 @@ public class ProductionOrderJdbcRepository {
         return false;
     }
 
+    public java.util.List<pharma.model.EventLog> getLatestEventLogs(int limit) {
+        java.util.List<pharma.model.EventLog> list = new java.util.ArrayList<>();
+        String sql = "SELECT * FROM event_log ORDER BY event_id DESC LIMIT ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, limit);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    pharma.model.EventLog el = new pharma.model.EventLog();
+                    el.setEventId(rs.getInt("event_id"));
+                    el.setEventType(rs.getString("event_type"));
+                    el.setEntityType(rs.getString("entity_type"));
+                    el.setEntityId(rs.getString("entity_id"));
+                    el.setDetails(rs.getString("details"));
+                    el.setStatus(rs.getString("status"));
+                    java.sql.Timestamp ts = rs.getTimestamp("event_timestamp");
+                    if (ts != null) {
+                        el.setEventTimestamp(ts.toLocalDateTime());
+                    }
+                    list.add(el);
+                }
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error reading event logs: " + e.getMessage(), e);
+        }
+        return list;
+    }
+
     public java.util.List<pharma.model.MaterialConsumption> getMaterialConsumptionsForOrder(int orderId) {
         java.util.List<pharma.model.MaterialConsumption> consumptions = new java.util.ArrayList<>();
         String sql = "SELECT * FROM production_material_consumption WHERE production_order_id = ?";

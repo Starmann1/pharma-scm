@@ -1,7 +1,6 @@
 package pharma.service;
 
 import pharma.model.*;
-import pharma.model.GRN.GRNItem;
 import pharma.model.PurchaseOrder.PurchaseOrderItem;
 import pharma.config.DatabaseConfig;
 import pharma.repository.jdbc.GRNJdbcRepository;
@@ -10,7 +9,6 @@ import pharma.repository.jdbc.StockJdbcRepository;
 
 import java.sql.*;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -276,74 +274,6 @@ public class DatabaseService {
         return supplierRepo.rejectSupplier(supplierId, remarks, performedBy);
     }
 
-    private void insertSupplierAuditLog(Connection conn, int supplierId, String action, String remarks,
-            String performedBy) throws SQLException {
-        // Delegated to SupplierJdbcRepository internally — this stub kept for backward compat.
-        auditRepo.logAuditTrail(conn, 0, action + "_SUPPLIER", "supplier_master",
-                String.valueOf(supplierId), null, remarks);
-    }
-
-    private Supplier mapResultSetToSupplier(ResultSet rs) throws SQLException {
-        return new Supplier(
-                rs.getInt("supplier_id"),
-                rs.getString("supplier_name"),
-                rs.getString("contact_person"),
-                rs.getString("address"),
-                rs.getString("email"),
-                rs.getString("phone_number"),
-                rs.getString("gstin"),
-                rs.getString("drug_license_number"),
-                rs.getString("payment_terms"),
-                normalizeSupplierStatus(readOptionalString(rs, "supplier_status")),
-                readOptionalTimestamp(rs, "approved_at"),
-                readOptionalTimestamp(rs, "rejected_at"),
-                readOptionalString(rs, "remarks"));
-    }
-
-    private String normalizeSupplierStatus(String status) {
-        return isBlank(status) ? Supplier.STATUS_APPROVED : status.trim().toUpperCase();
-    }
-
-    private boolean isSupplierApproved(Connection conn, int supplierId) throws SQLException {
-        try {
-            return supplierRepo.isSupplierApproved(supplierId);
-        } catch (ClassNotFoundException e) {
-            throw new SQLException(e);
-        }
-    }
-
-    private void validateSupplierApprovedForProcurement(Connection conn, int supplierId, String action)
-            throws SQLException {
-        if (!isSupplierApproved(conn, supplierId)) {
-            throw new SQLException(action);
-        }
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
-    }
-
-    private String normalizeRemarks(String remarks) {
-        return isBlank(remarks) ? null : remarks.trim();
-    }
-
-    private String readOptionalString(ResultSet rs, String columnName) throws SQLException {
-        try {
-            return rs.getString(columnName);
-        } catch (SQLException ex) {
-            return null;
-        }
-    }
-
-    private LocalDateTime readOptionalTimestamp(ResultSet rs, String columnName) throws SQLException {
-        try {
-            Timestamp timestamp = rs.getTimestamp(columnName);
-            return timestamp != null ? timestamp.toLocalDateTime() : null;
-        } catch (SQLException ex) {
-            return null;
-        }
-    }
-
     // =======================================================
     // --- MATERIAL CRUD OPERATIONS (DELEGATED TO MaterialJdbcRepository) ---
     // =======================================================
@@ -583,6 +513,15 @@ public class DatabaseService {
         return bomRepo.getActiveBOMsForMaterial(materialCode);
     }
 
+    public List<BOMHeader> getAllBOMs() {
+        try {
+            return bomRepo.getAllBOMs();
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+            return java.util.Collections.emptyList();
+        }
+    }
+
     public Map<String, Double> validateBOMAvailability(int bomId, double plannedQty)
             throws SQLException, ClassNotFoundException {
         Map<String, Double> shortages = new HashMap<>();
@@ -641,6 +580,15 @@ public class DatabaseService {
         return stockRepository.getAllStockByQcStatus(statusFilter);
     }
 
+    public boolean updateQcStatus(String batchNumber, String status) {
+        try {
+            return stockRepository.updateQcStatus(batchNumber, status);
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public Stock getStockByBatchNumber(String batchNumber) {
         return stockRepository.getStockByBatch(batchNumber);
     }
@@ -656,6 +604,15 @@ public class DatabaseService {
 
     public List<Stock> getDetailedInventoryReport() {
         return stockRepository.getAllStock();
+    }
+
+    public List<pharma.model.InventoryTransaction> getInventoryTransactions() {
+        try {
+            return stockRepository.getAllInventoryTransactions();
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+            return java.util.Collections.emptyList();
+        }
     }
 
     // --- Audit Trail Methods ---
@@ -711,6 +668,10 @@ public class DatabaseService {
 
     public boolean addEventLog(EventLog el) {
         return productionOrderRepository.addEventLog(el);
+    }
+
+    public List<EventLog> getLatestEventLogs(int limit) {
+        return productionOrderRepository.getLatestEventLogs(limit);
     }
 
     public List<MaterialConsumption> getMaterialConsumptionsForOrder(int orderId) {

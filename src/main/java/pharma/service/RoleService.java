@@ -12,11 +12,9 @@ import java.util.Set;
 
 public class RoleService {
 
-    private final DatabaseService dbService;
     private final RolePermissionJdbcRepository roleRepo;
 
     public RoleService(DatabaseService dbService) {
-        this.dbService = dbService;
         this.roleRepo = dbService.getRoleRepository();
     }
 

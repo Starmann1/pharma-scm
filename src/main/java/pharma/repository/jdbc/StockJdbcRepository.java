@@ -442,6 +442,58 @@ public class StockJdbcRepository {
         }
     }
 
+    public List<pharma.model.InventoryTransaction> getAllInventoryTransactions() throws SQLException, ClassNotFoundException {
+        List<pharma.model.InventoryTransaction> list = new ArrayList<>();
+        String sql = "SELECT * FROM " + d.table(JdbcSqlDialect.Table.INVENTORY_TRANSACTION) + " ORDER BY transaction_timestamp DESC";
+        try (Connection conn = databaseService.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                pharma.model.InventoryTransaction tx = new pharma.model.InventoryTransaction();
+                tx.setTransactionId(rs.getInt("transaction_id"));
+                tx.setMaterialCode(rs.getString("material_code"));
+                tx.setBatchNumber(rs.getString("batch_number"));
+                tx.setLocationCode(rs.getString("location_code"));
+                tx.setTransactionType(rs.getString("transaction_type"));
+                tx.setQuantity(rs.getDouble("quantity"));
+                tx.setReferenceType(rs.getString("reference_type"));
+                tx.setReferenceId(rs.getString("reference_id"));
+                tx.setPerformedBy(rs.getInt("performed_by"));
+                java.sql.Timestamp ts = rs.getTimestamp("transaction_timestamp");
+                if (ts != null) {
+                    tx.setTransactionTimestamp(ts.toLocalDateTime());
+                }
+                tx.setNotes(rs.getString("notes"));
+                list.add(tx);
+            }
+        }
+        return list;
+    }
+
+    public boolean updateQcStatus(String batchNumber, String status) throws SQLException, ClassNotFoundException {
+        String sql = "UPDATE " + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY) + " SET qc_status = ?, available_quantity = CASE WHEN ? = 'APPROVED' THEN quantity - reserved_quantity ELSE 0 END WHERE batch_number = ?";
+        try (Connection conn = databaseService.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, status);
+                stmt.setString(2, status);
+                stmt.setString(3, batchNumber);
+                int rows = stmt.executeUpdate();
+                if (rows > 0) {
+                    ensureStatusLocationConsistency(conn);
+                    conn.commit();
+                    return true;
+                }
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+        return false;
+    }
+
     public record ConsumedStockLine(int stockId, String batchNumber, double quantityConsumed) {
     }
 }

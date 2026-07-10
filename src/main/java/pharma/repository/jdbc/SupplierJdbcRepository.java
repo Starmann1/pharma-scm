@@ -113,9 +113,9 @@ public class SupplierJdbcRepository implements SupplierRepository {
             pstmt.setString(2, supplier.getContactPerson());
             pstmt.setString(3, supplier.getAddress());
             pstmt.setString(4, supplier.getEmail());
-            pstmt.setString(5, supplier.getPhoneNumber());
+            pstmt.setString(5, supplier.getPhone());
             pstmt.setString(6, supplier.getGstin());
-            pstmt.setString(7, supplier.getDrugLicenseNumber());
+            pstmt.setString(7, supplier.getDrugLicenseNo());
             pstmt.setString(8, supplier.getPaymentTerms());
             pstmt.executeUpdate();
             try (ResultSet generatedKeys = pstmt.getGeneratedKeys()) {
@@ -140,9 +140,9 @@ public class SupplierJdbcRepository implements SupplierRepository {
             pstmt.setString(2, supplier.getContactPerson());
             pstmt.setString(3, supplier.getAddress());
             pstmt.setString(4, supplier.getEmail());
-            pstmt.setString(5, supplier.getPhoneNumber());
+            pstmt.setString(5, supplier.getPhone());
             pstmt.setString(6, supplier.getGstin());
-            pstmt.setString(7, supplier.getDrugLicenseNumber());
+            pstmt.setString(7, supplier.getDrugLicenseNo());
             pstmt.setString(8, supplier.getPaymentTerms());
             pstmt.setInt(9, supplier.getSupplierId());
             return pstmt.executeUpdate() > 0;
@@ -173,7 +173,7 @@ public class SupplierJdbcRepository implements SupplierRepository {
                             supplier.setSupplierId(supplierId);
                             supplier.setSupplierName(rs.getString("supplier_name"));
                             supplier.setGstin(rs.getString("gstin"));
-                            supplier.setDrugLicenseNumber(rs.getString("drug_license_number"));
+                            supplier.setDrugLicenseNo(rs.getString("drug_license_number"));
                             supplier.setSupplierStatus(normalizeStatus(rs.getString("supplier_status")));
                         }
                     }
@@ -183,7 +183,7 @@ public class SupplierJdbcRepository implements SupplierRepository {
                     throw new SQLException("Rejected suppliers cannot be approved again.");
                 if (Supplier.STATUS_APPROVED.equalsIgnoreCase(supplier.getSupplierStatus()))
                     throw new SQLException("Supplier is already approved.");
-                if (isBlank(supplier.getDrugLicenseNumber()))
+                if (isBlank(supplier.getDrugLicenseNo()))
                     throw new SQLException("License number required for approval.");
                 if (isBlank(supplier.getGstin()))
                     throw new SQLException("GSTIN required for approval.");
@@ -325,9 +325,9 @@ public class SupplierJdbcRepository implements SupplierRepository {
         supplier.setContactPerson(rs.getString("contact_person"));
         supplier.setAddress(rs.getString("address"));
         supplier.setEmail(rs.getString("email"));
-        supplier.setPhoneNumber(rs.getString("phone_number"));
+        supplier.setPhone(rs.getString("phone_number"));
         supplier.setGstin(rs.getString("gstin"));
-        supplier.setDrugLicenseNumber(rs.getString("drug_license_number"));
+        supplier.setDrugLicenseNo(rs.getString("drug_license_number"));
         supplier.setPaymentTerms(rs.getString("payment_terms"));
         supplier.setSupplierStatus(normalizeStatus(readOptionalString(rs, "supplier_status")));
         supplier.setApprovedAt(readOptionalTimestamp(rs, "approved_at"));

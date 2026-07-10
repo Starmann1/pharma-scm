@@ -1,8 +1,5 @@
 package pharma;
 
-import javax.swing.JOptionPane;
-import javax.swing.SwingUtilities;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,8 +7,8 @@ import pharma.agent.platform.AgentGateway;
 import pharma.agent.platform.AgentPlatformManager;
 import pharma.config.ApplicationServices;
 import pharma.gateway.PharmaGateway;
-import pharma.gui.LoginGUI;
 import pharma.service.DatabaseService;
+import pharma.api.ApiServer;
 
 /**
  * Application entry point — Agentic Pharma SCM (V1: JADE + LangChain4j).
@@ -55,6 +52,8 @@ public class App {
         // ------------------------------------------------------------------
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Shutdown hook triggered — cleaning up resources...");
+            ApiServer.stop();
+            log.info("Javalin API server stopped.");
             if (gateway != null) {
                 gateway.shutdown();
                 log.info("Agent platform stopped via PharmaGateway.shutdown().");
@@ -68,11 +67,7 @@ public class App {
         // ------------------------------------------------------------------
         DatabaseService dbService = new DatabaseService();
         if (!dbService.connect()) {
-            JOptionPane.showMessageDialog(null,
-                    "Failed to connect to the database.\n" +
-                            "Check the configured database server and .env configuration.",
-                    "Fatal Connection Error",
-                    JOptionPane.ERROR_MESSAGE);
+            log.error("Fatal Connection Error: Failed to connect to the database. Check the configured database server and .env configuration.");
             System.exit(1);
         }
         log.info("Database connection established successfully.");
@@ -98,22 +93,21 @@ public class App {
             log.info("All V1 operational agents started successfully.");
         } catch (Exception e) {
             log.error("Failed to start JADE agent platform: {}", e.getMessage(), e);
-            JOptionPane.showMessageDialog(null,
-                    "Failed to start the agent platform:\n" + e.getMessage() +
-                            "\n\nThe application will start in degraded mode (no agent orchestration).",
-                    "Agent Platform Warning",
-                    JOptionPane.WARNING_MESSAGE);
+            log.warn("The application will start in degraded mode (no agent orchestration).");
             // Non-fatal — application continues without agents in degraded mode
         }
 
         // ------------------------------------------------------------------
-        // 6. Launch Swing UI on the Event Dispatch Thread
+        // 5.5 Start the Javalin REST API Server
         // ------------------------------------------------------------------
-        SwingUtilities.invokeLater(() -> {
-            log.info("Launching Swing UI on EDT.");
-            LoginGUI login = new LoginGUI(dbService);
-            login.setVisible(true);
-        });
+        try {
+            ApiServer.start(appServices);
+            log.info("Javalin API server started successfully on port 8080.");
+        } catch (Exception e) {
+            log.error("Failed to start Javalin API server: {}", e.getMessage(), e);
+        }
+
+        log.info("Application is running in headless Web UI mode.");
     }
 
     // -------------------------------------------------------------------------

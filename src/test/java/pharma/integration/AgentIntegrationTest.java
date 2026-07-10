@@ -13,7 +13,6 @@ import pharma.dto.AgentRequestEnvelope;
 import pharma.dto.AgentResponseEnvelope;
 import pharma.service.DatabaseService;
 
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
