@@ -16,6 +16,13 @@ function closeModal(id) {
 window.openModal = openModal;
 window.closeModal = closeModal;
 
+// Click backdrop (outside modal card/window) to dismiss
+document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) {
+        e.target.classList.remove('active');
+    }
+});
+
 // Local State Store
 let currentView = 'overview';
 let stockSubTab = 'current'; // 'current' or 'transactions'
