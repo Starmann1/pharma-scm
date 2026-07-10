@@ -31,6 +31,8 @@ let reportData = [];
 let adminRoles = [];
 let adminSelectedRole = null;
 let adminRolePermissions = null;
+let riskReports = [];
+let aiDecisions = [];
 
 let editTargetMaterialCode = null;
 let editTargetSupplierId = null;
@@ -304,6 +306,10 @@ async function loadViewData(view) {
         await fetchReportData(activeReport);
     } else if (view === 'admin') {
         await fetchAdminRoles();
+    } else if (view === 'risk') {
+        await fetchRiskReports();
+    } else if (view === 'ai') {
+        await fetchAiDecisions();
     } else {
         renderPlaceholderView(view);
     }
@@ -994,6 +1000,160 @@ function loadMockRolePermissions(roleName) {
     };
 }
 
+// 11. Risk & AI REST Callers
+async function fetchRiskReports() {
+    try {
+        const res = await fetch(`${API_BASE}/risk/reports`);
+        if (!res.ok) throw new Error("Failed to load risk reports");
+        riskReports = await res.json();
+        renderRiskView();
+    } catch (err) {
+        console.error("API error fetching risk reports: ", err);
+        loadMockRiskReports();
+        renderRiskView();
+    }
+}
+
+async function triggerRiskScan() {
+    try {
+        const res = await fetch(`${API_BASE}/risk/scan`, { method: 'POST' });
+        if (!res.ok) throw new Error("Failed to run risk scan");
+        riskReports = await res.json();
+        alert("Risk scan completed successfully!");
+        renderRiskView();
+    } catch (err) {
+        alert("Error running risk scan: " + err.message);
+        loadMockRiskReports();
+        alert("Risk scan simulated in mock mode.");
+        renderRiskView();
+    }
+}
+
+async function fetchAiDecisions() {
+    try {
+        const res = await fetch(`${API_BASE}/ai/decisions`);
+        if (!res.ok) throw new Error("Failed to load AI decisions");
+        aiDecisions = await res.json();
+        renderAiView();
+    } catch (err) {
+        console.error("API error fetching AI decisions: ", err);
+        loadMockAiDecisions();
+        renderAiView();
+    }
+}
+
+async function triggerAgentScan() {
+    try {
+        const res = await fetch(`${API_BASE}/ai/scan`, { method: 'POST' });
+        if (!res.ok) throw new Error("Failed to trigger agent scan");
+        aiDecisions = await res.json();
+        alert("Agent coordination run completed successfully!");
+        renderAiView();
+    } catch (err) {
+        alert("Error triggering agent scan: " + err.message);
+        loadMockAiDecisions();
+        // Add a mock coordination decision log if we failed so user can see it in UI
+        const mockCoord = {
+            transactionId: crypto.randomUUID ? crypto.randomUUID() : "tx-" + Date.now(),
+            taskType: "COORDINATION_RUN",
+            status: "PENDING",
+            createdAt: new Date().toISOString(),
+            confidenceScore: 0.82,
+            modelUsed: "gemini-2.0-flash-mock",
+            promptSummary: "COORDINATION_RUN: System-wide stock levels and supplier risk coordination audit.",
+            requiresHumanReview: true,
+            extractedData: {
+                status: "ATTENTION_REQUIRED",
+                explanation: "Critical raw material shortage identified. QC hold release of glycerol is recommended.",
+                actionsRecommended: "Release Glycerol Excipient batch B-GLY-22"
+            }
+        };
+        aiDecisions.unshift(mockCoord);
+        alert("Simulated agent coordination scan successfully.");
+        renderAiView();
+    }
+}
+
+async function approveAiDecision(txId) {
+    try {
+        const res = await fetch(`${API_BASE}/ai/decisions/${txId}/approve`, { method: 'POST' });
+        if (!res.ok) throw new Error("Failed to approve decision");
+        alert("AI Decision approved successfully!");
+        await fetchAiDecisions();
+    } catch (err) {
+        // Mock fallback
+        const decision = aiDecisions.find(d => d.transactionId === txId);
+        if (decision) decision.status = "APPROVED";
+        alert("Approved decision (Mock Mode).");
+        renderAiView();
+    }
+}
+
+async function rejectAiDecision(txId, remarks) {
+    try {
+        const res = await fetch(`${API_BASE}/ai/decisions/${txId}/reject`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ remarks: remarks })
+        });
+        if (!res.ok) throw new Error("Failed to reject decision");
+        alert("AI Decision rejected successfully!");
+        await fetchAiDecisions();
+    } catch (err) {
+        // Mock fallback
+        const decision = aiDecisions.find(d => d.transactionId === txId);
+        if (decision) {
+            decision.status = "REJECTED";
+            decision.rejectionReason = remarks;
+        }
+        alert("Rejected decision (Mock Mode).");
+        renderAiView();
+    }
+}
+
+function loadMockRiskReports() {
+    riskReports = [
+        { reportId: 101, category: "SUPPLIER_RISK", targetIdentifier: "Bayer Chemicals Ltd", riskScore: 0.08, status: "COMPLIANT", remarks: "Late delivery rate is 5.26%. Quality rejection rate is 0.00%." },
+        { reportId: 102, category: "SUPPLIER_RISK", targetIdentifier: "Global API Dist", riskScore: 0.35, status: "WARNING", remarks: "Late delivery rate is 25.00%. Rejection rate is 10.00%." },
+        { reportId: 103, category: "INVENTORY_SHORTAGE", targetIdentifier: "MAT-002", riskScore: 0.50, status: "WARNING", remarks: "Available stock (1000.0) is below safety reorder level (2000.0)." },
+        { reportId: 104, category: "EXPIRY_HAZARD", targetIdentifier: "B-AMX-08", riskScore: 0.80, status: "CRITICAL", remarks: "Batch B-AMX-08 expires on 2026-08-01 (within 1 month)." }
+    ];
+}
+
+function loadMockAiDecisions() {
+    aiDecisions = [
+        {
+            transactionId: "tx-74b8-b403-4e57-a103",
+            taskType: "AI_REASONING",
+            status: "PENDING",
+            createdAt: "2026-07-10T12:00:00Z",
+            confidenceScore: 0.94,
+            modelUsed: "gemini-2.0-flash",
+            promptSummary: "AI_REASONING: Analyze supplier risk for Bayer Chemicals Ltd.",
+            requiresHumanReview: false,
+            extractedData: {
+                explanation: "Bayer Chemicals exhibits very low operational risk. Late delivery rate is within optimal bounds.",
+                riskScore: 0.08,
+                recommendedStatus: "APPROVED"
+            }
+        },
+        {
+            transactionId: "tx-34ef-44b8-b403-4e57",
+            taskType: "AI_REASONING",
+            status: "PENDING",
+            createdAt: "2026-07-10T12:05:00Z",
+            confidenceScore: 0.68,
+            modelUsed: "gemini-2.0-flash",
+            promptSummary: "AI_REASONING: Decide if Glycerol Excipient batch B-GLY-22 should be released despite minor visual check warning.",
+            requiresHumanReview: true,
+            extractedData: {
+                explanation: "Assay content is optimal at 99.4%, but moisture content checks logged minor variances. Requires QA manager verification.",
+                recommendedAction: "QA release with manual supervisor signature"
+            }
+        }
+    ];
+}
+
 /* --- VIEW RENDERERS --- */
 
 // 0. Placeholder View for Unimplemented Modules
@@ -1012,6 +1172,208 @@ function renderPlaceholderView(view) {
             <button class="btn-primary" onclick="navigateToView('overview')">Return to Overview</button>
         </div>
     `;
+}
+
+// 12. Risk Analysis View Renderer
+function renderRiskView() {
+    // Calculate overall risk metrics
+    const maxRisk = riskReports.length > 0 ? Math.max(...riskReports.map(r => r.riskScore)) : 0;
+    const avgRisk = riskReports.length > 0 ? (riskReports.reduce((sum, r) => sum + r.riskScore, 0) / riskReports.length) : 0;
+    
+    // Scale dial rotation: risk is 0 to 1, needle maps to -90deg to +90deg
+    const needleDeg = (maxRisk * 180) - 90;
+
+    let severityText = "LOW RISK";
+    let severityColor = "var(--status-green)";
+    if (maxRisk >= 0.75) {
+        severityText = "CRITICAL RISK";
+        severityColor = "var(--status-red)";
+    } else if (maxRisk >= 0.3) {
+        severityText = "MEDIUM RISK";
+        severityColor = "var(--status-orange)";
+    }
+
+    const tableRows = riskReports.map(r => {
+        let statusBadge = "badge-success";
+        if (r.status === 'CRITICAL') statusBadge = "badge-danger";
+        else if (r.status === 'WARNING') statusBadge = "badge-warning";
+        return `
+            <tr>
+                <td><code>${r.category}</code></td>
+                <td><strong>${r.targetIdentifier}</strong></td>
+                <td><span style="font-weight:600; color:${r.riskScore >= 0.75 ? 'var(--status-red)' : r.riskScore >= 0.3 ? 'var(--status-orange)' : 'var(--status-green)'}">${(r.riskScore * 100).toFixed(0)}%</span></td>
+                <td><span class="badge ${statusBadge}">${r.status}</span></td>
+                <td><span style="font-size: 12px; color: var(--text-secondary);">${r.remarks}</span></td>
+            </tr>
+        `;
+    }).join('');
+
+    mainViewport.innerHTML = `
+        <div class="view-header">
+            <h1 class="view-title">SCM Operational Risk Auditing</h1>
+            <button class="btn-primary" id="triggerRiskScanBtn">⚡ Trigger Risk Scan</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 24px; margin-bottom: 24px; align-items: stretch;">
+            <!-- Gauge Card -->
+            <div class="card-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                <div class="risk-gauge-container">
+                    <div class="risk-gauge-dial"></div>
+                    <div class="risk-gauge-mask">
+                        <span class="risk-gauge-value">${(maxRisk * 100).toFixed(0)}%</span>
+                        <span class="risk-gauge-label">${severityText}</span>
+                    </div>
+                    <div class="risk-gauge-needle" style="transform: translateX(-50%) rotate(${needleDeg}deg); background-color: ${severityColor};"></div>
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                    Average system risk score: <strong> ${(avgRisk * 100).toFixed(1)}%</strong>
+                </div>
+            </div>
+
+            <!-- Risk Mitigation Dashboard -->
+            <div class="card-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+                <h3 style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Recommended Risk Mitigation Actions</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    ${maxRisk >= 0.75 ? `
+                        <div style="background: rgba(220, 53, 69, 0.1); border-left: 4px solid var(--status-red); padding: 12px; border-radius: 4px;">
+                            <strong style="color: var(--status-red); font-size: 13px;">⚠️ CRITICAL: EXPIRY OR CAPACITY THREAT DETECTED</strong>
+                            <p style="font-size: 12px; color: var(--text-primary); margin-top: 4px; margin-bottom: 0;">Expiring batch found in warehouse quarantine. Coordinate immediate QA disposition or re-testing.</p>
+                        </div>
+                    ` : ''}
+                    ${avgRisk >= 0.2 ? `
+                        <div style="background: rgba(255, 193, 7, 0.1); border-left: 4px solid var(--status-orange); padding: 12px; border-radius: 4px;">
+                            <strong style="color: var(--status-orange); font-size: 13px;">⚡ WARNING: MATERIAL DEFICIT RISK</strong>
+                            <p style="font-size: 12px; color: var(--text-primary); margin-top: 4px; margin-bottom: 0;">Stock levels for active materials are running close to safety reorder levels. Check the Purchase Orders panel to generate supply orders.</p>
+                        </div>
+                    ` : ''}
+                    <div style="background: rgba(40, 167, 69, 0.1); border-left: 4px solid var(--status-green); padding: 12px; border-radius: 4px;">
+                        <strong style="color: var(--status-green); font-size: 13px;">✅ COMPLIANCE STATUS NORMAL</strong>
+                        <p style="font-size: 12px; color: var(--text-primary); margin-top: 4px; margin-bottom: 0;">All other supplier scoring and audit schedules are within optimal performance limits.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Risk Reports Table -->
+        <div class="card-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px;">
+            <h3 style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px;">Active Risk Indicators</h3>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Target Identifier</th>
+                            <th>Threat Level</th>
+                            <th>Status</th>
+                            <th>Audit Notes / Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows || '<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">No risk indicators found</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('triggerRiskScanBtn').addEventListener('click', triggerRiskScan);
+}
+
+// 13. AI Decision View Renderer
+function renderAiView() {
+    const decisionCards = aiDecisions.map(d => {
+        let confColor = "var(--status-green)";
+        if (d.confidenceScore < 0.75) confColor = "var(--status-orange)";
+        if (d.confidenceScore < 0.5) confColor = "var(--status-red)";
+
+        const displayData = typeof d.extractedData === 'object' ? JSON.stringify(d.extractedData, null, 2) : String(d.extractedData);
+        const explanation = d.extractedData && d.extractedData.explanation ? d.extractedData.explanation : d.promptSummary;
+
+        let statusText = d.status || 'PENDING';
+        let badgeClass = 'badge-warning';
+        if (statusText === 'APPROVED') badgeClass = 'badge-success';
+        if (statusText === 'REJECTED') badgeClass = 'badge-danger';
+
+        let actionButtons = '';
+        if (statusText === 'PENDING' || d.requiresHumanReview) {
+            actionButtons = `
+                <div class="ai-decision-actions">
+                    <button class="btn-success approve-decision-btn" data-id="${d.transactionId}" style="background-color: var(--status-green) !important; color: white !important; font-size:11px; padding: 6px 12px;">Approve</button>
+                    <button class="btn-danger reject-decision-btn" data-id="${d.transactionId}" style="background-color: var(--status-red) !important; color: white !important; font-size:11px; padding: 6px 12px;">Reject</button>
+                </div>
+            `;
+        } else if (statusText === 'REJECTED' && d.rejectionReason) {
+            actionButtons = `
+                <div style="font-size: 11px; color: var(--status-red); font-style: italic; margin-top: 8px; text-align: right;">
+                    Rejection remarks: "${d.rejectionReason}"
+                </div>
+            `;
+        }
+
+        return `
+            <div class="ai-decision-card">
+                <div class="ai-decision-header">
+                    <div>
+                        <span class="ai-decision-title">Transaction ID: <code>${d.transactionId}</code></span>
+                        <span class="badge ${badgeClass}" style="margin-left: 10px;">${statusText}</span>
+                    </div>
+                    <div class="ai-decision-confidence">
+                        <span>Confidence: <strong>${(d.confidenceScore * 100).toFixed(0)}%</strong></span>
+                        <div class="ai-confidence-bar">
+                            <div class="ai-confidence-fill" style="width: ${(d.confidenceScore * 100).toFixed(0)}%; background-color: ${confColor};"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ai-decision-body">
+                    <p style="margin-bottom: 8px; font-weight: 500;">Explanation / Summary:</p>
+                    <div style="background-color: var(--bg-elevated); border: 1px solid var(--border-color); padding: 12px; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; color: var(--text-primary); max-height: 150px; overflow-y: auto;">${explanation}\n\n${displayData}</div>
+                </div>
+                <div class="ai-decision-meta">
+                    <span>Model: <code>${d.modelUsed || 'gemini-2.0-flash'}</code></span>
+                    <span>Created: <code>${d.createdAt ? new Date(d.createdAt).toLocaleString() : new Date().toLocaleString()}</code></span>
+                    <span>Review Required: <strong>${d.requiresHumanReview ? 'YES' : 'NO'}</strong></span>
+                </div>
+                ${actionButtons}
+            </div>
+        `;
+    }).join('');
+
+    mainViewport.innerHTML = `
+        <div class="view-header">
+            <h1 class="view-title">AI Gateway Decision Control</h1>
+            <button class="btn-primary" id="triggerAgentScanBtn">🤖 Trigger Agent Coordination Scan</button>
+        </div>
+
+        <div style="margin-bottom: 24px; font-size: 13px; color: var(--text-secondary); line-height: 1.5; background: rgba(0, 242, 254, 0.05); border: 1px solid var(--accent-teal-glow); padding: 16px; border-radius: 6px;">
+            This module traces decisions generated by autonomous JADE agents (Compliance, Inventory, Supplier Risk, AI Reasoning) operating over the pharma supply chain database. Decisions with confidence scores below 75% require mandatory manual human approval.
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${decisionCards || '<div class="card-container" style="text-align: center; color: var(--text-secondary); padding: 40px;">No decision logs recorded.</div>'}
+        </div>
+    `;
+
+    document.getElementById('triggerAgentScanBtn').addEventListener('click', triggerAgentScan);
+
+    document.querySelectorAll('.approve-decision-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.getAttribute('data-id');
+            approveAiDecision(id);
+        });
+    });
+
+    document.querySelectorAll('.reject-decision-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.getAttribute('data-id');
+            const remarks = prompt("Please enter the reason for rejecting this AI decision:");
+            if (remarks === null) return;
+            if (remarks.trim() === '') {
+                alert("Rejection remarks are required.");
+                return;
+            }
+            rejectAiDecision(id, remarks.trim());
+        });
+    });
 }
 
 // 9. Reports View Renderers
