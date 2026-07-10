@@ -828,12 +828,14 @@
         <form id="createGrnForm">
           <input type="hidden" id="grnPoId">
           <div class="modal-body">
-            <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px; opacity: 0.8;">
+            <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px;">
               <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                <label>PO Number</label>
-                <input type="text" id="grnPoNumberDisplay" readonly style="opacity: 0.6; cursor: not-allowed;">
+                <label for="grnPoSelect">Select Purchase Order *</label>
+                <select id="grnPoSelect" required>
+                  <option value="">-- Choose Pending PO --</option>
+                </select>
               </div>
-              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0; opacity: 0.8;">
                 <label>Supplier</label>
                 <input type="text" id="grnSupplierDisplay" readonly style="opacity: 0.6; cursor: not-allowed;">
               </div>

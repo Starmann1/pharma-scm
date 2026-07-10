@@ -2042,7 +2042,9 @@ function renderPurchaseOrdersView(data) {
                     const fullPo = await res.json();
                     
                     document.getElementById('grnPoId').value = fullPo.id;
-                    document.getElementById('grnPoNumberDisplay').value = fullPo.id;
+                    const select = document.getElementById('grnPoSelect');
+                    select.innerHTML = `<option value="${fullPo.id}">PO #${fullPo.id} - ${fullPo.supplierName}</option>`;
+                    select.value = fullPo.id;
                     document.getElementById('grnSupplierDisplay').value = fullPo.supplierName;
                     
                     const grnItemsList = document.getElementById('grnItemsList');
@@ -2148,28 +2150,60 @@ function renderGRNView(data) {
             console.error("Error reloading POs: ", e);
         }
 
-        const pending = purchaseOrders.filter(p => p.status !== 'Received');
+        const pending = purchaseOrders.filter(p => p.status !== 'Received' && p.status !== 'Draft');
         if (pending.length === 0) {
             alert("No pending purchase orders available for receipt.");
             return;
         }
 
-        const choice = prompt(`Select a Purchase Order ID from the following pending list:\n\n${pending.map(p => `${p.id}: ${p.supplierName}`).join('\n')}`);
-        
-        if (choice) {
-            const poId = parseInt(choice.trim());
-            const selectedPo = pending.find(p => p.id === poId);
-            if (selectedPo) {
-                document.getElementById('grnPoId').value = selectedPo.id;
-                document.getElementById('grnPoNumberDisplay').value = selectedPo.id;
-                document.getElementById('grnSupplierDisplay').value = selectedPo.supplierName;
-                
-                const grnItemsList = document.getElementById('grnItemsList');
-                grnItemsList.innerHTML = `<div class="grn-item-header"><span>Material Code</span><span>PO Qty</span><span>Received Qty *</span><span>Batch *</span><span>Expiry Date *</span></div>`;
-                
+        // Populate PO select dropdown
+        const select = document.getElementById('grnPoSelect');
+        select.innerHTML = '<option value="">-- Choose Pending PO --</option>';
+        pending.forEach(po => {
+            const opt = document.createElement('option');
+            opt.value = po.id;
+            opt.textContent = `PO #${po.id} - ${po.supplierName}`;
+            select.appendChild(opt);
+        });
+
+        // Reset values
+        document.getElementById('grnPoId').value = '';
+        document.getElementById('grnSupplierDisplay').value = '';
+        document.getElementById('grnItemsList').innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 24px;">Please select a Purchase Order from the dropdown above to load items.</div>';
+
+        openModal('createGrnModal');
+    });
+
+    // Handle PO selection change inside modal
+    document.getElementById('grnPoSelect').addEventListener('change', async (e) => {
+        const select = e.target;
+        const val = select.value;
+        const grnItemsList = document.getElementById('grnItemsList');
+        const grnSupplierDisplay = document.getElementById('grnSupplierDisplay');
+        const grnPoId = document.getElementById('grnPoId');
+
+        if (!val) {
+            grnPoId.value = '';
+            grnSupplierDisplay.value = '';
+            grnItemsList.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 24px;">Please select a Purchase Order from the dropdown above to load items.</div>';
+            return;
+        }
+
+        const poId = parseInt(val);
+        const selectedPo = purchaseOrders.find(p => p.id === poId);
+        if (selectedPo) {
+            grnPoId.value = selectedPo.id;
+            grnSupplierDisplay.value = selectedPo.supplierName;
+
+            grnItemsList.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 24px;">Loading purchase order items...</div>';
+
+            try {
                 const itemsRes = await fetch(`${API_BASE}/purchase-orders/${selectedPo.id}/items`);
+                if (!itemsRes.ok) throw new Error("Failed to load PO items");
                 const poItems = await itemsRes.json();
-                
+
+                grnItemsList.innerHTML = `<div class="grn-item-header"><span>Material Code</span><span>PO Qty</span><span>Received Qty *</span><span>Batch *</span><span>Expiry Date *</span></div>`;
+
                 poItems.forEach((item, index) => {
                     const row = document.createElement('div');
                     row.className = 'grn-item-row-inputs';
@@ -2187,9 +2221,8 @@ function renderGRNView(data) {
                     `;
                     grnItemsList.appendChild(row);
                 });
-                openModal('createGrnModal');
-            } else {
-                alert("Invalid PO ID selected.");
+            } catch (err) {
+                grnItemsList.innerHTML = `<div style="color: var(--status-red); text-align: center; padding: 24px;">Error: ${err.message}</div>`;
             }
         }
     });
