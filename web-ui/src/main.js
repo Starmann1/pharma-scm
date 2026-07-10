@@ -4,6 +4,18 @@ import './style.css';
 const API_BASE = "http://localhost:8080/api";
 const SESSION_STORAGE_KEY = "pharmaScm.authSession";
 
+// Global Modal Helpers
+function openModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.add('active');
+}
+function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.remove('active');
+}
+window.openModal = openModal;
+window.closeModal = closeModal;
+
 // Local State Store
 let currentView = 'overview';
 let stockSubTab = 'current'; // 'current' or 'transactions'
