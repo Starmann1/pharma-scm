@@ -706,23 +706,24 @@ tr:hover td {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    background-color: rgba(15, 17, 21, 0.6) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
     opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease-in-out;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
 .modal-overlay.active {
     opacity: 1;
-    pointer-events: auto;
+    visibility: visible;
 }
 
-.modal-window {
+.modal-card, .modal-window {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -1769,12 +1770,6 @@ tbody tr:hover {
 }
 
 /* Modal slide-up animations & backdrop blur */
-.modal-overlay {
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    background-color: rgba(15, 17, 21, 0.6) !important;
-    transition: opacity 0.3s ease;
-}
 
 .modal-card, .modal-window {
     transform: scale(0.9) translateY(20px);

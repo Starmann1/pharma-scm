@@ -10,6 +10,44 @@
     <title>Pharma SCM v1.1 - Dashboard</title>
   </head>
   <body class="login-active">
+    <script>
+      window.addEventListener('error', function(e) {
+        var errorDiv = document.createElement('div');
+        errorDiv.style.position = 'fixed';
+        errorDiv.style.top = '10px';
+        errorDiv.style.left = '10px';
+        errorDiv.style.width = 'calc(100vw - 20px)';
+        errorDiv.style.background = '#ef4444';
+        errorDiv.style.color = '#ffffff';
+        errorDiv.style.padding = '16px';
+        errorDiv.style.zIndex = '999999';
+        errorDiv.style.fontFamily = 'monospace';
+        errorDiv.style.fontSize = '14px';
+        errorDiv.style.whiteSpace = 'pre-wrap';
+        errorDiv.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.5)';
+        errorDiv.style.borderRadius = '8px';
+        errorDiv.innerHTML = '<strong>[Antigravity Error Boundary] Runtime Error:</strong><br>' + e.message + '<br>at ' + e.filename + ':' + e.lineno + ':' + e.colno + '<br><br>Stack:<br>' + (e.error ? e.error.stack : 'No stack trace');
+        document.body.appendChild(errorDiv);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var errorDiv = document.createElement('div');
+        errorDiv.style.position = 'fixed';
+        errorDiv.style.top = '10px';
+        errorDiv.style.left = '10px';
+        errorDiv.style.width = 'calc(100vw - 20px)';
+        errorDiv.style.background = '#f59e0b';
+        errorDiv.style.color = '#ffffff';
+        errorDiv.style.padding = '16px';
+        errorDiv.style.zIndex = '999999';
+        errorDiv.style.fontFamily = 'monospace';
+        errorDiv.style.fontSize = '14px';
+        errorDiv.style.whiteSpace = 'pre-wrap';
+        errorDiv.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.5)';
+        errorDiv.style.borderRadius = '8px';
+        errorDiv.innerHTML = '<strong>[Antigravity Error Boundary] Unhandled Rejection:</strong><br>' + e.reason + '<br><br>Stack:<br>' + (e.reason && e.reason.stack ? e.reason.stack : 'No stack trace');
+        document.body.appendChild(errorDiv);
+      });
+    </script>
     <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
       <div class="login-ambient login-ambient-one"></div>
       <div class="login-ambient login-ambient-two"></div>
