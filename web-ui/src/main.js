@@ -262,11 +262,35 @@ function initRouter() {
 
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.getElementById('appSidebar');
-    sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
-        sidebarToggle.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
-        sidebarToggle.title = sidebar.classList.contains('collapsed') ? 'Expand Menu' : 'Collapse Menu';
-    });
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            sidebarToggle.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
+            sidebarToggle.title = sidebar.classList.contains('collapsed') ? 'Expand Menu' : 'Collapse Menu';
+        });
+    }
+
+    const themeCheckbox = document.getElementById('themeCheckbox');
+    if (themeCheckbox) {
+        const storedTheme = localStorage.getItem('theme') || 'dark';
+        if (storedTheme === 'light') {
+            document.body.classList.add('light-theme');
+            themeCheckbox.checked = false;
+        } else {
+            document.body.classList.remove('light-theme');
+            themeCheckbox.checked = true;
+        }
+
+        themeCheckbox.addEventListener('change', () => {
+            if (themeCheckbox.checked) {
+                document.body.classList.remove('light-theme');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.body.classList.add('light-theme');
+                localStorage.setItem('theme', 'light');
+            }
+        });
+    }
 }
 
 function navigateToView(view) {
