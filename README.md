@@ -72,6 +72,97 @@ graph TD
 
 The application runs a specialized society of JADE agents, each with distinct responsibilities and behaviors.
 
+### JADE Platform Container Architecture
+
+```mermaid
+flowchart TB
+    subgraph UI ["Client Layer"]
+        WebConsole["Premium Web UI (Vite + JS)"]
+    end
+
+    subgraph Gateway ["Abstraction Gateway"]
+        AgentGateway["AgentGateway (PharmaGateway Interface)"]
+    end
+
+    subgraph JADE ["JADE Main Container"]
+        direction TB
+        Coord["CoordinatorAgent<br/>(Central ACL Router)"]
+        
+        subgraph Operations ["Operational Agents"]
+            Proc["ProcurementWorkflowAgent"]
+            Supp["SupplierAgent (Multiple)"]
+            Invent["InventoryAgent"]
+            Prod["ProductionAgent"]
+            QA["QAAgent"]
+            Comp["ComplianceAgent"]
+        end
+
+        subgraph Cognitive ["Cognitive AI Agents"]
+            Risk["RiskAnalysisAgent"]
+            AIReasoning["AIReasoningAgent"]
+            Knowledge["KnowledgeAgent (RAG)"]
+        end
+    end
+
+    subgraph CoreServices ["Service & Persistence Layer"]
+        DBService["DatabaseService / JDBC Repositories"]
+        DB[("PostgreSQL / MySQL")]
+    end
+
+    subgraph AIPlatform ["Google Gemini AI"]
+        Gemini["Gemini 2.0 Flash / Text-Embedding"]
+    end
+
+    %% Communications & Interactions
+    WebConsole <-->|HTTP REST / SSE| AgentGateway
+    AgentGateway <-->|JADE ACL Messages| Coord
+    Coord <-->|ACL Message Routing| Operations & Cognitive
+    
+    %% Agent to Supplier Contract Net
+    Proc <-->|FIPA Contract-Net ACL| Supp
+    
+    %% Service Calls
+    Operations & Cognitive -->|Method Calls / @Tool| DBService
+    DBService -->|SQL Query| DB
+    
+    %% AI Integrations
+    AIReasoning & Knowledge <-->|LangChain4j| Gemini
+```
+
+### JADE Agent Communications, Actions, & Behaviors
+
+```mermaid
+sequenceDiagram
+    autonumber
+    box Gray Procurement & Supplier Negotiation (Contract-Net Protocol)
+    participant PWA as ProcurementWorkflowAgent
+    participant SA as SupplierAgent
+    end
+    box LightBlue Quality Assurance & Cognitive Reasoning
+    participant QA as QAAgent
+    participant AI as AIReasoningAgent
+    participant DB as Database/Services
+    end
+
+    Note over PWA: LowStockMonitorBehaviour<br/>(TickerBehaviour every 15s)
+    PWA->>SA: JADE ACL: CFP (Call For Proposal)
+    Note over SA: ContractNetResponderBehaviour<br/>(Evaluate capacity & price rules)
+    SA-->>PWA: JADE ACL: PROPOSE (Lead time & unit cost)
+    Note over PWA: ContractNetInitiatorBehaviour<br/>(Select proposal & rank suppliers)
+    PWA->>SA: JADE ACL: ACCEPT_PROPOSAL
+    Note over SA: Log Purchase Order & update ledger
+    SA-->>PWA: JADE ACL: INFORM (PO confirmation DTO)
+
+    Note over QA: Receive Batch manufactured (IN_PRODUCTION)
+    QA->>AI: JADE ACL: REQUEST (Verify deviation hazard)
+    Note over AI: AIReasoningBehaviour<br/>(Execute Gemini tool-calling)
+    AI->>DB: Read Inventory / Supplier quality scorecard
+    DB-->>AI: Return SQL query records
+    Note over AI: Run RAG against SOPs & calculate confidence
+    AI-->>QA: JADE ACL: INFORM (Approval decision payload)
+```
+
+
 | Agent Name | Primary Responsibility | AI / LLM Capabilities |
 |------------|------------------------|------------------------|
 | **CoordinatorAgent** | Main entry point for GUI requests. Routes messages via ACL to specialized agents. | None (Deterministic routing) |
