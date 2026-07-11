@@ -8,5 +8,11 @@
   "chatgpt.runCodexInWindowsSubsystemForLinux": false,
   "java.debug.settings.onBuildFailureProceed": true,
   "java.configuration.updateBuildConfiguration": "interactive",
-  "java.compile.nullAnalysis.mode": "automatic"
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "C:\\Program Files\\Java\\jdk-24"
+    }
+  ]
 }
