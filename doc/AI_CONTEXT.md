@@ -14,7 +14,7 @@ Upstream Pharmaceutical Manufacturing Operations. Focuses strictly on:
 - Compliance and Auditability
 
 ## Technology Stack
-- Java 21
+- Java 24
 - Java Swing / AWT
 - MySQL 8+
 - JDBC & HikariCP

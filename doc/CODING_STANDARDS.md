@@ -1,7 +1,7 @@
 # Coding Standards
 
 ## 1. Java Standards
-- **Version**: Java 21 features (Records, Switch Expressions, Pattern Matching, Virtual Threads) should be utilized where appropriate.
+- **Version**: Java 24 features (Records, Switch Expressions, Pattern Matching, Virtual Threads) should be utilized where appropriate.
 - **Formatting**: Use standard Google Java Style formatting (4 spaces for indentation).
 - **Immutability**: Prefer immutable objects. Use Java `record` types for DTOs when possible.
 - **Optionals**: Return `Optional<T>` from repository and service methods instead of `null`. Do not use `Optional` as method arguments.

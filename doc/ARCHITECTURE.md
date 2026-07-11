@@ -138,7 +138,7 @@ Version 1 must preserve the reusable application core so Version 2 can reuse the
 
 | Area | Technology |
 | --- | --- |
-| Language | Java 21 |
+| Language | Java 24 |
 | Desktop UI | Java Swing / AWT |
 | Build | Maven |
 | Database | MySQL 8+ |

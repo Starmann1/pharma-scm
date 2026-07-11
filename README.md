@@ -1,6 +1,6 @@
 # Agentic Pharmaceutical Supply Chain Management System (v1.1)
 
-[![Java Version](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/)
+[![Java Version](https://img.shields.io/badge/Java-24-blue.svg)](https://www.oracle.com/java/)
 [![Build Tool](https://img.shields.io/badge/Build-Maven-orange.svg)](https://maven.apache.org/)
 [![Database](https://img.shields.io/badge/Database-MySQL_8+_|_PostgreSQL_15+-blue.svg)]()
 [![Architecture](https://img.shields.io/badge/Architecture-Multi--Agent_System-green.svg)]()
@@ -203,7 +203,7 @@ All detailed technical documentation has been organized under the `doc/` directo
 
 ## 🛠️ Technology Stack
 
-*   **Runtime Environment**: Java Development Kit (JDK) 21
+*   **Runtime Environment**: Java Development Kit (JDK) 24
 *   **GUI Library**: Premium Web Console (Vite / Vanilla JS / Vanilla CSS / Light-Dark Themes)
 *   **Database**: MySQL 8.0+ AND PostgreSQL 15+
 *   **Connection Pool & Access**: HikariCP & Native JDBC (Dialect-Aware)
@@ -217,7 +217,7 @@ All detailed technical documentation has been organized under the `doc/` directo
 ## ⚙️ Setup and Installation
 
 ### 1. Prerequisites
-- **JDK 21** (Ensure `JAVA_HOME` is set up correctly)
+- **JDK 24** (Ensure `JAVA_HOME` is set up correctly)
 - **Maven 3.9+**
 - **MySQL Server 8+** OR **PostgreSQL 15+**
 
