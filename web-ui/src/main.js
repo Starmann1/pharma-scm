@@ -237,6 +237,40 @@ function applyUserToShell() {
     userName.textContent = displayName;
     userRole.textContent = currentUser.roleName || 'Authorized User';
     userAvatar.textContent = getInitials(displayName);
+
+    // Hide/show sidebar links based on permissions
+    const permissions = currentUser.permissions || [];
+    const menuPermissionMap = {
+        'menu-overview': [],
+        'menu-materials': ['VIEW_DRUG'],
+        'menu-inventory': ['VIEW_INVENTORY'],
+        'menu-locations': ['MANAGE_LOCATIONS'],
+        'menu-suppliers': ['VIEW_SUPPLIERS', 'MANAGE_SUPPLIERS'],
+        'menu-po': ['VIEW_PO', 'CREATE_PO'],
+        'menu-grn': ['RECEIVE_PO', 'CREATE_GRN'],
+        'menu-production': ['VIEW_BOM', 'CREATE_PRODUCTION_ORDER', 'MANAGE_BOM'],
+        'menu-compliance': ['VIEW_QA_REPORTS', 'UPDATE_QC_STATUS', 'APPROVE_QA', 'REJECT_QA'],
+        'menu-reports': ['VIEW_REPORTS'],
+        'menu-risk': ['VIEW_REPORTS'],
+        'menu-ai': ['MANAGE_ROLES'],
+        'menu-admin': ['MANAGE_ROLES']
+    };
+
+    Object.entries(menuPermissionMap).forEach(([menuId, reqPerms]) => {
+        const btn = document.getElementById(menuId);
+        if (btn) {
+            if (reqPerms.length === 0) {
+                btn.style.display = '';
+            } else {
+                const hasPermission = reqPerms.some(p => permissions.includes(p));
+                if (hasPermission) {
+                    btn.style.display = '';
+                } else {
+                    btn.style.display = 'none';
+                }
+            }
+        }
+    });
 }
 
 function getInitials(name) {
@@ -246,6 +280,13 @@ function getInitials(name) {
         .slice(0, 2)
         .map(part => part.charAt(0).toUpperCase())
         .join('') || '--';
+}
+
+function hasAnyPermission(...reqPerms) {
+    if (!currentUser || !currentUser.permissions) return false;
+    // Admin has superuser status
+    if (currentUser.permissions.includes('MANAGE_ROLES')) return true;
+    return reqPerms.some(p => currentUser.permissions.includes(p));
 }
 
 function startAuthenticatedShell() {
@@ -314,6 +355,36 @@ function initRouter() {
 
 function navigateToView(view) {
     const target = menuItems.find(item => item.view === view) || menuItems[0];
+
+    // Check permissions before allowing navigation
+    const permissions = currentUser?.permissions || [];
+    const menuPermissionMap = {
+        'overview': [],
+        'materials': ['VIEW_DRUG'],
+        'inventory': ['VIEW_INVENTORY'],
+        'locations': ['MANAGE_LOCATIONS'],
+        'suppliers': ['VIEW_SUPPLIERS', 'MANAGE_SUPPLIERS'],
+        'po': ['VIEW_PO', 'CREATE_PO'],
+        'grn': ['RECEIVE_PO', 'CREATE_GRN'],
+        'production': ['VIEW_BOM', 'CREATE_PRODUCTION_ORDER', 'MANAGE_BOM'],
+        'compliance': ['VIEW_QA_REPORTS', 'UPDATE_QC_STATUS', 'APPROVE_QA', 'REJECT_QA'],
+        'reports': ['VIEW_REPORTS'],
+        'risk': ['VIEW_REPORTS'],
+        'ai': ['MANAGE_ROLES'],
+        'admin': ['MANAGE_ROLES']
+    };
+
+    const reqPerms = menuPermissionMap[target.view] || [];
+    if (reqPerms.length > 0) {
+        const hasPermission = reqPerms.some(p => permissions.includes(p));
+        if (!hasPermission) {
+            console.warn(`Access denied to view: ${target.view}. Redirecting to overview.`);
+            if (view !== 'overview') {
+                navigateToView('overview');
+            }
+            return;
+        }
+    }
 
     menuItems.forEach(item => {
         const menuNode = document.getElementById(item.id);
@@ -1883,10 +1954,12 @@ function renderAdminView() {
 
 // 4. Storage Locations View
 function renderLocationsView(data) {
+    const canEdit = hasAnyPermission('MANAGE_LOCATIONS');
+
     mainViewport.innerHTML = `
         <div class="view-header">
             <h1 class="view-title">Storage Locations</h1>
-            <button class="btn-primary" id="openAddLocationBtn">+ Add Location</button>
+            ${canEdit ? '<button class="btn-primary" id="openAddLocationBtn">+ Add Location</button>' : ''}
         </div>
 
         <div class="card-container">
@@ -1898,7 +1971,7 @@ function renderLocationsView(data) {
                             <th>Location Name</th>
                             <th>Description</th>
                             <th>Capacity (pallets)</th>
-                            <th>Actions</th>
+                            ${canEdit ? '<th>Actions</th>' : ''}
                         </tr>
                     </thead>
                     <tbody id="locationsTableBody"></tbody>
@@ -1911,7 +1984,7 @@ function renderLocationsView(data) {
     bodyNode.innerHTML = '';
 
     if (data.length === 0) {
-        bodyNode.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No locations defined. Add a location to get started.</td></tr>`;
+        bodyNode.innerHTML = `<tr><td colspan="${canEdit ? 5 : 4}" style="text-align: center; color: var(--text-secondary);">No locations defined. Add a location to get started.</td></tr>`;
     } else {
         data.forEach(item => {
             const tr = document.createElement('tr');
@@ -1920,48 +1993,54 @@ function renderLocationsView(data) {
                 <td>${item.locationName}</td>
                 <td>${item.description || '-'}</td>
                 <td>${item.capacity}</td>
+                ${canEdit ? `
                 <td>
                     <div class="action-group">
                         <button class="action-btn edit-location-btn" data-code="${item.locationCode}">✏️</button>
                         <button class="action-btn delete-location-btn" data-code="${item.locationCode}">🗑️</button>
                     </div>
-                </td>
+                </td>` : ''}
             `;
             bodyNode.appendChild(tr);
         });
     }
 
-    document.getElementById('openAddLocationBtn').addEventListener('click', () => openModal('addLocationModal'));
+    if (canEdit) {
+        document.getElementById('openAddLocationBtn').addEventListener('click', () => openModal('addLocationModal'));
 
-    document.querySelectorAll('.edit-location-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const code = e.currentTarget.getAttribute('data-code');
-            const loc = locations.find(l => l.locationCode === code);
-            if (loc) {
-                document.getElementById('editLocCode').value = loc.locationCode;
-                document.getElementById('editLocCodeDisplay').value = loc.locationCode;
-                document.getElementById('editLocName').value = loc.locationName;
-                document.getElementById('editLocDesc').value = loc.description || '';
-                document.getElementById('editLocCapacity').value = loc.capacity;
-                openModal('editLocationModal');
-            }
+        document.querySelectorAll('.edit-location-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const code = e.currentTarget.getAttribute('data-code');
+                const loc = locations.find(l => l.locationCode === code);
+                if (loc) {
+                    document.getElementById('editLocCode').value = loc.locationCode;
+                    document.getElementById('editLocCodeDisplay').value = loc.locationCode;
+                    document.getElementById('editLocName').value = loc.locationName;
+                    document.getElementById('editLocDesc').value = loc.description || '';
+                    document.getElementById('editLocCapacity').value = loc.capacity;
+                    openModal('editLocationModal');
+                }
+            });
         });
-    });
 
-    document.querySelectorAll('.delete-location-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const code = e.currentTarget.getAttribute('data-code');
-            deleteLocation(code);
+        document.querySelectorAll('.delete-location-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const code = e.currentTarget.getAttribute('data-code');
+                deleteLocation(code);
+            });
         });
-    });
+    }
 }
 
 // 5. Purchase Orders View
 function renderPurchaseOrdersView(data) {
+    const canCreate = hasAnyPermission('CREATE_PO');
+    const canReceive = hasAnyPermission('RECEIVE_PO', 'CREATE_GRN');
+
     mainViewport.innerHTML = `
         <div class="view-header">
             <h1 class="view-title">Purchase Orders</h1>
-            <button class="btn-primary" id="openAddPoBtn">+ Create PO</button>
+            ${canCreate ? '<button class="btn-primary" id="openAddPoBtn">+ Create PO</button>' : ''}
         </div>
 
         <div class="card-container">
@@ -1975,7 +2054,7 @@ function renderPurchaseOrdersView(data) {
                             <th>Expected Date</th>
                             <th>Total Cost</th>
                             <th>Status</th>
-                            <th>Actions</th>
+                            ${(canCreate || canReceive) ? '<th>Actions</th>' : ''}
                         </tr>
                     </thead>
                     <tbody id="poTableBody"></tbody>
@@ -1988,7 +2067,7 @@ function renderPurchaseOrdersView(data) {
     bodyNode.innerHTML = '';
 
     if (data.length === 0) {
-        bodyNode.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No purchase orders found.</td></tr>`;
+        bodyNode.innerHTML = `<tr><td colspan="${(canCreate || canReceive) ? 7 : 6}" style="text-align: center; color: var(--text-secondary);">No purchase orders found.</td></tr>`;
     } else {
         data.forEach(item => {
             const tr = document.createElement('tr');
@@ -1996,8 +2075,8 @@ function renderPurchaseOrdersView(data) {
             if (item.status === 'Received') statusBadge = 'badge-success';
             if (item.status === 'Shipped') statusBadge = 'badge-info';
 
-            const canDelete = item.status !== 'Received';
-            const canReceive = item.status !== 'Received';
+            const allowDelete = item.status !== 'Received' && canCreate;
+            const allowReceive = item.status !== 'Received' && canReceive;
 
             tr.innerHTML = `
                 <td>#${item.id}</td>
@@ -2006,116 +2085,121 @@ function renderPurchaseOrdersView(data) {
                 <td>${item.expectedDate}</td>
                 <td>$${Number(item.totalAmount).toFixed(2)}</td>
                 <td><span class="badge ${statusBadge}">${item.status}</span></td>
+                ${(canCreate || canReceive) ? `
                 <td>
                     <div class="action-group">
-                        ${canReceive ? `<button class="action-btn receive-po-btn" data-id="${item.id}" title="Receive Shipment">🚚</button>` : ''}
-                        ${canDelete ? `<button class="action-btn delete-po-btn" data-id="${item.id}" title="Delete PO">🗑️</button>` : ''}
+                        ${allowReceive ? `<button class="action-btn receive-po-btn" data-id="${item.id}" title="Receive Shipment">🚚</button>` : ''}
+                        ${allowDelete ? `<button class="action-btn delete-po-btn" data-id="${item.id}" title="Delete PO">🗑️</button>` : ''}
                     </div>
-                </td>
+                </td>` : ''}
             `;
             bodyNode.appendChild(tr);
         });
     }
 
-    document.getElementById('openAddPoBtn').addEventListener('click', async () => {
-        const supplierSelect = document.getElementById('poSupplierId');
-        supplierSelect.innerHTML = '';
-        
-        try {
-            const res = await fetch(`${API_BASE}/suppliers`);
-            if (res.ok) suppliers = await res.json();
-        } catch (e) {
-            console.error("Error loading suppliers: ", e);
-        }
-
-        const approved = suppliers.filter(s => s.supplierStatus === 'APPROVED');
-        if (approved.length === 0) {
-            alert("No approved suppliers available. Please approve a supplier first.");
-            return;
-        }
-
-        approved.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.supplierId;
-            opt.textContent = `${s.supplierName} (ID: ${s.supplierId})`;
-            supplierSelect.appendChild(opt);
-        });
-
-        const twoWeeks = new Date();
-        twoWeeks.setDate(twoWeeks.getDate() + 14);
-        document.getElementById('poExpectedDate').value = twoWeeks.toISOString().split('T')[0];
-
-        document.getElementById('poItemsList').innerHTML = '';
-        document.getElementById('poTotalAmountDisplay').textContent = '0.00';
-        
-        addPoItemRow();
-
-        openModal('addPurchaseOrderModal');
-    });
-
-    document.querySelectorAll('.delete-po-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = parseInt(e.currentTarget.getAttribute('data-id'));
-            deletePurchaseOrder(id);
-        });
-    });
-
-    document.querySelectorAll('.receive-po-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const id = parseInt(e.currentTarget.getAttribute('data-id'));
-            const po = purchaseOrders.find(p => p.id === id);
-            if (po) {
-                try {
-                    const res = await fetch(`${API_BASE}/purchase-orders/${id}`);
-                    const fullPo = await res.json();
-                    
-                    document.getElementById('grnPoId').value = fullPo.id;
-                    const select = document.getElementById('grnPoSelect');
-                    select.innerHTML = `<option value="${fullPo.id}">PO #${fullPo.id} - ${fullPo.supplierName}</option>`;
-                    select.value = fullPo.id;
-                    document.getElementById('grnSupplierDisplay').value = fullPo.supplierName;
-                    
-                    const grnItemsList = document.getElementById('grnItemsList');
-                    grnItemsList.innerHTML = `
-                        <div class="grn-item-header">
-                            <span>Material Code</span>
-                            <span>PO Qty</span>
-                            <span>Received Qty *</span>
-                            <span>Batch *</span>
-                            <span>Expiry Date *</span>
-                        </div>
-                    `;
-
-                    const itemsRes = await fetch(`${API_BASE}/purchase-orders/${id}/items`);
-                    const poItems = await itemsRes.json();
-                    
-                    poItems.forEach((item, index) => {
-                        const row = document.createElement('div');
-                        row.className = 'grn-item-row-inputs';
-                        
-                        const defaultBatch = `B-${item.materialCode}-${Date.now().toString().slice(-6)}`;
-                        const nextYear = new Date();
-                        nextYear.setFullYear(nextYear.getFullYear() + 2);
-                        const defaultExpiry = nextYear.toISOString().split('T')[0];
-
-                        row.innerHTML = `
-                            <span><strong>${item.materialCode}</strong></span>
-                            <span>${item.quantity}</span>
-                            <input type="number" class="grn-qty" data-index="${index}" data-material="${item.materialCode}" required min="1" max="${item.quantity * 2}" value="${item.quantity}">
-                            <input type="text" class="grn-batch" data-index="${index}" required placeholder="Batch No" value="${defaultBatch}">
-                            <input type="date" class="grn-expiry" data-index="${index}" required value="${defaultExpiry}">
-                        `;
-                        grnItemsList.appendChild(row);
-                    });
-
-                    openModal('createGrnModal');
-                } catch (err) {
-                    console.error("Error launching GRN receipt modal: ", err);
-                    alert("Error loading PO items: " + err.message);
-                }
+    if (canCreate) {
+        document.getElementById('openAddPoBtn').addEventListener('click', async () => {
+            const supplierSelect = document.getElementById('poSupplierId');
+            supplierSelect.innerHTML = '';
+            
+            try {
+                const res = await fetch(`${API_BASE}/suppliers`);
+                if (res.ok) suppliers = await res.json();
+            } catch (e) {
+                console.error("Error loading suppliers: ", e);
             }
+
+            const approved = suppliers.filter(s => s.supplierStatus === 'APPROVED');
+            if (approved.length === 0) {
+                alert("No approved suppliers available. Please approve a supplier first.");
+                return;
+            }
+
+            approved.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.supplierId;
+                opt.textContent = `${s.supplierName} (ID: ${s.supplierId})`;
+                supplierSelect.appendChild(opt);
+            });
+
+            const twoWeeks = new Date();
+            twoWeeks.setDate(twoWeeks.getDate() + 14);
+            document.getElementById('poExpectedDate').value = twoWeeks.toISOString().split('T')[0];
+
+            document.getElementById('poItemsList').innerHTML = '';
+            document.getElementById('poTotalAmountDisplay').textContent = '0.00';
+            
+            addPoItemRow();
+
+            openModal('addPurchaseOrderModal');
         });
-    });
+
+        document.querySelectorAll('.delete-po-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                deletePurchaseOrder(id);
+            });
+        });
+    }
+
+    if (canReceive) {
+        document.querySelectorAll('.receive-po-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                const po = purchaseOrders.find(p => p.id === id);
+                if (po) {
+                    try {
+                        const res = await fetch(`${API_BASE}/purchase-orders/${id}`);
+                        const fullPo = await res.json();
+                        
+                        document.getElementById('grnPoId').value = fullPo.id;
+                        const select = document.getElementById('grnPoSelect');
+                        select.innerHTML = `<option value="${fullPo.id}">PO #${fullPo.id} - ${fullPo.supplierName}</option>`;
+                        select.value = fullPo.id;
+                        document.getElementById('grnSupplierDisplay').value = fullPo.supplierName;
+                        
+                        const grnItemsList = document.getElementById('grnItemsList');
+                        grnItemsList.innerHTML = `
+                            <div class="grn-item-header">
+                                <span>Material Code</span>
+                                <span>PO Qty</span>
+                                <span>Received Qty *</span>
+                                <span>Batch *</span>
+                                <span>Expiry Date *</span>
+                            </div>
+                        `;
+
+                        const itemsRes = await fetch(`${API_BASE}/purchase-orders/${id}/items`);
+                        const poItems = await itemsRes.json();
+                        
+                        poItems.forEach((item, index) => {
+                            const row = document.createElement('div');
+                            row.className = 'grn-item-row-inputs';
+                            
+                            const defaultBatch = `B-${item.materialCode}-${Date.now().toString().slice(-6)}`;
+                            const nextYear = new Date();
+                            nextYear.setFullYear(nextYear.getFullYear() + 2);
+                            const defaultExpiry = nextYear.toISOString().split('T')[0];
+
+                            row.innerHTML = `
+                                <span><strong>${item.materialCode}</strong></span>
+                                <span>${item.quantity}</span>
+                                <input type="number" class="grn-qty" data-index="${index}" data-material="${item.materialCode}" required min="1" max="${item.quantity * 2}" value="${item.quantity}">
+                                <input type="text" class="grn-batch" data-index="${index}" required placeholder="Batch No" value="${defaultBatch}">
+                                <input type="date" class="grn-expiry" data-index="${index}" required value="${defaultExpiry}">
+                            `;
+                            grnItemsList.appendChild(row);
+                        });
+
+                        openModal('createGrnModal');
+                    } catch (err) {
+                        console.error("Error launching GRN receipt modal: ", err);
+                        alert("Error loading PO items: " + err.message);
+                    }
+                }
+            });
+        });
+    }
 }
 
 // 6. Goods Received Notes (GRN) View
@@ -2424,10 +2508,12 @@ function renderOverviewView() {
 
 // 2. Materials Catalog View
 function renderMaterialsView(data) {
+    const canEdit = hasAnyPermission('MANAGE_ROLES', 'MANAGE_USERS');
+    
     mainViewport.innerHTML = `
         <div class="view-header">
             <h1 class="view-title">Active Materials Master</h1>
-            <button class="btn-primary" id="openAddMaterialBtn">+ Add New Material</button>
+            ${canEdit ? '<button class="btn-primary" id="openAddMaterialBtn">+ Add New Material</button>' : ''}
         </div>
 
         <div class="card-container">
@@ -2443,7 +2529,7 @@ function renderMaterialsView(data) {
                             <th>Type</th>
                             <th>UoM</th>
                             <th>Status</th>
-                            <th>Actions</th>
+                            ${canEdit ? '<th>Actions</th>' : ''}
                         </tr>
                     </thead>
                     <tbody id="materialsTableBody"></tbody>
@@ -2456,7 +2542,7 @@ function renderMaterialsView(data) {
     bodyNode.innerHTML = '';
     
     if (data.length === 0) {
-        bodyNode.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-secondary);">No materials matched this query</td></tr>`;
+        bodyNode.innerHTML = `<tr><td colspan="${canEdit ? 9 : 8}" style="text-align: center; color: var(--text-secondary);">No materials matched this query</td></tr>`;
     } else {
         data.forEach(item => {
             const tr = document.createElement('tr');
@@ -2476,38 +2562,43 @@ function renderMaterialsView(data) {
                 <td><span class="badge ${typeBadge}">${item.materialType}</span></td>
                 <td>${item.unitOfMeasure}</td>
                 <td>${activeBadge}</td>
+                ${canEdit ? `
                 <td>
                     <div class="action-group">
                         <button class="action-btn edit-material-btn" data-code="${item.materialCode}">✏️</button>
                         <button class="action-btn delete-material-btn" data-code="${item.materialCode}">🗑️</button>
                     </div>
-                </td>
+                </td>` : ''}
             `;
             bodyNode.appendChild(tr);
         });
     }
 
-    document.getElementById('openAddMaterialBtn').addEventListener('click', () => openModal('addMaterialModal'));
-    document.querySelectorAll('.edit-material-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const code = e.currentTarget.getAttribute('data-code');
-            launchEditMaterialModal(code);
+    if (canEdit) {
+        document.getElementById('openAddMaterialBtn').addEventListener('click', () => openModal('addMaterialModal'));
+        document.querySelectorAll('.edit-material-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const code = e.currentTarget.getAttribute('data-code');
+                launchEditMaterialModal(code);
+            });
         });
-    });
-    document.querySelectorAll('.delete-material-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const code = e.currentTarget.getAttribute('data-code');
-            deleteMaterial(code);
+        document.querySelectorAll('.delete-material-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const code = e.currentTarget.getAttribute('data-code');
+                deleteMaterial(code);
+            });
         });
-    });
+    }
 }
 
 // 3. Suppliers Registry View
 function renderSuppliersView(data) {
+    const canEdit = hasAnyPermission('MANAGE_SUPPLIERS');
+
     mainViewport.innerHTML = `
         <div class="view-header">
             <h1 class="view-title">Suppliers & Vendor Master</h1>
-            <button class="btn-primary" id="openAddSupplierBtn">+ Add New Supplier</button>
+            ${canEdit ? '<button class="btn-primary" id="openAddSupplierBtn">+ Add New Supplier</button>' : ''}
         </div>
 
         <div class="card-container">
@@ -2523,7 +2614,7 @@ function renderSuppliersView(data) {
                             <th>License No</th>
                             <th>Pay Terms</th>
                             <th>Status</th>
-                            <th>Actions</th>
+                            ${canEdit ? '<th>Actions</th>' : ''}
                         </tr>
                     </thead>
                     <tbody id="suppliersTableBody"></tbody>
@@ -2536,7 +2627,7 @@ function renderSuppliersView(data) {
     bodyNode.innerHTML = '';
 
     if (data.length === 0) {
-        bodyNode.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-secondary);">No suppliers matched this query</td></tr>`;
+        bodyNode.innerHTML = `<tr><td colspan="${canEdit ? 9 : 8}" style="text-align: center; color: var(--text-secondary);">No suppliers matched this query</td></tr>`;
     } else {
         data.forEach(item => {
             const tr = document.createElement('tr');
@@ -2553,6 +2644,7 @@ function renderSuppliersView(data) {
                 <td>${item.drugLicenseNo}</td>
                 <td>${item.paymentTerms || '-'}</td>
                 <td><span class="badge ${statusBadge}">${item.supplierStatus}</span></td>
+                ${canEdit ? `
                 <td>
                     <div class="action-group">
                         <button class="action-btn edit-supplier-btn" data-id="${item.supplierId}">✏️</button>
@@ -2560,37 +2652,39 @@ function renderSuppliersView(data) {
                         <button class="action-btn reject-supplier-btn" data-id="${item.supplierId}">❌</button>
                         <button class="action-btn delete-supplier-btn" data-id="${item.supplierId}">🗑️</button>
                     </div>
-                </td>
+                </td>` : ''}
             `;
             bodyNode.appendChild(tr);
         });
     }
 
-    document.getElementById('openAddSupplierBtn').addEventListener('click', () => openModal('addSupplierModal'));
-    document.querySelectorAll('.edit-supplier-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = parseInt(e.currentTarget.getAttribute('data-id'));
-            launchEditSupplierModal(id);
+    if (canEdit) {
+        document.getElementById('openAddSupplierBtn').addEventListener('click', () => openModal('addSupplierModal'));
+        document.querySelectorAll('.edit-supplier-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                launchEditSupplierModal(id);
+            });
         });
-    });
-    document.querySelectorAll('.delete-supplier-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = parseInt(e.currentTarget.getAttribute('data-id'));
-            deleteSupplier(id);
+        document.querySelectorAll('.delete-supplier-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                deleteSupplier(id);
+            });
         });
-    });
-    document.querySelectorAll('.approve-supplier-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = parseInt(e.currentTarget.getAttribute('data-id'));
-            launchStatusModal(id, 'APPROVED');
+        document.querySelectorAll('.approve-supplier-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                launchStatusModal(id, 'APPROVED');
+            });
         });
-    });
-    document.querySelectorAll('.reject-supplier-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const id = parseInt(e.currentTarget.getAttribute('data-id'));
-            launchStatusModal(id, 'REJECTED');
+        document.querySelectorAll('.reject-supplier-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                launchStatusModal(id, 'REJECTED');
+            });
         });
-    });
+    }
 }
 
 // 4. Stock & Inventory View
@@ -2707,6 +2801,9 @@ function renderStockView() {
 
 // 5. Production Runs & BOM View
 function renderProductionView() {
+    const canCreateOrder = hasAnyPermission('CREATE_PRODUCTION_ORDER');
+    const canManageBom = hasAnyPermission('MANAGE_BOM');
+
     mainViewport.innerHTML = `
         <div class="view-header">
             <h1 class="view-title">Production Execution Control</h1>
@@ -2733,9 +2830,10 @@ function renderProductionView() {
 
     if (prodSubTab === 'runs') {
         contentDiv.innerHTML = `
+            ${canCreateOrder ? `
             <div style="padding: 16px; display:flex; justify-content: flex-end;">
                 <button class="btn-primary" id="openAddOrderBtn">+ Start New Production Run</button>
-            </div>
+            </div>` : ''}
             <div class="table-responsive">
                 <table>
                     <thead>
@@ -2747,7 +2845,7 @@ function renderProductionView() {
                             <th>Actual Received Qty</th>
                             <th>Start Date</th>
                             <th>Status</th>
-                            <th>Control Action</th>
+                            ${canCreateOrder ? '<th>Control Action</th>' : ''}
                         </tr>
                     </thead>
                     <tbody id="ordersTableBody"></tbody>
@@ -2756,7 +2854,7 @@ function renderProductionView() {
         `;
         const bodyNode = document.getElementById('ordersTableBody');
         if (orderList.length === 0) {
-            bodyNode.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-secondary);">No production orders scheduled</td></tr>`;
+            bodyNode.innerHTML = `<tr><td colspan="${canCreateOrder ? 8 : 7}" style="text-align: center; color: var(--text-secondary);">No production orders scheduled</td></tr>`;
         } else {
             orderList.forEach(item => {
                 const tr = document.createElement('tr');
@@ -2790,32 +2888,35 @@ function renderProductionView() {
                     <td>${item.actualQty || '-'}</td>
                     <td>${item.productionDate || '-'}</td>
                     <td><span class="badge ${statusBadge}">${statusStr}</span></td>
-                    <td>${actionBtn}</td>
+                    ${canCreateOrder ? `<td>${actionBtn}</td>` : ''}
                 `;
                 bodyNode.appendChild(tr);
             });
         }
 
-        document.getElementById('openAddOrderBtn').addEventListener('click', () => {
-            launchAddOrderModal();
-        });
-        document.querySelectorAll('.start-run-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                startProductionOrder(id);
+        if (canCreateOrder) {
+            document.getElementById('openAddOrderBtn').addEventListener('click', () => {
+                launchAddOrderModal();
             });
-        });
-        document.querySelectorAll('.qa-test-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                sendToQATesting(id);
+            document.querySelectorAll('.start-run-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                    startProductionOrder(id);
+                });
             });
-        });
+            document.querySelectorAll('.qa-test-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                    sendToQATesting(id);
+                });
+            });
+        }
     } else {
         contentDiv.innerHTML = `
+            ${canManageBom ? `
             <div style="padding: 16px; display:flex; justify-content: flex-end;">
                 <button class="btn-primary" id="openAddBomBtn">+ Define New BOM Formulation</button>
-            </div>
+            </div>` : ''}
             <div class="table-responsive">
                 <table>
                     <thead>
@@ -2852,9 +2953,11 @@ function renderProductionView() {
             });
         }
 
-        document.getElementById('openAddBomBtn').addEventListener('click', () => {
-            launchAddBomModal();
-        });
+        if (canManageBom) {
+            document.getElementById('openAddBomBtn').addEventListener('click', () => {
+                launchAddBomModal();
+            });
+        }
         document.querySelectorAll('.inspect-bom-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const id = parseInt(e.currentTarget.getAttribute('data-id'));
@@ -2971,22 +3074,26 @@ function renderBatchDetailsPanel() {
     else if (b.qcStatus === 'REJECTED') qcBadge = 'badge-danger';
     else if (b.qcStatus === 'IN_PRODUCTION') qcBadge = 'badge-primary';
 
+    const canUpdateStatus = hasAnyPermission('UPDATE_QC_STATUS');
+    const canApprove = hasAnyPermission('APPROVE_QA');
+    const canReject = hasAnyPermission('REJECT_QA');
+
     // Status driven action buttons
     let actionButtonsHtml = '';
     if (b.qcStatus === 'IN_PRODUCTION') {
         actionButtonsHtml = `
-            <button class="btn-primary qa-action-btn" id="qaBtnSample" style="flex:1;">⚡ Take IPQC Sample</button>
+            ${canUpdateStatus ? '<button class="btn-primary qa-action-btn" id="qaBtnSample" style="flex:1;">⚡ Take IPQC Sample</button>' : ''}
             <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="flex:1;">🧬 View Genealogy</button>
         `;
     } else if (b.qcStatus === 'IN_PROCESS_SAMPLE') {
         actionButtonsHtml = `
-            <button class="btn-primary qa-action-btn" id="qaBtnStartTest" style="flex:1;">🔬 Start Testing</button>
+            ${canUpdateStatus ? '<button class="btn-primary qa-action-btn" id="qaBtnStartTest" style="flex:1;">🔬 Start Testing</button>' : ''}
             <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="flex:1;">🧬 View Genealogy</button>
         `;
     } else if (b.qcStatus === 'UNDER_TEST' || b.qcStatus === 'QUARANTINE' || b.qcStatus === 'QI') {
         actionButtonsHtml = `
-            <button class="btn-success qa-action-btn" id="qaBtnApprove" style="background-color: var(--status-green) !important; color: white !important; flex:1;">✅ Approve & Release</button>
-            <button class="btn-danger qa-action-btn" id="qaBtnReject" style="background-color: var(--status-red) !important; color: white !important; flex:1;">❌ Reject Batch</button>
+            ${canApprove ? '<button class="btn-success qa-action-btn" id="qaBtnApprove" style="background-color: var(--status-green) !important; color: white !important; flex:1;">✅ Approve & Release</button>' : ''}
+            ${canReject ? '<button class="btn-danger qa-action-btn" id="qaBtnReject" style="background-color: var(--status-red) !important; color: white !important; flex:1;">❌ Reject Batch</button>' : ''}
             <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="width:100%; margin-top:8px;">🧬 View Genealogy</button>
         `;
     } else {

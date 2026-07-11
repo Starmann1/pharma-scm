@@ -14,7 +14,9 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Dialect-aware JDBC repository for Goods Received Notes (GRN) and GRN_Item tables.
@@ -138,6 +140,28 @@ public class GRNJdbcRepository {
      * @return {@code true} if the GRN was created and committed successfully
      */
     public boolean createFromPO(PurchaseOrder po) {
+        List<GRNItem> defaultItems = new ArrayList<>();
+        List<PurchaseOrderItem> poItems = po.getItems();
+        if (poItems == null || poItems.isEmpty()) {
+            try (Connection conn = databaseService.getConnection()) {
+                poItems = loadPoItemsWithinTransaction(conn, po.getId());
+            } catch (SQLException | ClassNotFoundException e) {
+                logger.error("Error loading PO items for default GRN creation: {}", e.getMessage(), e);
+                return false;
+            }
+        }
+
+        for (PurchaseOrderItem item : poItems) {
+            defaultItems.add(new GRNItem(
+                    item.getMaterialCode(),
+                    "BATCH-" + System.currentTimeMillis() + "-" + item.getMaterialCode(),
+                    item.getQuantity(),
+                    LocalDate.now().plusYears(2)));
+        }
+        return createFromPO(po, defaultItems, "admin", 1);
+    }
+
+    public boolean createFromPO(PurchaseOrder po, List<GRNItem> receiptItems, String receivedBy, int receivedByUserId) {
         logger.info("Creating GRN for PO: {} (ID: {})", po.getPoNumber(), po.getId());
 
         String insertGrnSql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.GOODS_RECEIVED_NOTE)
@@ -166,7 +190,7 @@ public class GRNJdbcRepository {
                 int grnId;
                 try (PreparedStatement pstmt = conn.prepareStatement(insertGrnSql, Statement.RETURN_GENERATED_KEYS)) {
                     pstmt.setInt(1, po.getId());
-                    pstmt.setString(2, "admin");
+                    pstmt.setString(2, normalizeReceivedBy(receivedBy));
                     pstmt.setString(3, "Verified");
 
                     int rowsAffected = pstmt.executeUpdate();
@@ -184,7 +208,7 @@ public class GRNJdbcRepository {
                     }
                 }
 
-                // 2. Fetch PO items and create GRN items + update inventory
+                // 2. Fetch PO items and create verified GRN items + update inventory
                 List<PurchaseOrderItem> poItems = loadPoItemsWithinTransaction(conn, po.getId());
 
                 if (poItems == null || poItems.isEmpty()) {
@@ -193,43 +217,48 @@ public class GRNJdbcRepository {
                     return false;
                 }
 
+                Map<String, PurchaseOrderItem> poItemsByMaterial = indexPoItemsByMaterial(poItems);
+                List<VerifiedReceiptLine> verifiedLines = validateReceiptItems(receiptItems, poItemsByMaterial);
+
                 try (PreparedStatement grnItemStmt = conn.prepareStatement(insertGrnItemSql);
                         PreparedStatement stockStmt = conn.prepareStatement(upsertStockSql);
                         PreparedStatement txStmt = conn.prepareStatement(insertTxSql);
                         PreparedStatement eventStmt = conn.prepareStatement(insertEventSql)) {
 
-                    for (PurchaseOrderItem item : poItems) {
-                        String batchNumber = "BATCH-" + System.currentTimeMillis() + "-" + item.getMaterialCode();
-                        LocalDate expiryDate = LocalDate.now().plusYears(2);
+                    for (VerifiedReceiptLine line : verifiedLines) {
                         LocalDate mfgDate = LocalDate.now();
 
                         // GRN item
                         grnItemStmt.setInt(1, grnId);
-                        grnItemStmt.setString(2, item.getMaterialCode());
-                        grnItemStmt.setString(3, batchNumber);
-                        grnItemStmt.setInt(4, item.getQuantity());
-                        grnItemStmt.setDate(5, Date.valueOf(expiryDate));
+                        grnItemStmt.setString(2, line.materialCode());
+                        grnItemStmt.setString(3, line.batchNumber());
+                        grnItemStmt.setInt(4, line.quantityReceived());
+                        grnItemStmt.setDate(5, Date.valueOf(line.expiryDate()));
                         grnItemStmt.addBatch();
 
                         // Stock upsert
-                        stockRepository.bindUpsertStock(stockStmt, item.getMaterialCode(), "QC_HOLD", batchNumber,
-                                item.getQuantity(), item.getUnitPrice(), mfgDate, expiryDate, "QUARANTINE");
+                        stockRepository.bindUpsertStock(stockStmt, line.materialCode(), "QC_HOLD", line.batchNumber(),
+                                line.quantityReceived(), line.unitPrice(), mfgDate, line.expiryDate(), "QUARANTINE");
                         stockStmt.addBatch();
 
                         // Inventory transaction
-                        txStmt.setString(1, item.getMaterialCode());
-                        txStmt.setString(2, batchNumber);
+                        txStmt.setString(1, line.materialCode());
+                        txStmt.setString(2, line.batchNumber());
                         txStmt.setString(3, "QC_HOLD");
                         txStmt.setString(4, "GRN_RECEIPT");
-                        txStmt.setDouble(5, item.getQuantity());
+                        txStmt.setDouble(5, line.quantityReceived());
                         txStmt.setString(6, "GRN");
                         txStmt.setString(7, String.valueOf(grnId));
-                        txStmt.setInt(8, 1); // System Admin ID
+                        if (receivedByUserId > 0) {
+                            txStmt.setInt(8, receivedByUserId);
+                        } else {
+                            txStmt.setNull(8, Types.INTEGER);
+                        }
                         txStmt.setString(9, "Received from PO " + po.getPoNumber());
                         txStmt.addBatch();
 
                         logger.debug("Added GRN item: Material={}, Qty={}, Batch={}",
-                                item.getMaterialCode(), item.getQuantity(), batchNumber);
+                                line.materialCode(), line.quantityReceived(), line.batchNumber());
                     }
 
                     grnItemStmt.executeBatch();
@@ -316,6 +345,66 @@ public class GRNJdbcRepository {
         return items;
     }
 
+    private Map<String, PurchaseOrderItem> indexPoItemsByMaterial(List<PurchaseOrderItem> poItems) {
+        Map<String, PurchaseOrderItem> poItemsByMaterial = new HashMap<>();
+        for (PurchaseOrderItem item : poItems) {
+            poItemsByMaterial.put(item.getMaterialCode(), item);
+        }
+        return poItemsByMaterial;
+    }
+
+    private List<VerifiedReceiptLine> validateReceiptItems(
+            List<GRNItem> receiptItems,
+            Map<String, PurchaseOrderItem> poItemsByMaterial) throws SQLException {
+
+        if (receiptItems == null || receiptItems.isEmpty()) {
+            throw new SQLException("At least one verified GRN item is required.");
+        }
+
+        List<VerifiedReceiptLine> verifiedLines = new ArrayList<>();
+        for (GRNItem receiptItem : receiptItems) {
+            String materialCode = normalizeRequired(receiptItem.getMaterialCode(), "Material code is required.");
+            String batchNumber = normalizeRequired(receiptItem.getBatchNumber(), "Batch number is required.");
+            LocalDate expiryDate = receiptItem.getExpiryDate();
+            if (expiryDate == null) {
+                throw new SQLException("Expiry date is required for material " + materialCode + ".");
+            }
+            if (receiptItem.getQuantityReceived() <= 0) {
+                throw new SQLException("Received quantity must be greater than zero for material " + materialCode + ".");
+            }
+
+            PurchaseOrderItem poItem = poItemsByMaterial.get(materialCode);
+            if (poItem == null) {
+                throw new SQLException("Material " + materialCode + " is not part of this purchase order.");
+            }
+            if (receiptItem.getQuantityReceived() > poItem.getQuantity()) {
+                throw new SQLException("Received quantity for material " + materialCode
+                        + " exceeds ordered quantity " + poItem.getQuantity() + ".");
+            }
+
+            verifiedLines.add(new VerifiedReceiptLine(
+                    materialCode,
+                    batchNumber,
+                    receiptItem.getQuantityReceived(),
+                    expiryDate,
+                    poItem.getUnitPrice()));
+        }
+        return verifiedLines;
+    }
+
+    private String normalizeRequired(String value, String message) throws SQLException {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty()) {
+            throw new SQLException(message);
+        }
+        return normalized;
+    }
+
+    private String normalizeReceivedBy(String receivedBy) {
+        String normalized = receivedBy == null ? "" : receivedBy.trim();
+        return normalized.isEmpty() ? "System" : normalized;
+    }
+
     private void validateSupplierApproved(Connection conn, int supplierId, String message) throws SQLException {
         String sql = "SELECT supplier_status FROM " + d.table(JdbcSqlDialect.Table.SUPPLIER_MASTER)
                 + " WHERE supplier_id = ?";
@@ -332,5 +421,13 @@ public class GRNJdbcRepository {
                 }
             }
         }
+    }
+
+    private record VerifiedReceiptLine(
+            String materialCode,
+            String batchNumber,
+            int quantityReceived,
+            LocalDate expiryDate,
+            double unitPrice) {
     }
 }

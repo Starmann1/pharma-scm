@@ -345,7 +345,8 @@ public class ApiServer {
                 ctx.status(404).json(new ErrorResponse("Purchase Order not found"));
                 return;
             }
-            boolean success = dbService.createGRNFromPO(po);
+            List<GRN.GRNItem> items = mapGrnItems(req.items);
+            boolean success = dbService.createGRNFromPO(po, items, req.receivedBy, req.receivedByUserId);
             if (success) {
                 ctx.status(201).json(new StatusUpdateResponse("GRN created successfully"));
             } else {
@@ -430,6 +431,9 @@ public class ApiServer {
 
         app.post("/api/bom", ctx -> {
             CreateBOMRequest req = ctx.bodyAsClass(CreateBOMRequest.class);
+            if (req.header.getEffectiveDate() == null) {
+                req.header.setEffectiveDate(java.time.LocalDate.now());
+            }
             int newBomId = dbService.createBOM(req.header, req.details);
             req.header.setBomId(newBomId);
             ctx.status(201).json(req.header);
@@ -497,9 +501,10 @@ public class ApiServer {
         app.post("/api/qa/inspections/{batch}/inspect", ctx -> {
             String batch = ctx.pathParam("batch");
             InspectRequest req = ctx.bodyAsClass(InspectRequest.class);
+            int userId = req.userId > 0 ? req.userId : 1;
             
             // Update batch QC status in repositories (sets location based on type, e.g. FINISHED_GOODS_WAREHOUSE)
-            dbService.updateQCStatus(batch, req.status.toUpperCase(), 1); // 1 = admin user
+            dbService.updateQCStatus(batch, req.status.toUpperCase(), userId);
             
             ctx.json(new StatusUpdateResponse("Inspection completed successfully. Status: " + req.status));
         });
@@ -511,14 +516,17 @@ public class ApiServer {
 
         app.post("/api/qa/inspections/{batch}/sample", ctx -> {
             String batch = ctx.pathParam("batch");
-            dbService.takeSampleForQC(batch, 1);
+            StartOrderRequest req = ctx.bodyAsClass(StartOrderRequest.class);
+            int userId = req.userId > 0 ? req.userId : 1;
+            dbService.takeSampleForQC(batch, userId);
             ctx.json(new StatusUpdateResponse("IPQC sample taken. Status updated to UNDER_TEST"));
         });
 
         app.post("/api/qa/inspections/{batch}/status", ctx -> {
             String batch = ctx.pathParam("batch");
             OrderStatusUpdateRequest req = ctx.bodyAsClass(OrderStatusUpdateRequest.class);
-            dbService.updateQCStatus(batch, req.status.toUpperCase(), 1);
+            int userId = req.userId > 0 ? req.userId : 1;
+            dbService.updateQCStatus(batch, req.status.toUpperCase(), userId);
             ctx.json(new StatusUpdateResponse("QC status updated to " + req.status));
         });
 
@@ -898,6 +906,45 @@ public class ApiServer {
 
     private static class CreateGRNRequest {
         public int poId;
+        public String receivedBy;
+        public int receivedByUserId;
+        public List<CreateGRNItemRequest> items;
+    }
+
+    private static class CreateGRNItemRequest {
+        public String materialCode;
+        public String batchNumber;
+        public int quantityReceived;
+        public String expiryDate;
+    }
+
+    private static List<GRN.GRNItem> mapGrnItems(List<CreateGRNItemRequest> requestItems) {
+        List<GRN.GRNItem> items = new java.util.ArrayList<>();
+        if (requestItems != null) {
+            for (CreateGRNItemRequest item : requestItems) {
+                String materialCode = clean(item.materialCode);
+                String batchNumber = clean(item.batchNumber);
+                String expiryDate = clean(item.expiryDate);
+                if (materialCode.isBlank()) {
+                    throw new IllegalArgumentException("Material code is required for every GRN item");
+                }
+                if (batchNumber.isBlank()) {
+                    throw new IllegalArgumentException("Batch number is required for every GRN item");
+                }
+                if (item.quantityReceived <= 0) {
+                    throw new IllegalArgumentException("Received quantity must be greater than zero for every GRN item");
+                }
+                if (expiryDate.isBlank()) {
+                    throw new IllegalArgumentException("Expiry date is required for every GRN item");
+                }
+                items.add(new GRN.GRNItem(
+                        materialCode,
+                        batchNumber,
+                        item.quantityReceived,
+                        java.time.LocalDate.parse(expiryDate)));
+            }
+        }
+        return items;
     }
 
     private static class StartOrderRequest {
@@ -906,6 +953,7 @@ public class ApiServer {
 
     private static class OrderStatusUpdateRequest {
         public String status;
+        public int userId;
     }
 
     private static class InspectRequest {
@@ -914,6 +962,7 @@ public class ApiServer {
         public String remarks;
         @SuppressWarnings("unused")
         public String performedBy;
+        public int userId;
     }
 
     private static class ChatRequestPayload {

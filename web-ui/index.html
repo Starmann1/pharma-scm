@@ -569,9 +569,11 @@
           </div>
         </form>
       </div>
+    </div>
+
     <!-- Add Production Order Modal -->
     <div class="modal-overlay" id="addProductionOrderModal">
-      <div class="modal-window">
+      <div class="modal-window" style="max-width: 650px;">
         <div class="modal-header">
           <h2 class="modal-title">Start Production Batch Run</h2>
           <button class="modal-close" onclick="closeModal('addProductionOrderModal')">✖</button>
@@ -601,6 +603,24 @@
             <div class="form-group" style="margin-top: 16px;">
               <label for="addOrderNotes">Production Notes</label>
               <input type="text" id="addOrderNotes" placeholder="e.g. Morning shift production run.">
+            </div>
+            
+            <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px; display: none;" id="prodFeasibilityContainer">
+              <h4 style="margin-bottom: 12px; color: var(--text-primary); font-size: 14px;">Material Availability / Shortage Analysis</h4>
+              <div class="table-responsive" style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px;">
+                <table style="font-size: 11px; width: 100%; margin-bottom: 0;">
+                  <thead>
+                    <tr>
+                      <th style="padding: 6px;">Material</th>
+                      <th style="padding: 6px;">Required</th>
+                      <th style="padding: 6px;">Available</th>
+                      <th style="padding: 6px;">Deficit</th>
+                      <th style="padding: 6px;">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="prodFeasibilityTableBody"></tbody>
+                </table>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -817,10 +837,13 @@
     <div class="modal-overlay" id="addPurchaseOrderModal">
       <div class="modal-card" style="max-width: 700px;">
         <div class="modal-header">
-          <h3>Create Purchase Order</h3>
+          <h3 id="purchaseOrderModalTitle">Create Purchase Order</h3>
           <button class="close-btn" onclick="closeModal('addPurchaseOrderModal')">&times;</button>
         </div>
         <form id="addPurchaseOrderForm">
+          <input type="hidden" id="poEditId">
+          <input type="hidden" id="poOrderDate">
+          <input type="hidden" id="poStatus">
           <div class="modal-body">
             <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px;">
               <div class="form-group" style="flex: 1; margin-bottom: 0;">
@@ -850,7 +873,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn-secondary" onclick="closeModal('addPurchaseOrderModal')">Cancel</button>
-            <button type="submit" class="btn-primary">Create Purchase Order</button>
+            <button type="submit" class="btn-primary" id="purchaseOrderSubmitBtn">Create Purchase Order</button>
           </div>
         </form>
       </div>

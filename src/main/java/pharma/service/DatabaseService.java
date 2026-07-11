@@ -491,6 +491,10 @@ public class DatabaseService {
         return grnRepository.createFromPO(po);
     }
 
+    public boolean createGRNFromPO(PurchaseOrder po, List<GRN.GRNItem> items, String receivedBy, int receivedByUserId) {
+        return grnRepository.createFromPO(po, items, receivedBy, receivedByUserId);
+    }
+
 
     // MANUFACTURING ERP METHODS - Phase 3
     // =====================================================================
