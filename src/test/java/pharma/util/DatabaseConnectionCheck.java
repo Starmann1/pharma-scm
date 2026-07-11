@@ -20,8 +20,8 @@ public class DatabaseConnectionCheck {
                 System.out.println("✅ Successfully connected to PostgreSQL!");
                 
                 // 1. Insert Location
-                String insertLocation = "INSERT INTO location_master (location_code, description, location_type, capacity, status) " +
-                                        "VALUES ('TEST_WH', 'Test Warehouse', 'WAREHOUSE', 5000, 'ACTIVE') " +
+                String insertLocation = "INSERT INTO location_master (location_code, location_name, description, capacity) " +
+                                        "VALUES ('TEST_WH', 'Test Warehouse', 'Test Warehouse Description', 5000) " +
                                         "ON CONFLICT (location_code) DO NOTHING";
                 try (PreparedStatement stmt = conn.prepareStatement(insertLocation)) {
                     int rows = stmt.executeUpdate();
@@ -38,8 +38,8 @@ public class DatabaseConnectionCheck {
                 }
 
                 // 3. Insert Inventory for Raw Material
-                String insertInventoryRM = "INSERT INTO stock_inventory (material_code, batch_number, location_code, quantity, status, received_date) " +
-                                           "VALUES ('RM-001', 'BATCH-TEST-RM', 'TEST_WH', 1000, 'AVAILABLE', CURRENT_DATE) " +
+                String insertInventoryRM = "INSERT INTO stock_inventory (material_code, batch_number, location_code, quantity, qc_status, mfg_date, exp_date) " +
+                                           "VALUES ('RM-001', 'BATCH-TEST-RM', 'TEST_WH', 1000, 'APPROVED', CURRENT_DATE, CURRENT_DATE + 365) " +
                                            "ON CONFLICT DO NOTHING";
                 try (PreparedStatement stmt = conn.prepareStatement(insertInventoryRM)) {
                     int rows = stmt.executeUpdate();
@@ -47,8 +47,8 @@ public class DatabaseConnectionCheck {
                 }
 
                 // 4. Insert Inventory for Packaging Goods
-                String insertInventoryPM = "INSERT INTO stock_inventory (material_code, batch_number, location_code, quantity, status, received_date) " +
-                                           "VALUES ('PM-001', 'BATCH-TEST-PM', 'TEST_WH', 5000, 'AVAILABLE', CURRENT_DATE) " +
+                String insertInventoryPM = "INSERT INTO stock_inventory (material_code, batch_number, location_code, quantity, qc_status, mfg_date, exp_date) " +
+                                           "VALUES ('PM-001', 'BATCH-TEST-PM', 'TEST_WH', 5000, 'APPROVED', CURRENT_DATE, CURRENT_DATE + 365) " +
                                            "ON CONFLICT DO NOTHING";
                 try (PreparedStatement stmt = conn.prepareStatement(insertInventoryPM)) {
                     int rows = stmt.executeUpdate();
@@ -57,13 +57,13 @@ public class DatabaseConnectionCheck {
 
                 // 5. Query to verify
                 System.out.println("\n--- Verifying Inserted Records ---");
-                String verifySql = "SELECT material_code, batch_number, quantity, status FROM stock_inventory WHERE location_code = 'TEST_WH'";
+                String verifySql = "SELECT material_code, batch_number, quantity, qc_status FROM stock_inventory WHERE location_code = 'TEST_WH'";
                 try (PreparedStatement stmt = conn.prepareStatement(verifySql);
                      ResultSet rs = stmt.executeQuery()) {
                     while (rs.next()) {
-                        System.out.printf("Found Stock: %s | Batch: %s | Qty: %d | Status: %s%n",
+                        System.out.printf("Found Stock: %s | Batch: %s | Qty: %.2f | Status: %s%n",
                                 rs.getString("material_code"), rs.getString("batch_number"),
-                                rs.getInt("quantity"), rs.getString("status"));
+                                rs.getDouble("quantity"), rs.getString("qc_status"));
                     }
                 }
 

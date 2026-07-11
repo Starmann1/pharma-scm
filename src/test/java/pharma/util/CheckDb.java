@@ -6,10 +6,13 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 
+import pharma.config.DatabaseConfig;
+
 public class CheckDb {
     public static void main(String[] args) {
         try {
-            Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5432/pharma_scm", "postgres", "postgres");
+            DatabaseConfig dbConfig = DatabaseConfig.fromEnvironment();
+            Connection conn = DriverManager.getConnection(dbConfig.toHikariConfig().getJdbcUrl(), dbConfig.toHikariConfig().getUsername(), dbConfig.toHikariConfig().getPassword());
             Statement stmt = conn.createStatement();
             
             System.out.println("Executing V010 patch...");

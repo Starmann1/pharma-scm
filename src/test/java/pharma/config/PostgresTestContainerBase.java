@@ -38,8 +38,16 @@ public abstract class PostgresTestContainerBase {
         try (Connection conn = testDataSource.getConnection();
              Statement stmt = conn.createStatement()) {
             
-            String schemaSql = Files.readString(Paths.get("src/main/resources/schema-postgres.sql"));
-            stmt.execute(schemaSql);
+            String[] schemaFiles = {
+                "db/postgresql/schema/V001__baseline_schema.sql",
+                "db/postgresql/schema/V002__agentic_tables.sql",
+                "db/postgresql/schema/V003__observability_tables.sql"
+            };
+            
+            for (String file : schemaFiles) {
+                String sql = Files.readString(Paths.get(file));
+                stmt.execute(sql);
+            }
             
             String[] seedFiles = {
                 "db/postgresql/seed/V010__seed_roles_permissions.sql",

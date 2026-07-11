@@ -12,7 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class PostgresSmokeTestSuite extends PostgresTestContainerBase {
+public class PostgresSmokeTest extends PostgresTestContainerBase {
 
     private DatabaseService dbService;
     private UserJdbcRepository userRepo;
