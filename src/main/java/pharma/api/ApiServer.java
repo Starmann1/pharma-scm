@@ -886,6 +886,7 @@ public class ApiServer {
         public List<BOMDetail> details;
     }
 
+    @SuppressWarnings("unused")
     private static class SupplierPerformanceResponse {
         public int supplierId;
         public String supplierName;
