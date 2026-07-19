@@ -11,4 +11,6 @@ public interface BOMRepository {
     List<BOMDetail> getBOMIngredients(int bomId) throws SQLException, ClassNotFoundException;
     List<BOMHeader> getActiveBOMsForMaterial(String materialCode) throws SQLException, ClassNotFoundException;
     List<BOMHeader> getAllBOMs() throws SQLException, ClassNotFoundException;
+    boolean updateBOM(int bomId, BOMHeader header, List<BOMDetail> details) throws SQLException, ClassNotFoundException;
+    boolean deleteBOM(int bomId) throws SQLException, ClassNotFoundException;
 }

@@ -95,6 +95,18 @@ public class AgentGateway implements PharmaGateway {
     @Override
     public CompletableFuture<AgentResponseEnvelope<?>> submit(AgentRequestEnvelope<?> request) {
         CompletableFuture<AgentResponseEnvelope<?>> future = new CompletableFuture<>();
+        
+        // Add 30-second timeout and clean up pendingRequests map when done or timed out
+        CompletableFuture<AgentResponseEnvelope<?>> timedFuture = future
+                .orTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .whenComplete((res, ex) -> {
+                    pendingRequests.remove(request.getTransactionId());
+                    if (ex instanceof java.util.concurrent.TimeoutException) {
+                        log.error("AgentGateway: Request action='{}' txId='{}' timed out after 30s",
+                                request.getAction(), request.getTransactionId());
+                    }
+                });
+
         pendingRequests.put(request.getTransactionId(), future);
 
         if (coordinatorController == null) {
@@ -102,9 +114,8 @@ public class AgentGateway implements PharmaGateway {
             AgentResponseEnvelope<?> err = AgentResponseEnvelope.failure(
                     request.getTransactionId(), request.getAction(),
                     "JADE platform not started. CoordinatorAgent unavailable.");
-            pendingRequests.remove(request.getTransactionId());
             future.complete(err);
-            return future;
+            return timedFuture;
         }
 
         try {
@@ -125,18 +136,16 @@ public class AgentGateway implements PharmaGateway {
         } catch (JsonProcessingException e) {
             log.error("AgentGateway: serialisation failed for action='{}': {}",
                     request.getAction(), e.getMessage());
-            pendingRequests.remove(request.getTransactionId());
             future.completeExceptionally(e);
         } catch (StaleProxyException e) {
             log.error("AgentGateway: CoordinatorAgent proxy is stale: {}", e.getMessage());
-            pendingRequests.remove(request.getTransactionId());
             AgentResponseEnvelope<?> err = AgentResponseEnvelope.failure(
                     request.getTransactionId(), request.getAction(),
                     "CoordinatorAgent proxy stale: " + e.getMessage());
             future.complete(err);
         }
 
-        return future;
+        return timedFuture;
     }
 
     /** {@inheritDoc} */

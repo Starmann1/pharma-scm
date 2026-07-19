@@ -136,9 +136,22 @@ public class ProductionOrderJdbcRepository {
                 throw new SQLException("Production order not found: " + orderId);
             }
 
+            // --- IDEMPOTENCY GUARD ---
+            // Prevent double-execution (e.g. double-click, network retry).
+            // Only 'Planned' orders may start a production run. Any other status means
+            // either the run already started (In-Production) or is done (Completed).
+            String currentStatus = order.getStatus().getDisplayName();
+            if (!"Planned".equalsIgnoreCase(currentStatus)) {
+                throw new SQLException(
+                    "Production order " + orderId + " cannot be started: current status is '"
+                    + currentStatus + "'. Only 'Planned' orders may start a production run.");
+            }
+
             BOMHeader bom = databaseService.getBOMById(order.getBomId());
             List<BOMDetail> ingredients = databaseService.getBOMIngredients(order.getBomId());
 
+            // Validate material availability INSIDE the transaction so it's consistent
+            // with the FOR UPDATE locks acquired by consumeStock below.
             Map<String, Double> shortages = databaseService.validateBOMAvailability(order.getBomId(), order.getPlannedQty());
             for (Map.Entry<String, Double> entry : shortages.entrySet()) {
                 if (entry.getValue() > 0) {
@@ -199,8 +212,21 @@ public class ProductionOrderJdbcRepository {
                 }
             }
 
+            // Fetch shelf life from material master to calculate dynamic expiry date
+            int shelfLifeMonths = 24; // fallback default
+            String selectShelfLifeSql = "SELECT shelf_life_months FROM " + d.table(JdbcSqlDialect.Table.MATERIAL_MASTER) + " WHERE material_code = ?";
+            try (PreparedStatement pstmt = conn.prepareStatement(selectShelfLifeSql)) {
+                pstmt.setString(1, bom.getMaterialCode());
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next()) {
+                        shelfLifeMonths = rs.getInt("shelf_life_months");
+                    }
+                }
+            }
+            LocalDate expiryDate = LocalDate.now().plusMonths(shelfLifeMonths);
+
             stockRepository.insertProductionStock(conn, bom.getMaterialCode(), "PRODUCTION_FLOOR",
-                    order.getBatchNumber(), order.getPlannedQty(), parentBatches.toString(), orderId);
+                    order.getBatchNumber(), order.getPlannedQty(), parentBatches.toString(), orderId, expiryDate);
 
             // 4. Production Batch Record
             String insertPbSql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.PRODUCTION_BATCH) + " (production_order_id, material_code, batch_number, quantity, mfg_date, expiry_date, qc_status, location_code) VALUES (?, ?, ?, ?, ?, ?, 'IN_PRODUCTION', 'PRODUCTION_FLOOR')";
@@ -210,7 +236,7 @@ public class ProductionOrderJdbcRepository {
                 pbStmt.setString(3, order.getBatchNumber());
                 pbStmt.setDouble(4, order.getPlannedQty());
                 pbStmt.setDate(5, java.sql.Date.valueOf(LocalDate.now()));
-                pbStmt.setDate(6, java.sql.Date.valueOf(LocalDate.now().plusYears(2)));
+                pbStmt.setDate(6, java.sql.Date.valueOf(expiryDate));
                 pbStmt.executeUpdate();
             }
 
@@ -235,8 +261,13 @@ public class ProductionOrderJdbcRepository {
                 evStmt.executeUpdate();
             }
 
-            String curDate = d.isMysql() ? "CURDATE()" : "CURRENT_DATE";
-            String updateOrderSql = "UPDATE " + d.table(JdbcSqlDialect.Table.PRODUCTION_ORDER) + " SET status = 'In-Production', actual_qty = ?, completed_date = " + curDate + " WHERE order_id = ?";
+            // 6. Update order status to 'In-Production'
+            // NOTE: completed_date is intentionally NOT set here — it must only be set
+            // when the order reaches 'Completed' status (after QA release), not at start.
+            // Setting it at start was a GMP violation (21 CFR 211.192).
+            String updateOrderSql = "UPDATE " + d.table(JdbcSqlDialect.Table.PRODUCTION_ORDER)
+                    + " SET status = 'In-Production', actual_qty = ?, updated_at = " + d.nowExpression()
+                    + " WHERE order_id = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(updateOrderSql)) {
                 pstmt.setDouble(1, order.getPlannedQty());
                 pstmt.setInt(2, orderId);

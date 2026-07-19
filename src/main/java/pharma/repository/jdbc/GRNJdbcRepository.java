@@ -142,21 +142,32 @@ public class GRNJdbcRepository {
     public boolean createFromPO(PurchaseOrder po) {
         List<GRNItem> defaultItems = new ArrayList<>();
         List<PurchaseOrderItem> poItems = po.getItems();
-        if (poItems == null || poItems.isEmpty()) {
-            try (Connection conn = databaseService.getConnection()) {
+        try (Connection conn = databaseService.getConnection()) {
+            if (poItems == null || poItems.isEmpty()) {
                 poItems = loadPoItemsWithinTransaction(conn, po.getId());
-            } catch (SQLException | ClassNotFoundException e) {
-                logger.error("Error loading PO items for default GRN creation: {}", e.getMessage(), e);
-                return false;
             }
-        }
-
-        for (PurchaseOrderItem item : poItems) {
-            defaultItems.add(new GRNItem(
-                    item.getMaterialCode(),
-                    "BATCH-" + System.currentTimeMillis() + "-" + item.getMaterialCode(),
-                    item.getQuantity(),
-                    LocalDate.now().plusYears(2)));
+            if (poItems != null) {
+                for (PurchaseOrderItem item : poItems) {
+                    int shelfLifeMonths = 24; // default
+                    String selectSql = "SELECT shelf_life_months FROM " + d.table(JdbcSqlDialect.Table.MATERIAL_MASTER) + " WHERE material_code = ?";
+                    try (PreparedStatement pstmt = conn.prepareStatement(selectSql)) {
+                        pstmt.setString(1, item.getMaterialCode());
+                        try (ResultSet rs = pstmt.executeQuery()) {
+                            if (rs.next()) {
+                                shelfLifeMonths = rs.getInt("shelf_life_months");
+                            }
+                        }
+                    }
+                    defaultItems.add(new GRNItem(
+                            item.getMaterialCode(),
+                            "BATCH-" + System.currentTimeMillis() + "-" + item.getMaterialCode(),
+                            item.getQuantity(),
+                            LocalDate.now().plusMonths(shelfLifeMonths)));
+                }
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            logger.error("Error loading PO items/shelf life for default GRN creation: {}", e.getMessage(), e);
+            return false;
         }
         return createFromPO(po, defaultItems, "admin", 1);
     }
@@ -274,15 +285,16 @@ public class GRNJdbcRepository {
                     eventStmt.executeUpdate();
                 }
 
-                // 3. Update PO status to "Received"
+                // 3. Update PO status conditionally (Received or Partially-Received)
+                boolean fullyReceived = isPurchaseOrderFullyReceived(conn, po.getId(), verifiedLines);
                 try (PreparedStatement pstmt = conn.prepareStatement(updatePoStatusSql)) {
-                    pstmt.setString(1, "Received");
+                    pstmt.setString(1, fullyReceived ? "Received" : "Partially-Received");
                     pstmt.setInt(2, po.getId());
                     pstmt.executeUpdate();
                 }
 
                 conn.commit();
-                logger.info("GRN creation successful for PO {}", po.getId());
+                logger.info("GRN creation successful for PO {}. Fully received: {}", po.getId(), fullyReceived);
                 return true;
 
             } catch (SQLException e) {
@@ -297,6 +309,58 @@ public class GRNJdbcRepository {
             logger.error("Database connection error during GRN creation: {}", e.getMessage(), e);
             return false;
         }
+    }
+
+    /**
+     * Checks if the total received quantity (prior GRNs + current GRN) for each item in the PO
+     * meets or exceeds the ordered quantity.
+     */
+    private boolean isPurchaseOrderFullyReceived(Connection conn, int poId, List<VerifiedReceiptLine> currentReceipt)
+            throws SQLException {
+        // 1. Get ordered quantities
+        String orderedSql = "SELECT material_code, quantity FROM "
+                + d.table(JdbcSqlDialect.Table.PURCHASE_ORDER_ITEM) + " WHERE po_id = ?";
+        java.util.Map<String, Double> orderedQtys = new java.util.HashMap<>();
+        try (PreparedStatement stmt = conn.prepareStatement(orderedSql)) {
+            stmt.setInt(1, poId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    orderedQtys.put(rs.getString("material_code"), rs.getDouble("quantity"));
+                }
+            }
+        }
+
+        // 2. Get previously received quantities (existing committed GRN items)
+        String receivedSql = "SELECT gi.material_code, SUM(gi.quantity_received) AS total_rec "
+                + "FROM " + d.table(JdbcSqlDialect.Table.GRN_ITEM) + " gi "
+                + "JOIN " + d.table(JdbcSqlDialect.Table.GOODS_RECEIVED_NOTE) + " g ON gi.grn_id = g.grn_id "
+                + "WHERE g.po_id = ? "
+                + "GROUP BY gi.material_code";
+        java.util.Map<String, Double> receivedQtys = new java.util.HashMap<>();
+        try (PreparedStatement stmt = conn.prepareStatement(receivedSql)) {
+            stmt.setInt(1, poId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    receivedQtys.put(rs.getString("material_code"), rs.getDouble("total_rec"));
+                }
+            }
+        }
+
+        // 3. Add the quantities we are receiving in the current transaction
+        for (VerifiedReceiptLine line : currentReceipt) {
+            double prev = receivedQtys.getOrDefault(line.materialCode(), 0.0);
+            receivedQtys.put(line.materialCode(), prev + line.quantityReceived());
+        }
+
+        // 4. Validate if all ordered line items are fulfilled
+        for (java.util.Map.Entry<String, Double> entry : orderedQtys.entrySet()) {
+            double ordered = entry.getValue();
+            double received = receivedQtys.getOrDefault(entry.getKey(), 0.0);
+            if (received < ordered) {
+                return false; // at least one material has pending balance
+            }
+        }
+        return true;
     }
 
     // -----------------------------------------------------------------------

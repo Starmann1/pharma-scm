@@ -41,6 +41,14 @@ public class MaterialJdbcRepository implements MaterialRepository {
         material.setPreferredSupplierId(rs.wasNull() ? null : supplierId);
         material.setMaterialType(Material.MaterialType.fromString(rs.getString("material_type")));
         material.setUnitOfMeasure(Material.UnitOfMeasure.fromString(rs.getString("unit_of_measure")));
+        
+        // Retrieve shelf_life_months dynamically with fallback
+        try {
+            int shelfLife = rs.getInt("shelf_life_months");
+            material.setShelfLifeMonths(rs.wasNull() ? 24 : shelfLife);
+        } catch (SQLException ex) {
+            material.setShelfLifeMonths(24); // Fallback to 24 if column not fetched
+        }
         return material;
     }
 
@@ -48,7 +56,7 @@ public class MaterialJdbcRepository implements MaterialRepository {
     public Optional<Material> findByCode(String materialCode) throws SQLException, ClassNotFoundException {
         String sql = "SELECT material_code, brand_name, generic_name, manufacturer, formulation, strength, "
                 + "schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, "
-                + "material_type, unit_of_measure FROM "
+                + "material_type, unit_of_measure, shelf_life_months FROM "
                 + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
                 + " WHERE material_code = ?";
         try (Connection conn = databaseService.getConnection();
@@ -79,7 +87,7 @@ public class MaterialJdbcRepository implements MaterialRepository {
     }
 
     public void addMaterial(Material material) throws SQLException, ClassNotFoundException {
-        String sql = "INSERT INTO " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER) + " (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER) + " (material_code, brand_name, generic_name, manufacturer, formulation, strength, schedule_category, storage_conditions, reorder_level, is_active, preferred_supplier_id, material_type, unit_of_measure, shelf_life_months) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = databaseService.getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -103,6 +111,7 @@ public class MaterialJdbcRepository implements MaterialRepository {
 
             pstmt.setString(12, material.getMaterialType() != null ? material.getMaterialType().name() : null);
             pstmt.setString(13, material.getUnitOfMeasure() != null ? material.getUnitOfMeasure().name() : null);
+            pstmt.setInt(14, material.getShelfLifeMonths());
 
             pstmt.executeUpdate();
         }
@@ -130,7 +139,7 @@ public class MaterialJdbcRepository implements MaterialRepository {
         String sql = "UPDATE " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
                 + " SET brand_name=?, generic_name=?, manufacturer=?, formulation=?, strength=?,"
                 + " schedule_category=?, storage_conditions=?, reorder_level=?, is_active=?,"
-                + " preferred_supplier_id=?, material_type=?, unit_of_measure=?"
+                + " preferred_supplier_id=?, material_type=?, unit_of_measure=?, shelf_life_months=?"
                 + " WHERE material_code=?";
         try (Connection conn = databaseService.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -150,7 +159,8 @@ public class MaterialJdbcRepository implements MaterialRepository {
             }
             pstmt.setString(11, material.getMaterialType() != null ? material.getMaterialType().name() : null);
             pstmt.setString(12, material.getUnitOfMeasure() != null ? material.getUnitOfMeasure().name() : null);
-            pstmt.setString(13, material.getMaterialCode());
+            pstmt.setInt(13, material.getShelfLifeMonths());
+            pstmt.setString(14, material.getMaterialCode());
             return pstmt.executeUpdate() > 0;
         }
     }

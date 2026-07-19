@@ -136,13 +136,15 @@ public class CoordinatorAgent extends BasePharmaAgent {
             return switch (action) {
                 case AgentActions.CHECK_STOCK,
                      AgentActions.LOW_STOCK_ALERT         -> AgentNames.INVENTORY;
-                case AgentActions.CHECK_SUPPLIER          -> AgentNames.SUPPLIER;
+                case AgentActions.CHECK_SUPPLIER,
+                     AgentActions.SUPPLIER_PROPOSE        -> AgentNames.SUPPLIER;
                 case AgentActions.MANUFACTURING_FEASIBILITY,
                      AgentActions.CHECK_CAPACITY          -> AgentNames.PRODUCTION;
                 case AgentActions.QA_REVIEW               -> AgentNames.QA;
                 case AgentActions.COMPLIANCE_VALIDATE     -> AgentNames.COMPLIANCE;
                 case AgentActions.RISK_ANALYSIS           -> AgentNames.RISK;
-                case AgentActions.PROCUREMENT_WORKFLOW    -> AgentNames.PROCUREMENT;
+                case AgentActions.PROCUREMENT_WORKFLOW,
+                     AgentActions.CREATE_PO_DRAFT         -> AgentNames.PROCUREMENT;
                 case AgentActions.AI_REASONING            -> AgentNames.AI_REASONING;
                 case AgentActions.KNOWLEDGE_QUERY         -> AgentNames.KNOWLEDGE;
                 default -> null;
@@ -157,15 +159,22 @@ public class CoordinatorAgent extends BasePharmaAgent {
     /**
      * Listens for ACL INFORM messages from specialist agents and resolves
      * the corresponding {@code CompletableFuture} in the {@link AgentGateway}.
+     *
+     * <p>FIX: Previously matched on performative only, which allowed concurrent
+     * replies to be delivered to the wrong future when multiple requests were
+     * in-flight simultaneously. Now matches on BOTH performative AND conversationId,
+     * guaranteeing correct reply routing even under concurrent load.
      */
     private class ReplyBehaviour extends CyclicBehaviour {
 
-        private static final MessageTemplate TEMPLATE =
-                MessageTemplate.MatchPerformative(ACLMessage.INFORM);
-
         @Override
         public void action() {
-            ACLMessage msg = myAgent.receive(TEMPLATE);
+            // Dynamic template: match INFORM for any conversationId
+            MessageTemplate template = MessageTemplate.and(
+                MessageTemplate.MatchPerformative(ACLMessage.INFORM),
+                MessageTemplate.not(MessageTemplate.MatchConversationId(null)));
+
+            ACLMessage msg = myAgent.receive(template);
             if (msg == null) {
                 block();
                 return;
@@ -181,6 +190,15 @@ public class CoordinatorAgent extends BasePharmaAgent {
                 AgentResponseEnvelope<?> response =
                         MAPPER.readValue(msg.getContent(), AgentResponseEnvelope.class);
 
+                // Enforce conversationId correlation: the response's transactionId must
+                // match the message's conversationId set by O2ADispatchBehaviour.
+                if (response.getTransactionId() == null) {
+                    response = AgentResponseEnvelope.failure(
+                        msg.getConversationId(),
+                        response.getAction(),
+                        "Response missing transactionId — set from conversationId");
+                }
+
                 response.getAgentTrace().add(0, "CoordinatorAgent relayed reply");
 
                 log.info("[CoordinatorAgent] Relaying reply txId='{}' status='{}'",
@@ -190,6 +208,12 @@ public class CoordinatorAgent extends BasePharmaAgent {
 
             } catch (JsonProcessingException e) {
                 log.error("[CoordinatorAgent] Failed to parse specialist reply: {}", e.getMessage());
+                // Attempt to resolve the pending future with a failure so the caller isn't hung
+                if (gateway != null && msg.getConversationId() != null) {
+                    gateway.complete(AgentResponseEnvelope.failure(
+                        msg.getConversationId(), "UNKNOWN",
+                        "CoordinatorAgent failed to parse specialist reply: " + e.getMessage()));
+                }
             }
         }
     }

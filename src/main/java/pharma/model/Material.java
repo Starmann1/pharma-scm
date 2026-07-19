@@ -200,6 +200,16 @@ public class Material {
         this.materialType = materialType;
     }
 
+    private int shelfLifeMonths = 24;
+
+    public int getShelfLifeMonths() {
+        return shelfLifeMonths;
+    }
+
+    public void setShelfLifeMonths(int shelfLifeMonths) {
+        this.shelfLifeMonths = shelfLifeMonths;
+    }
+
     public UnitOfMeasure getUnitOfMeasure() {
         return unitOfMeasure;
     }

@@ -19,6 +19,7 @@ import pharma.dto.MaterialAvailabilityDTO;
 import pharma.dto.RiskReportDTO;
 import pharma.service.DatabaseService;
 import pharma.service.RoleService;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
@@ -36,6 +37,22 @@ public class ApiServer {
                     rule.anyHost();
                 });
             });
+        });
+
+        // Global Authentication Middleware
+        app.before(ctx -> {
+            if (ctx.method() == io.javalin.http.HandlerType.OPTIONS) {
+                return;
+            }
+            String path = ctx.path();
+            if (path.startsWith("/api/")
+                    && !path.equals("/api/auth/login")
+                    && !path.equals("/api/agent/stream")) {
+                String userId = ctx.header("X-User-Id");
+                if (userId == null || userId.isBlank()) {
+                    ctx.status(401).json(new ErrorResponse("Unauthorized. Please sign in to access secure resources."));
+                }
+            }
         });
 
         // Global Exception Handler
@@ -439,6 +456,46 @@ public class ApiServer {
             ctx.status(201).json(req.header);
         });
 
+        app.put("/api/bom/{id}", ctx -> {
+            int bomId;
+            try {
+                bomId = Integer.parseInt(ctx.pathParam("id"));
+            } catch (NumberFormatException e) {
+                ctx.status(400).json(new ErrorResponse("Invalid BOM ID format"));
+                return;
+            }
+            CreateBOMRequest req = ctx.bodyAsClass(CreateBOMRequest.class);
+            if (req.header == null) {
+                ctx.status(400).json(new ErrorResponse("Invalid payload: header is required."));
+                return;
+            }
+            if (req.header.getEffectiveDate() == null) {
+                req.header.setEffectiveDate(java.time.LocalDate.now());
+            }
+            boolean updated = dbService.updateBOM(bomId, req.header, req.details);
+            if (updated) {
+                ctx.json(new StatusUpdateResponse("BOM updated successfully"));
+            } else {
+                ctx.status(404).json(new ErrorResponse("BOM not found: " + bomId));
+            }
+        });
+
+        app.delete("/api/bom/{id}", ctx -> {
+            int bomId;
+            try {
+                bomId = Integer.parseInt(ctx.pathParam("id"));
+            } catch (NumberFormatException e) {
+                ctx.status(400).json(new ErrorResponse("Invalid BOM ID format"));
+                return;
+            }
+            boolean deleted = dbService.deleteBOM(bomId);
+            if (deleted) {
+                ctx.json(new StatusUpdateResponse("BOM deprecated successfully"));
+            } else {
+                ctx.status(404).json(new ErrorResponse("BOM not found: " + bomId));
+            }
+        });
+
         // --- PRODUCTION ORDERS ENDPOINTS ---
         app.get("/api/production/orders", ctx -> {
             List<ProductionOrder> orders = dbService.getAllProductionOrders();
@@ -446,15 +503,62 @@ public class ApiServer {
         });
 
         app.get("/api/production/feasibility", ctx -> {
-            int bomId = Integer.parseInt(ctx.queryParam("bomId"));
-            double plannedQty = Double.parseDouble(ctx.queryParam("plannedQty"));
+            String bomIdStr = ctx.queryParam("bomId");
+            String plannedQtyStr = ctx.queryParam("plannedQty");
+            if (bomIdStr == null || plannedQtyStr == null) {
+                ctx.status(400).json(new ErrorResponse("bomId and plannedQty query parameters are required."));
+                return;
+            }
+            int bomId;
+            double plannedQty;
+            try {
+                bomId = Integer.parseInt(bomIdStr);
+                plannedQty = Double.parseDouble(plannedQtyStr);
+            } catch (NumberFormatException e) {
+                ctx.status(400).json(new ErrorResponse("Invalid numeric format for bomId or plannedQty."));
+                return;
+            }
+            if (plannedQty <= 0) {
+                ctx.status(400).json(new ErrorResponse("plannedQty must be greater than zero."));
+                return;
+            }
             List<MaterialAvailabilityDTO> availability = appServices.getProductionService()
                 .checkBomMaterialAvailability(bomId, plannedQty);
             ctx.json(availability);
         });
 
         app.post("/api/production/orders", ctx -> {
-            ProductionOrder order = ctx.bodyAsClass(ProductionOrder.class);
+            ProductionOrder order;
+            try {
+                order = ctx.bodyAsClass(ProductionOrder.class);
+            } catch (Exception e) {
+                ctx.status(400).json(new ErrorResponse("Invalid JSON payload for production order."));
+                return;
+            }
+            if (order == null) {
+                ctx.status(400).json(new ErrorResponse("Request body cannot be null."));
+                return;
+            }
+            if (order.getBomId() <= 0) {
+                ctx.status(400).json(new ErrorResponse("Valid bomId is required for production order."));
+                return;
+            }
+            if (order.getPlannedQty() <= 0) {
+                ctx.status(400).json(new ErrorResponse("plannedQty must be greater than zero."));
+                return;
+            }
+            if (order.getBatchNumber() == null || order.getBatchNumber().isBlank()) {
+                ctx.status(400).json(new ErrorResponse("Batch number is required."));
+                return;
+            }
+
+            // Verify BOM recipe exists before creating order
+            BOMHeader bom = dbService.getBOMById(order.getBomId());
+            if (bom == null) {
+                ctx.status(404).json(new ErrorResponse("BOM recipe not found for ID: " + order.getBomId()));
+                return;
+            }
+
             order.setStatus(ProductionOrder.ProductionStatus.PLANNED);
             if (order.getProductionDate() == null) {
                 order.setProductionDate(java.time.LocalDate.now());
@@ -465,35 +569,53 @@ public class ApiServer {
         });
 
         app.post("/api/production/orders/{id}/start", ctx -> {
-            int id = Integer.parseInt(ctx.pathParam("id"));
+            int id;
+            try {
+                id = Integer.parseInt(ctx.pathParam("id"));
+            } catch (NumberFormatException e) {
+                ctx.status(400).json(new ErrorResponse("Invalid production order ID format"));
+                return;
+            }
             StartOrderRequest req = ctx.bodyAsClass(StartOrderRequest.class);
-            int userId = req.userId > 0 ? req.userId : 1; // default admin user
-            dbService.executeProductionRun(id, userId);
-            ctx.json(new StatusUpdateResponse("Production run executed successfully"));
+            int userId = (req != null && req.userId > 0) ? req.userId : 1;
+            try {
+                dbService.executeProductionRun(id, userId);
+                ctx.json(new StatusUpdateResponse("Production run executed successfully"));
+            } catch (SQLException e) {
+                ctx.status(400).json(new ErrorResponse(e.getMessage()));
+            }
         });
 
         app.post("/api/production/orders/{id}/status", ctx -> {
-            int id = Integer.parseInt(ctx.pathParam("id"));
-            OrderStatusUpdateRequest req = ctx.bodyAsClass(OrderStatusUpdateRequest.class);
-            dbService.updateProductionOrderStatus(id, req.status);
-            
-            // Auto-trigger QA sampling when transitioning to Quality-Testing
-            if ("Quality-Testing".equalsIgnoreCase(req.status)) {
-                ProductionOrder order = dbService.getProductionOrderById(id);
-                if (order != null) {
-                    dbService.takeSampleForQC(order.getBatchNumber(), 1); // 1 = admin user
-                }
+            int id;
+            try {
+                id = Integer.parseInt(ctx.pathParam("id"));
+            } catch (NumberFormatException e) {
+                ctx.status(400).json(new ErrorResponse("Invalid production order ID format"));
+                return;
             }
+            OrderStatusUpdateRequest req = ctx.bodyAsClass(OrderStatusUpdateRequest.class);
+            if (req == null || req.status == null || req.status.isBlank()) {
+                ctx.status(400).json(new ErrorResponse("Status parameter is required."));
+                return;
+            }
+            dbService.updateProductionOrderStatus(id, req.status);
             ctx.json(new StatusUpdateResponse("Production order status updated successfully"));
         });
 
         // --- QA / QUALITY COMPLIANCE ENDPOINTS ---
         app.get("/api/qa/inspections", ctx -> {
             List<Stock> all = dbService.getDetailedInventoryReport();
+            // Include all active (non-terminal) QC states so the full workflow is visible
             List<Stock> pending = all.stream()
-                .filter(s -> "QUARANTINE".equalsIgnoreCase(s.getQcStatus()) || 
-                             "UNDER_TEST".equalsIgnoreCase(s.getQcStatus()) ||
-                             "QI".equalsIgnoreCase(s.getQcStatus()))
+                .filter(s -> {
+                    String st = s.getQcStatus();
+                    return "QUARANTINE".equalsIgnoreCase(st)
+                        || "UNDER_TEST".equalsIgnoreCase(st)
+                        || "QI".equalsIgnoreCase(st)
+                        || "IN_PRODUCTION".equalsIgnoreCase(st)
+                        || "IN_PROCESS_SAMPLE".equalsIgnoreCase(st);
+                })
                 .toList();
             ctx.json(pending);
         });
@@ -516,17 +638,34 @@ public class ApiServer {
 
         app.post("/api/qa/inspections/{batch}/sample", ctx -> {
             String batch = ctx.pathParam("batch");
-            StartOrderRequest req = ctx.bodyAsClass(StartOrderRequest.class);
-            int userId = req.userId > 0 ? req.userId : 1;
+            int userId = 1;
+            String body = ctx.body();
+            if (body != null && !body.trim().isEmpty()) {
+                try {
+                    StartOrderRequest req = ctx.bodyAsClass(StartOrderRequest.class);
+                    if (req != null && req.userId > 0) {
+                        userId = req.userId;
+                    }
+                } catch (Exception e) {
+                    // Fallback to default user
+                }
+            }
             dbService.takeSampleForQC(batch, userId);
-            ctx.json(new StatusUpdateResponse("IPQC sample taken. Status updated to UNDER_TEST"));
+            ctx.json(new StatusUpdateResponse("Sample taken successfully. Status updated."));
         });
 
         app.post("/api/qa/inspections/{batch}/status", ctx -> {
             String batch = ctx.pathParam("batch");
             OrderStatusUpdateRequest req = ctx.bodyAsClass(OrderStatusUpdateRequest.class);
             int userId = req.userId > 0 ? req.userId : 1;
-            dbService.updateQCStatus(batch, req.status.toUpperCase(), userId);
+            String st = req.status.toUpperCase();
+            // Intermediate advancement uses takeSampleForQC (IN_PRODUCTION->IN_PROCESS_SAMPLE->UNDER_TEST)
+            if ("UNDER_TEST".equalsIgnoreCase(st) || "QI".equalsIgnoreCase(st)
+                    || "IN_PROCESS_SAMPLE".equalsIgnoreCase(st)) {
+                dbService.takeSampleForQC(batch, userId);
+            } else {
+                dbService.updateQCStatus(batch, st, userId);
+            }
             ctx.json(new StatusUpdateResponse("QC status updated to " + req.status));
         });
 

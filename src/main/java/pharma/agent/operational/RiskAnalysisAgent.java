@@ -36,9 +36,9 @@ public class RiskAnalysisAgent extends BasePharmaAgent {
     protected void setup() {
         super.setup();
 
-        // 1. Daily periodic risk scanner
-        addBehaviour(new PeriodicRiskScanBehaviour(this, DAILY_SCAN_PERIOD_MS, services));
-        logger.info("[RiskAnalysisAgent] PeriodicRiskScanBehaviour added (period={}ms).", DAILY_SCAN_PERIOD_MS);
+        // 1. Daily periodic risk scanner — DISABLED (all auto-processes are off)
+        // addBehaviour(new PeriodicRiskScanBehaviour(this, DAILY_SCAN_PERIOD_MS, services));
+        // logger.info("[RiskAnalysisAgent] PeriodicRiskScanBehaviour added (period={}ms).", DAILY_SCAN_PERIOD_MS);
 
         // 2. On-demand risk analysis request handler
         addBehaviour(new RiskAnalysisRequestBehaviour());

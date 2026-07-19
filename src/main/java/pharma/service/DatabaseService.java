@@ -526,6 +526,14 @@ public class DatabaseService {
         }
     }
 
+    public boolean updateBOM(int bomId, BOMHeader header, List<BOMDetail> details) throws SQLException, ClassNotFoundException {
+        return bomRepo.updateBOM(bomId, header, details);
+    }
+
+    public boolean deleteBOM(int bomId) throws SQLException, ClassNotFoundException {
+        return bomRepo.deleteBOM(bomId);
+    }
+
     public Map<String, Double> validateBOMAvailability(int bomId, double plannedQty)
             throws SQLException, ClassNotFoundException {
         Map<String, Double> shortages = new HashMap<>();

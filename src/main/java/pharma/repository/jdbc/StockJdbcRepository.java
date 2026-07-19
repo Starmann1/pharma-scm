@@ -46,15 +46,20 @@ public class StockJdbcRepository {
     // -----------------------------------------------------------------------
 
     /**
-     * Returns the sum of approved, non-rejected stock quantity for a material,
-     * optionally filtered by location.
+     * Returns the net available stock (physical quantity minus reserved quantity) for
+     * a material. This is the true uncommitted stock available for new production orders.
+     * <p>
+     * FIX: Previously used raw SUM(quantity) which over-counted already-reserved stock,
+     * causing phantom availability and allowing over-commitment of materials.
      */
     public double getAvailableStock(String materialCode, String locationCode)
             throws SQLException, ClassNotFoundException {
         StringBuilder sql = new StringBuilder(
-                "SELECT COALESCE(SUM(quantity), 0) AS available FROM "
+                "SELECT COALESCE(SUM(quantity - reserved_quantity), 0) AS available FROM "
                         + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
-                        + " WHERE material_code = ? AND qc_status = 'APPROVED' AND location_code != 'REJECTED_AREA'");
+                        + " WHERE material_code = ? AND qc_status = 'APPROVED'"
+                        + " AND location_code != 'REJECTED_AREA'"
+                        + " AND (exp_date IS NULL OR exp_date >= CURRENT_DATE)");
         if (locationCode != null && !locationCode.isBlank()) {
             sql.append(" AND location_code = ?");
         }
@@ -66,7 +71,7 @@ public class StockJdbcRepository {
                 pstmt.setString(2, locationCode);
             }
             try (ResultSet rs = pstmt.executeQuery()) {
-                return rs.next() ? rs.getDouble("available") : 0.0;
+                return rs.next() ? Math.max(0.0, rs.getDouble("available")) : 0.0;
             }
         }
     }
@@ -171,22 +176,51 @@ public class StockJdbcRepository {
     }
 
     /**
-     * Returns parent batch numbers for a child batch (from {@code parent_batch_id} CSV).
+     * Returns parent batch numbers for a child batch by querying the relational
+     * {@code batch_genealogy} table joined with {@code material_master}, falling
+     * back to the CSV column in {@code stock_inventory}.
      */
     public List<String> getParentBatch(String batchNumber) throws SQLException, ClassNotFoundException {
         List<String> parentBatches = new ArrayList<>();
-        String sql = "SELECT parent_batch_id FROM " + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
-                + " WHERE batch_number = ?";
+
+        // 1. Primary: query batch_genealogy table
+        String bgSql = "SELECT bg.parent_batch, mm.brand_name "
+                + "FROM " + d.table(JdbcSqlDialect.Table.BATCH_GENEALOGY) + " bg "
+                + "LEFT JOIN " + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY) + " si ON bg.parent_batch = si.batch_number "
+                + "LEFT JOIN " + d.table(JdbcSqlDialect.Table.MATERIAL_MASTER) + " mm ON si.material_code = mm.material_code "
+                + "WHERE bg.child_batch = ?";
 
         try (Connection conn = databaseService.getConnection();
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(bgSql)) {
             pstmt.setString(1, batchNumber);
             try (ResultSet rs = pstmt.executeQuery()) {
-                if (rs.next()) {
-                    String parents = rs.getString("parent_batch_id");
-                    if (parents != null && !parents.isEmpty()) {
-                        for (String batch : parents.split(",")) {
-                            parentBatches.add(batch.trim());
+                while (rs.next()) {
+                    String pBatch = rs.getString("parent_batch");
+                    String brandName = rs.getString("brand_name");
+                    if (brandName != null && !brandName.isBlank()) {
+                        parentBatches.add(pBatch + " (" + brandName + ")");
+                    } else {
+                        parentBatches.add(pBatch);
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback: check CSV column in stock_inventory if no genealogy table entries found
+        if (parentBatches.isEmpty()) {
+            String sql = "SELECT parent_batch_id FROM " + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
+                    + " WHERE batch_number = ?";
+
+            try (Connection conn = databaseService.getConnection();
+                    PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setString(1, batchNumber);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next()) {
+                        String parents = rs.getString("parent_batch_id");
+                        if (parents != null && !parents.isEmpty()) {
+                            for (String batch : parents.split(",")) {
+                                parentBatches.add(batch.trim());
+                            }
                         }
                     }
                 }
@@ -269,7 +303,7 @@ public class StockJdbcRepository {
      * Inserts a new finished-goods stock record from production (not an upsert).
      */
     public void insertProductionStock(Connection conn, String materialCode, String locationCode,
-            String batchNumber, double quantity, String parentBatchIds, int productionOrderId)
+            String batchNumber, double quantity, String parentBatchIds, int productionOrderId, LocalDate expiryDate)
             throws SQLException {
         String sql = "INSERT INTO " + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
                 + " (material_code, location_code, batch_number, quantity, unit_cost, mfg_date, exp_date,"
@@ -283,7 +317,7 @@ public class StockJdbcRepository {
             pstmt.setDouble(4, quantity);
             pstmt.setDouble(5, 0.0);
             pstmt.setDate(6, java.sql.Date.valueOf(LocalDate.now()));
-            pstmt.setDate(7, java.sql.Date.valueOf(LocalDate.now().plusYears(2)));
+            pstmt.setDate(7, java.sql.Date.valueOf(expiryDate));
             pstmt.setString(8, parentBatchIds);
             pstmt.setInt(9, productionOrderId);
             pstmt.executeUpdate();
@@ -324,21 +358,42 @@ public class StockJdbcRepository {
     }
 
     /**
-     * Consumes approved stock using FEFO within an existing transaction.
+     * Consumes approved stock using FEFO (First-Expired, First-Out) within an existing
+     * database transaction.
      *
-     * @return consumed batch lines in FEFO order; empty if insufficient stock
+     * <p>FIX 1 — Row-level lock: Uses {@code SELECT ... FOR UPDATE} to prevent concurrent
+     * production runs from reading the same available quantities and double-consuming.
+     *
+     * <p>FIX 2 — Reservation release: After consuming physical stock, proportionally
+     * reduces {@code reserved_quantity} so the DB CHECK constraint
+     * ({@code reserved_quantity <= quantity}) is not violated.
+     *
+     * @param conn          active JDBC connection (caller manages transaction)
+     * @param materialCode  the material to consume
+     * @param quantityNeeded total quantity to consume
+     * @return consumed batch lines in FEFO order
+     * @throws SQLException if stock is insufficient or a DB error occurs
      */
     public List<ConsumedStockLine> consumeStock(Connection conn, String materialCode, double quantityNeeded)
             throws SQLException {
         List<ConsumedStockLine> consumed = new ArrayList<>();
-        String selectSql = "SELECT stock_id, batch_number, quantity, exp_date FROM "
+
+        // FOR UPDATE acquires row-level exclusive locks — prevents concurrent reads from
+        // seeing the same available quantity and racing to consume it.
+        String selectSql = "SELECT stock_id, batch_number, quantity, reserved_quantity, exp_date FROM "
                 + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
                 + " WHERE material_code = ? AND qc_status = 'APPROVED'"
-                + " AND location_code != 'REJECTED_AREA' AND quantity > 0"
-                + d.fefoOrderByClause();
+                + " AND location_code != 'REJECTED_AREA'"
+                + " AND (exp_date IS NULL OR exp_date >= CURRENT_DATE)"
+                + " AND (quantity - reserved_quantity) > 0"
+                + d.fefoOrderByClause()
+                + " FOR UPDATE";
 
+        // Decrement physical quantity AND proportionally release the reservation
         String updateSql = "UPDATE " + d.table(JdbcSqlDialect.Table.STOCK_INVENTORY)
-                + " SET quantity = quantity - ? WHERE stock_id = ?";
+                + " SET quantity = quantity - ?,"
+                + "     reserved_quantity = GREATEST(0, reserved_quantity - ?)"
+                + " WHERE stock_id = ?";
 
         try (PreparedStatement selectStmt = conn.prepareStatement(selectSql)) {
             selectStmt.setString(1, materialCode);
@@ -347,12 +402,16 @@ public class StockJdbcRepository {
                 while (rs.next() && remaining > 0) {
                     int stockId = rs.getInt("stock_id");
                     String batchNumber = rs.getString("batch_number");
-                    double available = rs.getDouble("quantity");
-                    double toConsume = Math.min(remaining, available);
+                    double physicalQty = rs.getDouble("quantity");
+                    double reservedQty = rs.getDouble("reserved_quantity");
+                    // Only consume the net-available (uncommitted) portion of this row
+                    double netAvailable = physicalQty - reservedQty;
+                    double toConsume = Math.min(remaining, netAvailable);
 
                     try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
-                        updateStmt.setDouble(1, toConsume);
-                        updateStmt.setInt(2, stockId);
+                        updateStmt.setDouble(1, toConsume);   // reduce physical qty
+                        updateStmt.setDouble(2, toConsume);   // release the matching reservation
+                        updateStmt.setInt(3, stockId);
                         updateStmt.executeUpdate();
                     }
 
@@ -360,9 +419,10 @@ public class StockJdbcRepository {
                     remaining -= toConsume;
                 }
 
-                if (remaining > 0) {
+                if (remaining > 0.001) { // tolerance for floating-point rounding
                     throw new SQLException(
-                            "Insufficient stock for material " + materialCode + ", shortage: " + remaining);
+                            "Insufficient unreserved stock for material '" + materialCode
+                            + "'. Shortage: " + String.format("%.3f", remaining));
                 }
             }
         }

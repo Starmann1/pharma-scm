@@ -969,6 +969,48 @@
       </div>
     </div>
 
+    <!-- View BOM Details Modal -->
+    <div class="modal-overlay" id="viewBomDetailsModal">
+      <div class="modal-card" style="max-width: 800px;">
+        <div class="modal-header">
+          <h3>BOM Recipe Formulation Details</h3>
+          <button class="close-btn" onclick="closeModal('viewBomDetailsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px; opacity: 0.8;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>BOM ID</label>
+              <input type="text" id="viewBomId" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>Finished Product Code</label>
+              <input type="text" id="viewBomProductCode" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+          </div>
+          <div class="form-row" style="display: flex; gap: 16px; margin-bottom: 16px; opacity: 0.8;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>Description</label>
+              <input type="text" id="viewBomDescription" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label>Version / Status</label>
+              <input type="text" id="viewBomVersionStatus" readonly style="opacity: 0.6; cursor: not-allowed;">
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px;">
+            <h4 style="margin-bottom: 12px;">Ingredient Requirements (Formula Recipe)</h4>
+            <div id="viewBomIngredientsTableContainer">
+              <!-- Render read only table -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-primary" onclick="closeModal('viewBomDetailsModal')">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Script Entrypoint -->
     <script type="module" src="/src/main.js"></script>
     <script>

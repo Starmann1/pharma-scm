@@ -182,4 +182,78 @@ public class BOMJdbcRepository implements BOMRepository {
         }
         return boms;
     }
+
+    @Override
+    public boolean updateBOM(int bomId, BOMHeader header, List<BOMDetail> details) throws SQLException, ClassNotFoundException {
+        String updateHeaderSql = "UPDATE " + sqlDialect.table(JdbcSqlDialect.Table.BOM_HEADER)
+                + " SET version_number = ?, is_active = ?, effective_date = ?, description = ?, updated_at = " + sqlDialect.nowExpression()
+                + " WHERE bom_id = ?";
+
+        String deleteDetailsSql = "DELETE FROM " + sqlDialect.table(JdbcSqlDialect.Table.BOM_DETAILS) + " WHERE bom_id = ?";
+        String insertDetailSql = "INSERT INTO " + sqlDialect.table(JdbcSqlDialect.Table.BOM_DETAILS)
+                + " (bom_id, ingredient_material_code, required_qty, uom, sequence_number, notes) VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = databaseService.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                int updatedRows;
+                try (PreparedStatement pstmt = conn.prepareStatement(updateHeaderSql)) {
+                    pstmt.setInt(1, header.getVersionNumber());
+                    pstmt.setBoolean(2, header.isActive());
+                    pstmt.setDate(3, java.sql.Date.valueOf(header.getEffectiveDate()));
+                    pstmt.setString(4, header.getDescription());
+                    pstmt.setInt(5, bomId);
+                    updatedRows = pstmt.executeUpdate();
+                }
+
+                if (updatedRows == 0) {
+                    conn.rollback();
+                    return false;
+                }
+
+                if (details != null) {
+                    try (PreparedStatement delStmt = conn.prepareStatement(deleteDetailsSql)) {
+                        delStmt.setInt(1, bomId);
+                        delStmt.executeUpdate();
+                    }
+
+                    if (!details.isEmpty()) {
+                        try (PreparedStatement insStmt = conn.prepareStatement(insertDetailSql)) {
+                            for (BOMDetail detail : details) {
+                                insStmt.setInt(1, bomId);
+                                insStmt.setString(2, detail.getIngredientMaterialCode());
+                                insStmt.setDouble(3, detail.getRequiredQty());
+                                insStmt.setString(4, detail.getUom());
+                                insStmt.setInt(5, detail.getSequenceNumber());
+                                insStmt.setString(6, detail.getNotes());
+                                insStmt.addBatch();
+                            }
+                            insStmt.executeBatch();
+                        }
+                    }
+                }
+
+                conn.commit();
+                return true;
+
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    @Override
+    public boolean deleteBOM(int bomId) throws SQLException, ClassNotFoundException {
+        String sql = "UPDATE " + sqlDialect.table(JdbcSqlDialect.Table.BOM_HEADER)
+                + " SET is_active = FALSE, updated_at = " + sqlDialect.nowExpression()
+                + " WHERE bom_id = ?";
+        try (Connection conn = databaseService.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, bomId);
+            return pstmt.executeUpdate() > 0;
+        }
+    }
 }

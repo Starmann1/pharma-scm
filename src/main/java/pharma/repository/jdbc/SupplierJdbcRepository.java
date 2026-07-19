@@ -251,11 +251,16 @@ public class SupplierJdbcRepository implements SupplierRepository {
     public List<SupplierScoreDTO> rankApprovedSuppliersForMaterial(String materialCode)
             throws SQLException, ClassNotFoundException {
         String sql = "SELECT s.supplier_id, s.supplier_name, s.supplier_status, "
-                + "CASE WHEN mm.preferred_supplier_id = s.supplier_id THEN 100 ELSE 60 END AS score "
+                + " (CASE WHEN mm.preferred_supplier_id = s.supplier_id THEN 80 ELSE 50 END "
+                + "  + COALESCE(SUM(CASE WHEN sdh.on_time = TRUE THEN 10 ELSE 0 END), 0) "
+                + "  - COALESCE(SUM(CASE WHEN sdh.rejection_flag = TRUE THEN 30 ELSE 0 END), 0)) AS score "
                 + "FROM " + sqlDialect.table(JdbcSqlDialect.Table.SUPPLIER_MASTER) + " s "
                 + "LEFT JOIN " + sqlDialect.table(JdbcSqlDialect.Table.MATERIAL_MASTER)
                 + " mm ON mm.material_code = ? "
+                + "LEFT JOIN " + sqlDialect.table(JdbcSqlDialect.Table.SUPPLIER_DELIVERY_HISTORY)
+                + " sdh ON sdh.supplier_id = s.supplier_id "
                 + "WHERE UPPER(COALESCE(s.supplier_status, 'APPROVED')) = ? "
+                + "GROUP BY s.supplier_id, s.supplier_name, s.supplier_status, mm.preferred_supplier_id "
                 + "ORDER BY score DESC, s.supplier_name ASC";
         List<SupplierScoreDTO> suppliers = new ArrayList<>();
         try (Connection conn = databaseService.getConnection();
@@ -269,8 +274,11 @@ public class SupplierJdbcRepository implements SupplierRepository {
                     dto.setSupplierName(rs.getString("supplier_name"));
                     dto.setSupplierStatus(rs.getString("supplier_status"));
                     dto.setMaterialCode(materialCode);
-                    dto.setScore(rs.getDouble("score"));
-                    dto.setRationale(dto.getScore() >= 100 ? "Preferred approved supplier" : "Approved supplier");
+                    double score = Math.max(0.0, rs.getDouble("score"));
+                    dto.setScore(score);
+                    String rationale = score >= 80 ? "Preferred supplier with clean quality audit record"
+                                     : (score < 50 ? "Low quality score due to prior delivery/QA rejections" : "Approved supplier");
+                    dto.setRationale(rationale);
                     suppliers.add(dto);
                 }
             }

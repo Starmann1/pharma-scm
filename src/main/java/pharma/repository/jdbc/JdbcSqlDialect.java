@@ -18,6 +18,7 @@ final class JdbcSqlDialect {
         PURCHASE_ORDER_ITEM("PurchaseOrder_Item", "purchase_order_item"),
         STOCK_INVENTORY("Stock_Inventory", "stock_inventory"),
         SUPPLIER_MASTER("Supplier_Master", "supplier_master"),
+        SUPPLIER_DELIVERY_HISTORY("supplier_delivery_history", "supplier_delivery_history"),
         SYSTEM_AUDIT_TRAIL("System_Audit_Trail", "system_audit_trail"),
         USER_MASTER("User_Master", "user_master"),
         ROLE_MASTER("Role_Master", "role_master"),

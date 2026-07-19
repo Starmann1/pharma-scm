@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS material_master (
     preferred_supplier_id INTEGER REFERENCES supplier_master(supplier_id) ON DELETE SET NULL ON UPDATE CASCADE,
     material_type VARCHAR(50) NOT NULL DEFAULT 'FINISHED_GOOD',
     unit_of_measure VARCHAR(50) NOT NULL DEFAULT 'UNIT',
+    shelf_life_months INTEGER NOT NULL DEFAULT 24,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_material_type

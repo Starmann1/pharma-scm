@@ -4,6 +4,34 @@ import './style.css';
 const API_BASE = "http://localhost:8080/api";
 const SESSION_STORAGE_KEY = "pharmaScm.authSession";
 
+// Global Fetch Interceptor to inject authentication headers
+const originalFetch = window.fetch;
+window.fetch = async function(url, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    
+    // Auto-inject current logged-in user context
+    if (typeof currentUser !== 'undefined' && currentUser && currentUser.userId) {
+        options.headers['X-User-Id'] = String(currentUser.userId);
+        if (currentUser.roleName) {
+            options.headers['X-User-Role'] = currentUser.roleName;
+        }
+    }
+    
+    try {
+        const response = await originalFetch(url, options);
+        // If server returns 401 Unauthorized (except for login itself), clear session and kick to login screen
+        if (response.status === 401 && !url.includes('/auth/login')) {
+            if (typeof logout === 'function') {
+                logout();
+            }
+        }
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
 // Global Modal Helpers
 function openModal(id) {
     const modal = document.getElementById(id);
@@ -15,6 +43,613 @@ function closeModal(id) {
 }
 window.openModal = openModal;
 window.closeModal = closeModal;
+
+// Override window.alert with a premium toast notification
+window.alert = function(message) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.position = 'fixed';
+        container.style.top = '20px';
+        container.style.right = '20px';
+        container.style.zIndex = '10000';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '10px';
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.style.minWidth = '300px';
+    toast.style.maxWidth = '450px';
+    toast.style.backgroundColor = 'var(--bg-card, rgba(30, 41, 59, 0.95))';
+    toast.style.backdropFilter = 'blur(12px)';
+    toast.style.border = '1px solid var(--border-color, #334155)';
+    toast.style.borderRadius = '8px';
+    toast.style.padding = '14px 18px';
+    toast.style.color = 'var(--text-primary, #ffffff)';
+    toast.style.fontSize = '13px';
+    toast.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.3)';
+    toast.style.display = 'flex';
+    toast.style.alignItems = 'center';
+    toast.style.justifyContent = 'space-between';
+    toast.style.gap = '15px';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-20px) scale(0.95)';
+    toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    
+    const contentWrapper = document.createElement('div');
+    contentWrapper.style.display = 'flex';
+    contentWrapper.style.alignItems = 'center';
+    contentWrapper.style.gap = '10px';
+    
+    const isError = message.toLowerCase().includes('error') || message.toLowerCase().includes('fail') || message.toLowerCase().includes('invalid') || message.toLowerCase().includes('required');
+    const icon = document.createElement('span');
+    icon.style.fontSize = '16px';
+    if (isError) {
+        icon.innerHTML = '⚠️';
+        icon.style.color = '#ef4444';
+    } else {
+        icon.innerHTML = '✨';
+        icon.style.color = 'var(--accent-teal, #38bdf8)';
+    }
+    contentWrapper.appendChild(icon);
+    
+    const text = document.createElement('span');
+    text.innerText = message;
+    contentWrapper.appendChild(text);
+    toast.appendChild(contentWrapper);
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.style.background = 'none';
+    closeBtn.style.border = 'none';
+    closeBtn.style.color = 'var(--text-secondary, #94a3b8)';
+    closeBtn.style.fontSize = '16px';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.style.padding = '0 5px';
+    closeBtn.onclick = () => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-20px) scale(0.95)';
+        setTimeout(() => toast.remove(), 300);
+    };
+    toast.appendChild(closeBtn);
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0) scale(1)';
+    }, 10);
+    
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px) scale(0.95)';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 4500);
+};
+
+// Custom Confirm and Prompt implementation
+function createCustomDialog(type, message, defaultValue = '', placeholder = '') {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay active';
+        overlay.style.zIndex = '9999';
+
+        const card = document.createElement('div');
+        card.className = 'modal-card';
+        card.style.width = '420px';
+        card.style.padding = '0';
+        card.style.background = 'var(--bg-card)';
+        
+        const header = document.createElement('div');
+        header.className = 'modal-header';
+        
+        const title = document.createElement('span');
+        title.className = 'modal-title';
+        title.style.fontSize = '14px';
+        title.style.fontWeight = '600';
+        
+        if (type === 'confirm') {
+            title.innerText = 'Confirmation Required';
+            title.style.color = '#ef4444';
+        } else if (type === 'prompt') {
+            title.innerText = 'Remarks / Input Required';
+            title.style.color = 'var(--accent-teal)';
+        } else if (type === 'password') {
+            title.innerText = 'Electronic Signature Verification';
+            title.style.color = 'var(--accent-teal)';
+        }
+        
+        header.appendChild(title);
+        card.appendChild(header);
+        
+        const body = document.createElement('div');
+        body.className = 'modal-body';
+        body.style.padding = '20px';
+        body.style.fontSize = '13px';
+        body.style.lineHeight = '1.6';
+        body.style.color = 'var(--text-primary)';
+        
+        const text = document.createElement('p');
+        text.innerText = message;
+        body.appendChild(text);
+        
+        let inputField = null;
+        if (type === 'prompt' || type === 'password') {
+            inputField = document.createElement('input');
+            inputField.type = type === 'password' ? 'password' : 'text';
+            inputField.value = defaultValue;
+            inputField.placeholder = placeholder;
+            inputField.style.width = '100%';
+            inputField.style.marginTop = '15px';
+            inputField.style.padding = '10px 12px';
+            inputField.style.borderRadius = '6px';
+            inputField.style.border = '1px solid var(--border-color)';
+            inputField.style.backgroundColor = 'var(--bg-elevated)';
+            inputField.style.color = 'var(--text-primary)';
+            inputField.style.outline = 'none';
+            inputField.style.fontSize = '13px';
+            body.appendChild(inputField);
+        }
+        
+        card.appendChild(body);
+        
+        const footer = document.createElement('div');
+        footer.className = 'modal-footer';
+        footer.style.padding = '12px 20px';
+        footer.style.display = 'flex';
+        footer.style.justifyContent = 'flex-end';
+        footer.style.gap = '10px';
+        footer.style.borderTop = '1px solid var(--border-color)';
+        
+        const cleanUp = () => {
+            overlay.classList.remove('active');
+            setTimeout(() => overlay.remove(), 300);
+        };
+        
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-secondary';
+        cancelBtn.innerText = 'Cancel';
+        cancelBtn.onclick = () => {
+            cleanUp();
+            resolve(type === 'confirm' ? false : null);
+        };
+        
+        const okBtn = document.createElement('button');
+        okBtn.className = 'btn-primary';
+        okBtn.innerText = type === 'confirm' ? 'Confirm' : 'Submit';
+        
+        if (type === 'confirm') {
+            okBtn.style.backgroundColor = '#ef4444';
+            okBtn.style.color = '#ffffff';
+            okBtn.onclick = () => {
+                cleanUp();
+                resolve(true);
+            };
+        } else {
+            const submitVal = () => {
+                cleanUp();
+                resolve(inputField.value);
+            };
+            okBtn.onclick = submitVal;
+            inputField.onkeydown = (e) => {
+                if (e.key === 'Enter') submitVal();
+                if (e.key === 'Escape') {
+                    cleanUp();
+                    resolve(null);
+                }
+            };
+        }
+        
+        footer.appendChild(cancelBtn);
+        footer.appendChild(okBtn);
+        card.appendChild(footer);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        
+        if (inputField) {
+            setTimeout(() => inputField.focus(), 50);
+        }
+    });
+}
+
+function customConfirm(message) {
+    return createCustomDialog('confirm', message);
+}
+
+function customPrompt(message, defaultValue = '') {
+    return createCustomDialog('prompt', message, defaultValue);
+}
+
+function customPasswordPrompt(message, defaultValue = '') {
+    return createCustomDialog('password', message, defaultValue, 'Enter password to sign');
+}
+
+// Excel-like selection and multi-delete for tables
+let activeSelectionCleanup = null;
+
+function setupExcelLikeSelection(tableBodyId, rowKeyAttr, onDeleteSelected) {
+    if (activeSelectionCleanup) {
+        activeSelectionCleanup();
+        activeSelectionCleanup = null;
+    }
+
+    const tbody = document.getElementById(tableBodyId);
+    if (!tbody) return;
+
+    let selectedKeys = new Set();
+    let lastSelectedIndex = null;
+
+    let actionBar = document.getElementById('selection-action-bar');
+    if (!actionBar) {
+        actionBar = document.createElement('div');
+        actionBar.id = 'selection-action-bar';
+        actionBar.className = 'selection-action-bar';
+        document.body.appendChild(actionBar);
+    }
+
+    const updateActionBar = () => {
+        if (selectedKeys.size > 0) {
+            actionBar.innerHTML = `
+                <span class="selection-info"><strong>${selectedKeys.size}</strong> row(s) selected</span>
+                <button class="btn-primary" id="deleteSelectedBtn" style="background-color: #ef4444; border-color: #ef4444; color: #ffffff; padding: 6px 12px; font-size: 11px;">Delete Selected (Del)</button>
+                <button class="btn-secondary" id="clearSelectionBtn" style="padding: 6px 12px; font-size: 11px;">Clear (Esc)</button>
+            `;
+            actionBar.classList.add('active');
+            
+            document.getElementById('deleteSelectedBtn').onclick = () => {
+                onDeleteSelected(Array.from(selectedKeys));
+                clearSelection();
+            };
+            document.getElementById('clearSelectionBtn').onclick = clearSelection;
+        } else {
+            actionBar.classList.remove('active');
+        }
+    };
+
+    const clearSelection = () => {
+        selectedKeys.clear();
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(r => r.classList.remove('selected-row'));
+        updateActionBar();
+    };
+
+    const selectRow = (index, extend = false) => {
+        const rows = tbody.querySelectorAll('tr');
+        if (index < 0 || index >= rows.length) return;
+
+        if (!extend) {
+            selectedKeys.clear();
+            rows.forEach(r => r.classList.remove('selected-row'));
+        }
+
+        const tr = rows[index];
+        const key = tr.getAttribute(rowKeyAttr);
+        
+        if (extend && selectedKeys.has(key)) {
+            // Do not toggle off
+        } else {
+            selectedKeys.add(key);
+            tr.classList.add('selected-row');
+        }
+        
+        updateActionBar();
+        lastSelectedIndex = index;
+    };
+
+    const selectRange = (startIndex, endIndex) => {
+        const rows = tbody.querySelectorAll('tr');
+        selectedKeys.clear();
+        rows.forEach(r => r.classList.remove('selected-row'));
+
+        const start = Math.min(startIndex, endIndex);
+        const end = Math.max(startIndex, endIndex);
+
+        for (let i = start; i <= end; i++) {
+            const tr = rows[i];
+            const key = tr.getAttribute(rowKeyAttr);
+            selectedKeys.add(key);
+            tr.classList.add('selected-row');
+        }
+        updateActionBar();
+    };
+
+    const onRowClick = (e) => {
+        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) {
+            return;
+        }
+        const tr = e.target.closest('tr');
+        if (!tr || tr.parentNode !== tbody) return;
+
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const index = rows.indexOf(tr);
+
+        if (e.shiftKey && lastSelectedIndex !== null) {
+            selectRange(lastSelectedIndex, index);
+        } else if (e.ctrlKey || e.metaKey) {
+            const key = tr.getAttribute(rowKeyAttr);
+            if (selectedKeys.has(key)) {
+                selectedKeys.delete(key);
+                tr.classList.remove('selected-row');
+            } else {
+                selectedKeys.add(key);
+                tr.classList.add('selected-row');
+            }
+            updateActionBar();
+            lastSelectedIndex = index;
+        } else {
+            selectRow(index, false);
+        }
+    };
+
+    tbody.addEventListener('click', onRowClick);
+
+    const onKeyDown = (e) => {
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT') {
+            return;
+        }
+
+        const rows = tbody.querySelectorAll('tr');
+        if (rows.length === 0) return;
+
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            let nextIndex = 0;
+            if (lastSelectedIndex !== null) {
+                if (e.key === 'ArrowDown') {
+                    nextIndex = Math.min(lastSelectedIndex + 1, rows.length - 1);
+                } else {
+                    nextIndex = Math.max(lastSelectedIndex - 1, 0);
+                }
+            }
+            
+            if (e.shiftKey && lastSelectedIndex !== null) {
+                selectRange(lastSelectedIndex, nextIndex);
+                lastSelectedIndex = nextIndex;
+            } else {
+                selectRow(nextIndex, false);
+            }
+            rows[nextIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } else if (e.key === 'Delete') {
+            if (selectedKeys.size > 0) {
+                e.preventDefault();
+                onDeleteSelected(Array.from(selectedKeys));
+                clearSelection();
+            }
+        } else if (e.key === 'Escape') {
+            if (selectedKeys.size > 0) {
+                e.preventDefault();
+                clearSelection();
+            }
+        }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    activeSelectionCleanup = () => {
+        tbody.removeEventListener('click', onRowClick);
+        window.removeEventListener('keydown', onKeyDown);
+        actionBar.classList.remove('active');
+    };
+}
+
+async function deleteMultipleMaterials(codes) {
+    if (codes.length === 1) {
+        await deleteMaterial(codes[0]);
+        return;
+    }
+    if (!await customConfirm(`Are you sure you want to delete ${codes.length} material(s)?`)) return;
+    let success = 0;
+    let failures = [];
+    for (const code of codes) {
+        try {
+            const res = await fetch(`${API_BASE}/materials/${code}`, { method: 'DELETE' });
+            if (res.ok) {
+                success++;
+            } else {
+                const errObj = await res.json().catch(() => ({}));
+                failures.push({ code, reason: errObj.error || `HTTP ${res.status}` });
+            }
+        } catch (err) {
+            failures.push({ code, reason: err.message });
+        }
+    }
+    if (failures.length === 0) {
+        alert(`Successfully deleted all ${success} material(s).`);
+    } else {
+        let report = `Deleted ${success} material(s).\n\nFailed to delete ${failures.length} material(s):\n`;
+        failures.forEach(f => {
+            report += `- Material ${f.code}: ${f.reason}\n`;
+        });
+        alert(report);
+    }
+    await fetchMaterials();
+}
+
+async function deleteMultipleSuppliers(ids) {
+    if (ids.length === 1) {
+        await deleteSupplier(parseInt(ids[0]));
+        return;
+    }
+    if (!await customConfirm(`Are you sure you want to delete ${ids.length} supplier record(s)?`)) return;
+    let success = 0;
+    let failures = [];
+    for (const id of ids) {
+        try {
+            const res = await fetch(`${API_BASE}/suppliers/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                success++;
+            } else {
+                const errObj = await res.json().catch(() => ({}));
+                failures.push({ id, reason: errObj.error || `HTTP ${res.status}` });
+            }
+        } catch (err) {
+            failures.push({ id, reason: err.message });
+        }
+    }
+    if (failures.length === 0) {
+        alert(`Successfully deleted all ${success} supplier record(s).`);
+    } else {
+        let report = `Deleted ${success} supplier(s).\n\nFailed to delete ${failures.length} supplier(s):\n`;
+        failures.forEach(f => {
+            report += `- Supplier ID ${f.id}: ${f.reason}\n`;
+        });
+        alert(report);
+    }
+    await fetchSuppliers();
+}
+
+async function deleteMultipleLocations(codes) {
+    if (codes.length === 1) {
+        await deleteLocation(codes[0]);
+        return;
+    }
+    if (!await customConfirm(`Are you sure you want to delete ${codes.length} storage location(s)?`)) return;
+    let success = 0;
+    let failures = [];
+    for (const code of codes) {
+        try {
+            const res = await fetch(`${API_BASE}/locations/${code}`, { method: 'DELETE' });
+            if (res.ok) {
+                success++;
+            } else {
+                const errObj = await res.json().catch(() => ({}));
+                failures.push({ code, reason: errObj.error || `HTTP ${res.status}` });
+            }
+        } catch (err) {
+            failures.push({ code, reason: err.message });
+        }
+    }
+    if (failures.length === 0) {
+        alert(`Successfully deleted all ${success} storage location(s).`);
+    } else {
+        let report = `Deleted ${success} location(s).\n\nFailed to delete ${failures.length} location(s):\n`;
+        failures.forEach(f => {
+            report += `- Location ${f.code}: ${f.reason}\n`;
+        });
+        alert(report);
+    }
+    await fetchLocations();
+}
+
+async function deleteMultiplePurchaseOrders(ids) {
+    if (ids.length === 1) {
+        await deletePurchaseOrder(parseInt(ids[0]));
+        return;
+    }
+    if (!await customConfirm(`Are you sure you want to delete ${ids.length} Purchase Order(s)?`)) return;
+    let success = 0;
+    let failures = [];
+    for (const id of ids) {
+        try {
+            const res = await fetch(`${API_BASE}/purchase-orders/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                success++;
+            } else {
+                const errObj = await res.json().catch(() => ({}));
+                failures.push({ id, reason: errObj.error || `HTTP ${res.status}` });
+            }
+        } catch (err) {
+            failures.push({ id, reason: err.message });
+        }
+    }
+    if (failures.length === 0) {
+        alert(`Successfully deleted all ${success} Purchase Order(s).`);
+    } else {
+        let report = `Deleted ${success} Purchase Order(s).\n\nFailed to delete ${failures.length} order(s):\n`;
+        failures.forEach(f => {
+            report += `- PO #${f.id}: ${f.reason}\n`;
+        });
+        alert(report);
+    }
+    await fetchPurchaseOrders();
+}
+function formatDate(dateInput) {
+    if (!dateInput) return '-';
+    
+    let parts = [];
+    if (Array.isArray(dateInput)) {
+        parts = dateInput;
+    } else if (typeof dateInput === 'string') {
+        if (dateInput.includes(',')) {
+            parts = dateInput.split(',').map(p => parseInt(p.trim()));
+        } else if (dateInput.includes('-')) {
+            parts = dateInput.split('-').map(p => parseInt(p.trim()));
+        } else {
+            const d = new Date(dateInput);
+            if (!isNaN(d.getTime())) {
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yyyy = d.getFullYear();
+                return `${dd}-${mm}-${yyyy}`;
+            }
+            return dateInput;
+        }
+    } else {
+        return String(dateInput);
+    }
+    
+    if (parts.length >= 3) {
+        const yyyy = parts[0];
+        const mm = String(parts[1]).padStart(2, '0');
+        const dd = String(parts[2]).padStart(2, '0');
+        return `${dd}-${mm}-${yyyy}`;
+    }
+    
+    return String(dateInput);
+}
+
+function makeXaiPanelAdjustable() {
+    const header = document.querySelector('.xai-header');
+    const panel = document.getElementById('xaiPanel');
+    if (!header || !panel) return;
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+
+    header.style.cursor = 'move';
+
+    header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('#xaiClose')) return;
+        
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = panel.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        panel.style.bottom = 'auto';
+        panel.style.right = 'auto';
+        panel.style.left = `${initialLeft}px`;
+        panel.style.top = `${initialTop}px`;
+        panel.style.transform = 'none';
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        panel.style.left = `${initialLeft + dx}px`;
+        panel.style.top = `${initialTop + dy}px`;
+    }
+
+    function onMouseUp() {
+        isDragging = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+}
 
 // Click backdrop (outside modal card/window) to dismiss
 document.addEventListener('click', (e) => {
@@ -296,6 +931,7 @@ function startAuthenticatedShell() {
         shellInitialized = true;
         initRouter();
         initFormSubmitListeners();
+        makeXaiPanelAdjustable();
     }
 
     if (!sseInitialized) {
@@ -488,7 +1124,7 @@ async function updateMaterial(code, item) {
 }
 
 async function deleteMaterial(code) {
-    if (!confirm(`Are you sure you want to delete material ${code}?`)) return;
+    if (!await customConfirm(`Are you sure you want to delete material ${code}?`)) return;
     try {
         const res = await fetch(`${API_BASE}/materials/${code}`, { method: 'DELETE' });
         if (!res.ok) throw new Error("Failed to delete material");
@@ -543,7 +1179,7 @@ async function updateSupplier(id, item) {
 }
 
 async function deleteSupplier(id) {
-    if (!confirm(`Are you sure you want to delete supplier record ID: ${id}?`)) return;
+    if (!await customConfirm(`Are you sure you want to delete supplier record ID: ${id}?`)) return;
     try {
         const res = await fetch(`${API_BASE}/suppliers/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error("Failed to delete supplier");
@@ -684,7 +1320,7 @@ async function fetchComplianceData() {
         // Combine into a single consolidated inspectable list
         qaAllBatches = [];
 
-        // Add from active QA inspections
+        // Add from active QA inspections (includes IN_PRODUCTION, IN_PROCESS_SAMPLE, UNDER_TEST, QI, QUARANTINE)
         qaList.forEach(item => {
             qaAllBatches.push({
                 batchNumber: item.batchNumber,
@@ -695,7 +1331,7 @@ async function fetchComplianceData() {
                 availableQuantity: item.availableQuantity || item.quantity,
                 unitCost: item.unitCost || 0.0,
                 expDate: item.expDate,
-                qcStatus: item.qcStatus || 'UNDER_TEST',
+                qcStatus: item.qcStatus || 'IN_PRODUCTION',
                 source: 'QA_INSPECTION'
             });
         });
@@ -703,7 +1339,9 @@ async function fetchComplianceData() {
         // Add approved / rejected stock items not already in qaList
         const qaBatchNumbers = new Set(qaAllBatches.map(b => b.batchNumber));
         stockList.forEach(item => {
-            if (!qaBatchNumbers.has(item.batchNumber)) {
+            // Only add APPROVED / REJECTED / RELEASED that are not already in the QA inspection list
+            const terminalStatuses = ['APPROVED', 'REJECTED', 'RELEASED'];
+            if (!qaBatchNumbers.has(item.batchNumber) && terminalStatuses.includes((item.qcStatus || '').toUpperCase())) {
                 qaAllBatches.push({
                     batchNumber: item.batchNumber,
                     materialCode: item.materialCode,
@@ -720,31 +1358,8 @@ async function fetchComplianceData() {
             }
         });
 
-        // Add active production run batches not already added
-        orderList.forEach(item => {
-            if (!qaBatchNumbers.has(item.batchNumber)) {
-                let qcStatus = 'IN_PRODUCTION';
-                if (item.status === 'Quality-Testing') qcStatus = 'UNDER_TEST';
-                else if (item.status === 'Approved') qcStatus = 'APPROVED';
-                else if (item.status === 'Rejected') qcStatus = 'REJECTED';
-
-                qaAllBatches.push({
-                    batchNumber: item.batchNumber,
-                    materialCode: `BOM-#${item.bomId}`,
-                    locationCode: 'PRODUCTION_LINE',
-                    quantity: item.plannedQty,
-                    reservedQuantity: 0,
-                    availableQuantity: item.actualQty || 0,
-                    unitCost: 0.0,
-                    expDate: null,
-                    qcStatus: qcStatus,
-                    source: 'PRODUCTION'
-                });
-                qaBatchNumbers.add(item.batchNumber);
-            }
-        });
-
         renderComplianceView(qaAllBatches);
+
     } catch (err) {
         console.error("API error fetching QA list: ", err);
         showMockQAFallback();
@@ -840,7 +1455,7 @@ async function updateLocation(code, location) {
 }
 
 async function deleteLocation(code) {
-    if (!confirm(`Are you sure you want to delete location ${code}?`)) return;
+    if (!await customConfirm(`Are you sure you want to delete location ${code}?`)) return;
     try {
         const res = await fetch(`${API_BASE}/locations/${code}`, {
             method: 'DELETE'
@@ -889,7 +1504,7 @@ async function createPurchaseOrder(po) {
 }
 
 async function deletePurchaseOrder(id) {
-    if (!confirm(`Are you sure you want to delete Purchase Order #${id}?`)) return;
+    if (!await customConfirm(`Are you sure you want to delete Purchase Order #${id}?`)) return;
     try {
         const res = await fetch(`${API_BASE}/purchase-orders/${id}`, {
             method: 'DELETE'
@@ -1567,9 +2182,9 @@ function renderAiView() {
     });
 
     document.querySelectorAll('.reject-decision-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
             const id = e.currentTarget.getAttribute('data-id');
-            const remarks = prompt("Please enter the reason for rejecting this AI decision:");
+            const remarks = await customPrompt("Please enter the reason for rejecting this AI decision:");
             if (remarks === null) return;
             if (remarks.trim() === '') {
                 alert("Rejection remarks are required.");
@@ -1774,7 +2389,7 @@ function renderReportTable() {
                 <td>${item.batchNumber}</td>
                 <td>${item.locationCode || '-'}</td>
                 <td>${(item.availableQuantity || item.quantity).toLocaleString()}</td>
-                <td><span class="text-warning" style="font-weight:600;">${item.expDate}</span></td>
+                <td><span class="text-warning" style="font-weight:600;">${formatDate(item.expDate)}</span></td>
                 <td><span class="badge badge-warning">${item.qcStatus}</span></td>
             `;
             bodyNode.appendChild(tr);
@@ -1824,7 +2439,7 @@ function renderReportTable() {
                 <td>GRN-${String(item.grnId).padStart(4, '0')}</td>
                 <td>PO-${String(item.poId).padStart(4, '0')}</td>
                 <td><strong>${item.supplierName}</strong></td>
-                <td>${item.receivedDate}</td>
+                <td>${formatDate(item.receivedDate)}</td>
                 <td>User #${item.receivedBy || 'System'}</td>
                 <td><span class="badge badge-success">${item.status}</span></td>
             `;
@@ -1988,6 +2603,7 @@ function renderLocationsView(data) {
     } else {
         data.forEach(item => {
             const tr = document.createElement('tr');
+            tr.setAttribute('data-key', item.locationCode);
             tr.innerHTML = `
                 <td><strong>${item.locationCode}</strong></td>
                 <td>${item.locationName}</td>
@@ -2029,6 +2645,7 @@ function renderLocationsView(data) {
                 deleteLocation(code);
             });
         });
+        setupExcelLikeSelection('locationsTableBody', 'data-key', deleteMultipleLocations);
     }
 }
 
@@ -2071,6 +2688,7 @@ function renderPurchaseOrdersView(data) {
     } else {
         data.forEach(item => {
             const tr = document.createElement('tr');
+            tr.setAttribute('data-key', item.id);
             let statusBadge = 'badge-warning';
             if (item.status === 'Received') statusBadge = 'badge-success';
             if (item.status === 'Shipped') statusBadge = 'badge-info';
@@ -2081,8 +2699,8 @@ function renderPurchaseOrdersView(data) {
             tr.innerHTML = `
                 <td>#${item.id}</td>
                 <td><strong>${item.supplierName}</strong></td>
-                <td>${item.orderDate}</td>
-                <td>${item.expectedDate}</td>
+                <td>${formatDate(item.orderDate)}</td>
+                <td>${formatDate(item.expectedDate)}</td>
                 <td>$${Number(item.totalAmount).toFixed(2)}</td>
                 <td><span class="badge ${statusBadge}">${item.status}</span></td>
                 ${(canCreate || canReceive) ? `
@@ -2140,6 +2758,7 @@ function renderPurchaseOrdersView(data) {
                 deletePurchaseOrder(id);
             });
         });
+        setupExcelLikeSelection('poTableBody', 'data-key', deleteMultiplePurchaseOrders);
     }
 
     if (canReceive) {
@@ -2244,7 +2863,7 @@ function renderGRNView(data) {
                 <td>#${item.id}</td>
                 <td>#${item.purchaseOrderId}</td>
                 <td><strong>${item.supplierName}</strong></td>
-                <td>${item.receivedDate}</td>
+                <td>${formatDate(item.receivedDate)}</td>
                 <td><span class="badge ${statusBadge}">${item.status}</span></td>
                 <td>
                     <button class="action-btn view-grn-details-btn" data-id="${item.id}">👁️ View Details</button>
@@ -2350,7 +2969,7 @@ function renderGRNView(data) {
                 document.getElementById('viewGrnId').value = grn.id;
                 document.getElementById('viewGrnPoId').value = grn.purchaseOrderId;
                 document.getElementById('viewGrnSupplier').value = grn.supplierName;
-                document.getElementById('viewGrnDate').value = grn.receivedDate;
+                document.getElementById('viewGrnDate').value = formatDate(grn.receivedDate);
                 document.getElementById('viewGrnReceivedBy').value = grn.receivedBy;
                 document.getElementById('viewGrnStatus').value = grn.status;
                 
@@ -2376,7 +2995,7 @@ function renderGRNView(data) {
                         <td><strong>${item.materialCode}</strong></td>
                         <td>${item.batchNumber}</td>
                         <td>${item.quantityReceived}</td>
-                        <td>${item.expiryDate}</td>
+                        <td>${formatDate(item.expiryDate)}</td>
                     `;
                     tableBody.appendChild(tr);
                 });
@@ -2546,6 +3165,7 @@ function renderMaterialsView(data) {
     } else {
         data.forEach(item => {
             const tr = document.createElement('tr');
+            tr.setAttribute('data-key', item.materialCode);
             let typeBadge = 'badge-success';
             if (item.materialType === 'PACKAGING') typeBadge = 'badge-warning';
             
@@ -2588,6 +3208,7 @@ function renderMaterialsView(data) {
                 deleteMaterial(code);
             });
         });
+        setupExcelLikeSelection('materialsTableBody', 'data-key', deleteMultipleMaterials);
     }
 }
 
@@ -2631,6 +3252,7 @@ function renderSuppliersView(data) {
     } else {
         data.forEach(item => {
             const tr = document.createElement('tr');
+            tr.setAttribute('data-key', item.supplierId);
             let statusBadge = 'badge-warning';
             if (item.supplierStatus === 'APPROVED') statusBadge = 'badge-success';
             if (item.supplierStatus === 'REJECTED' || item.supplierStatus === 'SUSPENDED') statusBadge = 'badge-danger';
@@ -2672,6 +3294,7 @@ function renderSuppliersView(data) {
                 deleteSupplier(id);
             });
         });
+        setupExcelLikeSelection('suppliersTableBody', 'data-key', deleteMultipleSuppliers);
         document.querySelectorAll('.approve-supplier-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const id = parseInt(e.currentTarget.getAttribute('data-id'));
@@ -2752,7 +3375,7 @@ function renderStockView() {
                     <td>${item.reservedQuantity}</td>
                     <td>${item.availableQuantity}</td>
                     <td>$${item.unitCost.toFixed(2)}</td>
-                    <td>${item.expDate || '-'}</td>
+                    <td>${formatDate(item.expDate)}</td>
                     <td><span class="badge ${qcBadge}">${item.qcStatus}</span></td>
                 `;
                 bodyNode.appendChild(tr);
@@ -2886,7 +3509,7 @@ function renderProductionView() {
                     <td>BOM-#${item.bomId}</td>
                     <td>${item.plannedQty}</td>
                     <td>${item.actualQty || '-'}</td>
-                    <td>${item.productionDate || '-'}</td>
+                    <td>${formatDate(item.productionDate)}</td>
                     <td><span class="badge ${statusBadge}">${statusStr}</span></td>
                     ${canCreateOrder ? `<td>${actionBtn}</td>` : ''}
                 `;
@@ -2937,7 +3560,9 @@ function renderProductionView() {
         if (bomList.length === 0) {
             bodyNode.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No BOM formulations declared</td></tr>`;
         } else {
-            bomList.forEach(item => {
+            // Sort in ascending order of bomId
+            const sortedBomList = [...bomList].sort((a, b) => a.bomId - b.bomId);
+            sortedBomList.forEach(item => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>BOM-#${item.bomId}</td>
@@ -3090,7 +3715,12 @@ function renderBatchDetailsPanel() {
             ${canUpdateStatus ? '<button class="btn-primary qa-action-btn" id="qaBtnStartTest" style="flex:1;">🔬 Start Testing</button>' : ''}
             <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="flex:1;">🧬 View Genealogy</button>
         `;
-    } else if (b.qcStatus === 'UNDER_TEST' || b.qcStatus === 'QUARANTINE' || b.qcStatus === 'QI') {
+    } else if (b.qcStatus === 'QUARANTINE') {
+        actionButtonsHtml = `
+            ${canUpdateStatus ? '<button class="btn-primary qa-action-btn" id="qaBtnSample" style="flex:1;">⚡ Take QC Sample</button>' : ''}
+            <button class="btn-secondary qa-action-btn" id="qaBtnGenealogy" style="flex:1;">🧬 View Genealogy</button>
+        `;
+    } else if (b.qcStatus === 'UNDER_TEST' || b.qcStatus === 'QI') {
         actionButtonsHtml = `
             ${canApprove ? '<button class="btn-success qa-action-btn" id="qaBtnApprove" style="background-color: var(--status-green) !important; color: white !important; flex:1;">✅ Approve & Release</button>' : ''}
             ${canReject ? '<button class="btn-danger qa-action-btn" id="qaBtnReject" style="background-color: var(--status-red) !important; color: white !important; flex:1;">❌ Reject Batch</button>' : ''}
@@ -3143,7 +3773,7 @@ function renderBatchDetailsPanel() {
                 <div class="qa-section-header">Assay & Expiration Dates</div>
                 <div class="qa-details-grid">
                     <span class="qa-details-label">Expiry Date:</span>
-                    <span class="qa-details-value">${b.expDate || 'N/A'}</span>
+                    <span class="qa-details-value">${formatDate(b.expDate)}</span>
                     <span class="qa-details-label">Assay Cost:</span>
                     <span class="qa-details-value">$${b.unitCost.toFixed(2)}</span>
                 </div>
@@ -3163,17 +3793,24 @@ function renderBatchDetailsPanel() {
     const btnSample = document.getElementById('qaBtnSample');
     if (btnSample) {
         btnSample.addEventListener('click', async () => {
-            if (!confirm(`Are you sure you want to take an IPQC sample for batch ${b.batchNumber}?\nThis will transition the batch to UNDER_TEST.`)) return;
+            const isQuarantine = b.qcStatus === 'QUARANTINE';
+            const nextStatus = isQuarantine ? 'QI' : 'IN_PROCESS_SAMPLE';
+            const promptMsg = isQuarantine
+                ? `Take a QC sample for quarantined batch ${b.batchNumber}?\nThis will transition the batch to QI.`
+                : `Take an IPQC sample for batch ${b.batchNumber}?\nThis will transition the batch to IN_PROCESS_SAMPLE.`;
+
+            if (!await customConfirm(promptMsg)) return;
             try {
                 const res = await fetch(`${API_BASE}/qa/inspections/${b.batchNumber}/sample`, { method: 'POST' });
-                if (!res.ok) throw new Error("Failed to take sample");
-                alert("Sample logged successfully!");
+                if (!res.ok) {
+                    const errObj = await res.json().catch(() => ({}));
+                    throw new Error(errObj.error || errObj.message || `Server error ${res.status}`);
+                }
+                alert(`Sample logged! Batch transitioned to ${nextStatus}.`);
+                qaSelectedBatch = null;
                 await fetchComplianceData();
             } catch (err) {
-                // Mock
-                b.qcStatus = 'UNDER_TEST';
-                alert("Sample logged successfully (Mock Mode).");
-                renderComplianceView();
+                alert(`❌ Failed to take sample: ${err.message}`);
             }
         });
     }
@@ -3181,48 +3818,84 @@ function renderBatchDetailsPanel() {
     const btnStartTest = document.getElementById('qaBtnStartTest');
     if (btnStartTest) {
         btnStartTest.addEventListener('click', async () => {
-            if (!confirm(`Start chemical assay testing for batch ${b.batchNumber}?`)) return;
+            if (!await customConfirm(`Start chemical assay testing for batch ${b.batchNumber}?\nThis will transition the batch to UNDER_TEST.`)) return;
             try {
                 const res = await fetch(`${API_BASE}/qa/inspections/${b.batchNumber}/status`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'UNDER_TEST' })
                 });
-                if (!res.ok) throw new Error("Failed to update status");
-                alert("Testing run initialized.");
+                if (!res.ok) {
+                    const errObj = await res.json().catch(() => ({}));
+                    throw new Error(errObj.error || errObj.message || `Server error ${res.status}`);
+                }
+                alert('Testing run initialized. Batch is now UNDER_TEST.');
+                qaSelectedBatch = null;
                 await fetchComplianceData();
             } catch (err) {
-                // Mock
-                b.qcStatus = 'UNDER_TEST';
-                alert("Testing run initialized (Mock Mode).");
-                renderComplianceView();
+                alert(`❌ Failed to start testing: ${err.message}`);
             }
         });
+    }
+
+    // 21 CFR Part 11 E-Signature verification helper
+    async function verifyESignature(password) {
+        if (!currentUser || (!currentUser.employeeId && !currentUser.username)) {
+            throw new Error("No active user session.");
+        }
+        const empId = currentUser.employeeId || currentUser.username;
+        const res = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employeeId: empId, password: password })
+        });
+        return res.ok;
     }
 
     const btnApprove = document.getElementById('qaBtnApprove');
     if (btnApprove) {
         btnApprove.addEventListener('click', async () => {
-            const remarks = prompt("Enter approval remarks / release rationale *:");
+            const remarks = await customPrompt('Enter approval remarks / release rationale *:');
             if (remarks === null) return;
             if (remarks.trim() === '') {
-                alert("Remarks are required for release.");
+                alert('Remarks are required for release.');
                 return;
             }
+
+            const password = await customPasswordPrompt('Re-enter your password to authorize Electronic Signature for batch release *:');
+            if (password === null) return;
+            if (password.trim() === '') {
+                alert('Password is required for Electronic Signature verification.');
+                return;
+            }
+
+            // Verify E-Signature credentials
+            try {
+                const verified = await verifyESignature(password);
+                if (!verified) {
+                    alert('❌ Invalid credentials. Electronic Signature verification failed.');
+                    return;
+                }
+            } catch (err) {
+                alert(`❌ Signature verification error: ${err.message}`);
+                return;
+            }
+
             try {
                 const res = await fetch(`${API_BASE}/qa/inspections/${b.batchNumber}/inspect`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'APPROVED', remarks: remarks.trim(), performedBy: currentUser?.employeeName || 'QC Inspector' })
+                    body: JSON.stringify({ status: 'APPROVED', remarks: remarks.trim(), performedBy: currentUser?.fullName || 'QC Inspector' })
                 });
-                if (!res.ok) throw new Error("Failed to approve batch");
-                alert("Batch released to inventory successfully!");
+                if (!res.ok) {
+                    const errObj = await res.json().catch(() => ({}));
+                    throw new Error(errObj.error || errObj.message || `Server error ${res.status}`);
+                }
+                alert('✅ Batch approved and released to warehouse successfully!');
+                qaSelectedBatch = null;
                 await fetchComplianceData();
             } catch (err) {
-                // Mock
-                b.qcStatus = 'APPROVED';
-                alert("Batch released to inventory (Mock Mode).");
-                renderComplianceView();
+                alert(`❌ Failed to approve batch: ${err.message}`);
             }
         });
     }
@@ -3230,29 +3903,51 @@ function renderBatchDetailsPanel() {
     const btnReject = document.getElementById('qaBtnReject');
     if (btnReject) {
         btnReject.addEventListener('click', async () => {
-            const remarks = prompt("Enter rejection remarks / hazard rationale *:");
+            const remarks = await customPrompt('Enter rejection remarks / hazard rationale *:');
             if (remarks === null) return;
             if (remarks.trim() === '') {
-                alert("Remarks are required for QC quarantine rejection.");
+                alert('Remarks are required for QC quarantine rejection.');
                 return;
             }
+
+            const password = await customPasswordPrompt('Re-enter your password to authorize Electronic Signature for batch rejection *:');
+            if (password === null) return;
+            if (password.trim() === '') {
+                alert('Password is required for Electronic Signature verification.');
+                return;
+            }
+
+            // Verify E-Signature credentials
+            try {
+                const verified = await verifyESignature(password);
+                if (!verified) {
+                    alert('❌ Invalid credentials. Electronic Signature verification failed.');
+                    return;
+                }
+            } catch (err) {
+                alert(`❌ Signature verification error: ${err.message}`);
+                return;
+            }
+
             try {
                 const res = await fetch(`${API_BASE}/qa/inspections/${b.batchNumber}/inspect`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'REJECTED', remarks: remarks.trim(), performedBy: currentUser?.employeeName || 'QC Inspector' })
+                    body: JSON.stringify({ status: 'REJECTED', remarks: remarks.trim(), performedBy: currentUser?.fullName || 'QC Inspector' })
                 });
-                if (!res.ok) throw new Error("Failed to reject batch");
-                alert("Batch successfully rejected and quarantined.");
+                if (!res.ok) {
+                    const errObj = await res.json().catch(() => ({}));
+                    throw new Error(errObj.error || errObj.message || `Server error ${res.status}`);
+                }
+                alert('❌ Batch rejected and moved to REJECTED_AREA.');
+                qaSelectedBatch = null;
                 await fetchComplianceData();
             } catch (err) {
-                // Mock
-                b.qcStatus = 'REJECTED';
-                alert("Batch rejected (Mock Mode).");
-                renderComplianceView();
+                alert(`❌ Failed to reject batch: ${err.message}`);
             }
         });
     }
+
 
     const btnGenealogy = document.getElementById('qaBtnGenealogy');
     if (btnGenealogy) {
@@ -3400,15 +4095,46 @@ async function launchAddBomModal() {
 
 async function inspectBOMIngredients(bomId) {
     try {
+        const bom = bomList.find(b => b.bomId === bomId);
+        if (!bom) throw new Error("BOM details not found in active list");
+
         const res = await fetch(`${API_BASE}/bom/${bomId}/ingredients`);
         if (!res.ok) throw new Error("Failed to load ingredients");
         const ingredients = await res.json();
         
-        let details = `Ingredients Details for BOM #${bomId}:\n\n`;
+        document.getElementById('viewBomId').value = `BOM-#${bom.bomId}`;
+        document.getElementById('viewBomProductCode').value = bom.materialCode;
+        document.getElementById('viewBomDescription').value = bom.description;
+        document.getElementById('viewBomVersionStatus').value = `v${bom.versionNumber} - ${bom.active ? 'ACTIVE' : 'INACTIVE'}`;
+        
+        const container = document.getElementById('viewBomIngredientsTableContainer');
+        container.innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ingredient Code</th>
+                        <th>Required Qty</th>
+                        <th>UoM</th>
+                        <th>Notes / Rationale</th>
+                    </tr>
+                </thead>
+                <tbody id="viewBomIngredientsTableBody"></tbody>
+            </table>
+        `;
+        
+        const tableBody = document.getElementById('viewBomIngredientsTableBody');
         ingredients.forEach(i => {
-            details += `- Ingredient Code: ${i.ingredientMaterialCode}\n  Qty required (per unit): ${i.requiredQty} ${i.uom}\n  Notes: ${i.notes || '-'}\n\n`;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${i.ingredientMaterialCode}</strong></td>
+                <td>${i.requiredQty}</td>
+                <td>${i.uom}</td>
+                <td>${i.notes || '-'}</td>
+            `;
+            tableBody.appendChild(tr);
         });
-        alert(details);
+        
+        openModal('viewBomDetailsModal');
     } catch (e) {
         alert("Error loading ingredients: " + e.message);
     }
@@ -3570,7 +4296,7 @@ function initFormSubmitListeners() {
                         warnMsg += `- Material: ${s.materialCode}\n  Required: ${s.requiredQuantity.toLocaleString()}\n  Available: ${s.availableQuantity.toLocaleString()} (Shortfall: ${deficit.toLocaleString()})\n\n`;
                     });
                     warnMsg += "Do you still want to proceed with scheduling this production order?";
-                    if (!confirm(warnMsg)) {
+                    if (!await customConfirm(warnMsg)) {
                         return; // Abort order creation
                     }
                 }
@@ -3683,7 +4409,36 @@ function initFormSubmitListeners() {
     document.getElementById('createGrnForm').addEventListener('submit', (e) => {
         e.preventDefault();
         const poId = parseInt(document.getElementById('grnPoId').value);
-        createGRN({ poId });
+        
+        const grnItemsList = document.getElementById('grnItemsList');
+        const qtyInputs = grnItemsList.querySelectorAll('.grn-qty');
+        const batchInputs = grnItemsList.querySelectorAll('.grn-batch');
+        const expiryInputs = grnItemsList.querySelectorAll('.grn-expiry');
+        
+        const items = [];
+        for (let i = 0; i < qtyInputs.length; i++) {
+            const materialCode = qtyInputs[i].getAttribute('data-material');
+            const quantityReceived = parseInt(qtyInputs[i].value);
+            const batchNumber = batchInputs[i].value.trim();
+            const expiryDate = expiryInputs[i].value;
+            
+            items.push({
+                materialCode,
+                batchNumber,
+                quantityReceived,
+                expiryDate
+            });
+        }
+        
+        const receivedBy = currentUser?.fullName || 'QC Inspector';
+        const receivedByUserId = currentUser?.userId || 1;
+        
+        createGRN({
+            poId,
+            receivedBy,
+            receivedByUserId,
+            items
+        });
     });
 
     // Dynamic row builder button

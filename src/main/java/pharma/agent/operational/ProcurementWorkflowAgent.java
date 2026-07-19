@@ -42,9 +42,9 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
     protected void setup() {
         super.setup();
 
-        // 1. Periodic low-stock monitor
-        addBehaviour(new LowStockMonitorBehaviour(this, MONITOR_PERIOD_MS, services));
-        logger.info("[ProcurementWorkflowAgent] LowStockMonitorBehaviour added (period={}ms).", MONITOR_PERIOD_MS);
+        // 1. Periodic low-stock monitor (Disabled/Commented out to stop the auto-creation of POs)
+        // addBehaviour(new LowStockMonitorBehaviour(this, MONITOR_PERIOD_MS, services));
+        // logger.info("[ProcurementWorkflowAgent] LowStockMonitorBehaviour added (period={}ms).", MONITOR_PERIOD_MS);
 
         // 2. Request handler for PROCUREMENT_WORKFLOW action
         addBehaviour(new ProcurementRequestBehaviour());
