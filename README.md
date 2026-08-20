@@ -257,18 +257,33 @@ SOP_DOCUMENTS_PATH=./sop_documents/
 ```
 
 ### 4. Build and Compilation
-Clean, resolve dependencies, and compile the application using Maven:
-```cmd
-mvn clean compile
+Use the project Maven wrapper (the supported entry point for this repository) to resolve dependencies and compile the backend:
+
+```bash
+./mvnw clean compile
+```
+
+On Windows PowerShell, use:
+
+```powershell
+./mvnw.cmd clean compile
 ```
 
 ### 5. Running the Application
 Start the Javalin REST API backend and the JADE agent container:
+
 ```bash
-mvn exec:java
+./mvnw exec:java
 ```
 
-Then, start the Vite Web UI development server in a separate terminal:
+On Windows PowerShell:
+
+```powershell
+./mvnw.cmd exec:java
+```
+
+Then, in a separate terminal, start the Vite Web UI development server:
+
 ```bash
 cd web-ui
 npm install
