@@ -6,12 +6,15 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import pharma.model.User;
 import pharma.model.Role;
 import pharma.service.DatabaseService;
 
 public class UserJdbcRepository {
+    private static final Logger logger = LoggerFactory.getLogger(UserJdbcRepository.class);
     private final DatabaseService dbService;
     private final JdbcSqlDialect sqlDialect;
     private final RolePermissionJdbcRepository roleRepo;
@@ -64,8 +67,7 @@ public class UserJdbcRepository {
                 }
             }
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Authentication Error: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Authentication Error: {}", e.getMessage(), e);
         }
         return null;
     }
@@ -91,8 +93,7 @@ public class UserJdbcRepository {
                 users.add(user);
             }
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching all users: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching all users: {}", e.getMessage(), e);
         }
         return users;
     }
@@ -117,8 +118,7 @@ public class UserJdbcRepository {
                 }
             }
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching User objects by role: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching User objects by role: {}", e.getMessage(), e);
         }
         return users;
     }
@@ -139,8 +139,7 @@ public class UserJdbcRepository {
                 }
             }
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching usernames by role: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching usernames by role: {}", e.getMessage(), e);
         }
         return usernames;
     }

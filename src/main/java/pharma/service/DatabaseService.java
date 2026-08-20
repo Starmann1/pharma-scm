@@ -282,7 +282,7 @@ public class DatabaseService {
         try {
             return materialRepo.getAllMaterials();
         } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
+            logger.error("Error fetching all drugs: {}", e.getMessage(), e);
             return Collections.emptyList();
         }
     }
@@ -303,7 +303,7 @@ public class DatabaseService {
         try {
             return materialRepo.findByCode(materialCode).orElse(null);
         } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
+            logger.error("Error fetching drug by material code {}: {}", materialCode, e.getMessage(), e);
             return null;
         }
     }
@@ -345,8 +345,7 @@ public class DatabaseService {
         try {
             return locationRepo.getLocations();
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching all locations: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching all locations: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -355,8 +354,7 @@ public class DatabaseService {
         try {
             return locationRepo.getLocationById(locationCode);
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching location by ID: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching location by ID {}: {}", locationCode, e.getMessage(), e);
             return null;
         }
     }
@@ -366,8 +364,7 @@ public class DatabaseService {
         try {
             return locationRepo.addLocation(code, name, description, capacity);
         } catch (SQLException e) {
-            System.err.println("SQL Error inserting location '" + code + "': " + e.getMessage());
-            e.printStackTrace();
+            logger.error("SQL Error inserting location '{}': {}", code, e.getMessage(), e);
             return false;
         }
     }
@@ -377,8 +374,7 @@ public class DatabaseService {
         try {
             return locationRepo.updateLocation(code, name, description, capacity);
         } catch (SQLException e) {
-            System.err.println("SQL Error updating location '" + code + "': " + e.getMessage());
-            e.printStackTrace();
+            logger.error("SQL Error updating location '{}': {}", code, e.getMessage(), e);
             return false;
         }
     }
@@ -387,8 +383,7 @@ public class DatabaseService {
         try {
             return locationRepo.deleteLocation(locationCode);
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error deleting location: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error deleting location {}: {}", locationCode, e.getMessage(), e);
             return false;
         }
     }
@@ -403,11 +398,10 @@ public class DatabaseService {
      */
     public List<Material> getFullInventoryReport() {
         try {
-            System.out.println("Retrieving full inventory (Material Master Data)...");
+            logger.info("Retrieving full inventory (Material Master Data)...");
             return getDrugs();
         } catch (Exception e) {
-            System.err.println("Error retrieving data for Full Inventory Report: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error retrieving data for Full Inventory Report: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -521,7 +515,7 @@ public class DatabaseService {
         try {
             return bomRepo.getAllBOMs();
         } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
+            logger.error("Error fetching all BOMs: {}", e.getMessage(), e);
             return java.util.Collections.emptyList();
         }
     }
@@ -596,7 +590,7 @@ public class DatabaseService {
         try {
             return stockRepository.updateQcStatus(batchNumber, status);
         } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
+            logger.error("Error updating QC status for batch {}: {}", batchNumber, e.getMessage(), e);
             return false;
         }
     }
@@ -622,7 +616,7 @@ public class DatabaseService {
         try {
             return stockRepository.getAllInventoryTransactions();
         } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
+            logger.error("Error retrieving inventory transactions: {}", e.getMessage(), e);
             return java.util.Collections.emptyList();
         }
     }

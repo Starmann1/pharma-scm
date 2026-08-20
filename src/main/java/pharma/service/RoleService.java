@@ -9,9 +9,12 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RoleService {
 
+    private static final Logger logger = LoggerFactory.getLogger(RoleService.class);
     private final RolePermissionJdbcRepository roleRepo;
 
     public RoleService(DatabaseService dbService) {
@@ -22,8 +25,7 @@ public class RoleService {
         try {
             return roleRepo.getAllRoles();
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching roles: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching roles: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -32,8 +34,7 @@ public class RoleService {
         try {
             return roleRepo.getAllPermissions();
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching permissions: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching permissions: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
@@ -42,8 +43,7 @@ public class RoleService {
         try {
             return roleRepo.getPermissionIdsForRole(roleId);
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error fetching role permissions: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error fetching role permissions for role ID {}: {}", roleId, e.getMessage(), e);
             return new HashSet<>();
         }
     }
@@ -52,8 +52,7 @@ public class RoleService {
         try {
             return roleRepo.updateRolePermissions(roleId, permissionIds, adminUserId);
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error updating role permissions: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error updating role permissions for role ID {}: {}", roleId, e.getMessage(), e);
             return false;
         }
     }
@@ -62,8 +61,7 @@ public class RoleService {
         try {
             return roleRepo.createRole(roleName, description, adminUserId);
         } catch (SQLException | ClassNotFoundException e) {
-            System.err.println("Error creating role: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error creating role {}: {}", roleName, e.getMessage(), e);
             return false;
         }
     }

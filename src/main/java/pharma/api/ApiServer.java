@@ -22,8 +22,11 @@ import pharma.service.RoleService;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ApiServer {
+    private static final Logger logger = LoggerFactory.getLogger(ApiServer.class);
     private static Javalin app;
 
     @SuppressWarnings("null")
@@ -57,7 +60,7 @@ public class ApiServer {
 
         // Global Exception Handler
         app.exception(Exception.class, (e, ctx) -> {
-            e.printStackTrace();
+            logger.error("Unhandled exception occurred: ", e);
             ctx.status(500).json(new ErrorResponse(e.getMessage()));
         });
 

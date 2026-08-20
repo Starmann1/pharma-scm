@@ -278,15 +278,15 @@ public class ProductionOrderJdbcRepository {
                     "In-Production");
 
             conn.commit();
-            System.out.println("Production run executed successfully for order: " + orderId);
+            logger.info("Production run executed successfully for order: {}", orderId);
 
         } catch (Exception e) {
             if (conn != null) {
                 try {
                     conn.rollback();
-                    System.err.println("Production run failed, transaction rolled back: " + e.getMessage());
+                    logger.error("Production run failed, transaction rolled back: {}", e.getMessage());
                 } catch (SQLException ex) {
-                    ex.printStackTrace();
+                    logger.error("Failed to rollback transaction", ex);
                 }
             }
             throw e;

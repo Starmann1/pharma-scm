@@ -1,6 +1,11 @@
 package pharma.agent.operational;
 
 import java.util.List;
+import java.util.Date;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import jade.core.AID;
 import jade.lang.acl.ACLMessage;
@@ -34,6 +39,10 @@ import pharma.dto.SupplierScoreDTO;
  * <p>Arguments: arg[0] = {@link pharma.config.ApplicationServices}
  */
 public class ProcurementWorkflowAgent extends BasePharmaAgent {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     /** Low-stock scan interval: 15 seconds (for live testing). */
     private static final long MONITOR_PERIOD_MS = 15_000L;
@@ -85,7 +94,7 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
             // Step 1 — Attempt material reservation to prevent double-ordering
             boolean reserved = false;
             try {
-                reserved = services.getInventoryService().reserveMaterial(
+                reserved = getServices().getInventoryService().reserveMaterial(
                         procReq.getMaterialCode(), procReq.getShortfallQuantity());
             } catch (Exception e) {
                 logger.warn("[ProcurementWorkflowAgent] Material reservation failed (non-fatal): {}",
@@ -94,7 +103,7 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
             logger.info("[ProcurementWorkflowAgent] Material reservation result: {}", reserved);
 
             // Step 2 — Get ranked list of approved suppliers
-            List<SupplierScoreDTO> suppliers = services.getSupplierService()
+            List<SupplierScoreDTO> suppliers = getServices().getSupplierService()
                     .rankApprovedSuppliersForMaterial(procReq.getMaterialCode());
 
             if (suppliers.isEmpty()) {
@@ -121,7 +130,7 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
 
             // Step 4 — Add the Contract-Net Initiator behaviour
             addBehaviour(new ProcurementInitiatorBehaviour(
-                    ProcurementWorkflowAgent.this, cfp, procReq, services));
+                    ProcurementWorkflowAgent.this, cfp, procReq, getServices()));
 
             // Return immediately — the initiator behaviour handles the rest async
             return AgentResponseEnvelope.success(
