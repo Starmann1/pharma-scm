@@ -1,7 +1,7 @@
 package pharma.agent.operational;
 
-import java.util.List;
 import java.util.Date;
+import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -45,6 +45,7 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     /** Low-stock scan interval: 15 seconds (for live testing). */
+    @SuppressWarnings("unused")
     private static final long MONITOR_PERIOD_MS = 15_000L;
 
     @Override
@@ -94,7 +95,7 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
             // Step 1 — Attempt material reservation to prevent double-ordering
             boolean reserved = false;
             try {
-                reserved = getServices().getInventoryService().reserveMaterial(
+                reserved = services.getInventoryService().reserveMaterial(
                         procReq.getMaterialCode(), procReq.getShortfallQuantity());
             } catch (Exception e) {
                 logger.warn("[ProcurementWorkflowAgent] Material reservation failed (non-fatal): {}",
@@ -103,7 +104,7 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
             logger.info("[ProcurementWorkflowAgent] Material reservation result: {}", reserved);
 
             // Step 2 — Get ranked list of approved suppliers
-            List<SupplierScoreDTO> suppliers = getServices().getSupplierService()
+            List<SupplierScoreDTO> suppliers = services.getSupplierService()
                     .rankApprovedSuppliersForMaterial(procReq.getMaterialCode());
 
             if (suppliers.isEmpty()) {
@@ -126,11 +127,11 @@ public class ProcurementWorkflowAgent extends BasePharmaAgent {
             }
             cfp.setContent(MAPPER.writeValueAsString(procReq));
             cfp.setConversationId("procurement-" + request.getTransactionId());
-            cfp.setReplyByDate(new java.util.Date(System.currentTimeMillis() + 30_000L)); // 30s deadline
+            cfp.setReplyByDate(new Date(System.currentTimeMillis() + 30_000L)); // 30s deadline
 
             // Step 4 — Add the Contract-Net Initiator behaviour
             addBehaviour(new ProcurementInitiatorBehaviour(
-                    ProcurementWorkflowAgent.this, cfp, procReq, getServices()));
+                    ProcurementWorkflowAgent.this, cfp, procReq, services));
 
             // Return immediately — the initiator behaviour handles the rest async
             return AgentResponseEnvelope.success(

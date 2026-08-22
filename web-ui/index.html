@@ -211,18 +211,25 @@
       </div>
 
       <!-- FLOATING AI & MULTI-AGENT OVERLAY -->
-      <div class="xai-widget">
+      <div class="xai-widget" id="xaiWidget">
         <!-- Floating Dialog Panel -->
-        <div class="xai-panel" id="xaiPanel">
-          <div class="xai-header">
+        <div class="xai-panel" id="xaiPanel" role="dialog" aria-labelledby="xaiPanelTitle">
+          <!-- Top-left resize handle -->
+          <div class="xai-resizer xai-resizer-nw" id="xaiResizerNw" title="Drag to resize"></div>
+          
+          <div class="xai-header" id="xaiHeader" title="Drag to move panel (Double-click to toggle Maximize)">
             <div class="xai-title-group">
               <div class="xai-header-dot"></div>
               <div>
-                <div class="xai-title">Explainable AI (XAI) Overlay</div>
+                <div class="xai-title" id="xaiPanelTitle">Explainable AI (XAI) Overlay</div>
                 <div class="xai-subtitle">Observing JADE Multi-Agent SCM</div>
               </div>
             </div>
-            <button class="xai-close-btn" id="xaiClose" title="Hide Panel">✖</button>
+            <div class="xai-header-actions">
+              <button type="button" class="xai-header-btn" id="xaiResetPos" title="Reset Position & Size">⟲</button>
+              <button type="button" class="xai-header-btn" id="xaiMaximize" title="Maximize / Restore">🗖</button>
+              <button type="button" class="xai-header-btn xai-close-btn" id="xaiClose" title="Close Panel">✖</button>
+            </div>
           </div>
           
           <!-- View Tabs -->
@@ -265,10 +272,13 @@
               </div>
             </div>
           </div>
+
+          <!-- Bottom-right resize handle -->
+          <div class="xai-resizer xai-resizer-se" id="xaiResizerSe" title="Drag to resize"></div>
         </div>
 
         <!-- Floating Button Trigger -->
-        <button class="xai-trigger" id="xaiTrigger">
+        <button class="xai-trigger" id="xaiTrigger" type="button" title="Toggle Explainable AI Assistant" aria-label="Toggle Explainable AI Assistant">
           <div class="xai-badge" id="xaiPulse"></div>
         </button>
       </div>

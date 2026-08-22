@@ -30,6 +30,7 @@ import pharma.dto.RiskReportDTO;
 public class RiskAnalysisAgent extends BasePharmaAgent {
 
     /** Daily risk scan interval: 24 hours. */
+    @SuppressWarnings("unused")
     private static final long DAILY_SCAN_PERIOD_MS = 86_400_000L;
 
     @Override

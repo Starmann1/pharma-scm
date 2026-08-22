@@ -3,7 +3,6 @@ package pharma.repository.jdbc;
 import java.sql.*;
 
 import pharma.dto.QAResultDTO;
-import pharma.model.ProductionOrder;
 import pharma.model.Stock;
 import pharma.repository.QARepository;
 import pharma.service.DatabaseService;

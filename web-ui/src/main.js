@@ -604,51 +604,312 @@ function formatDate(dateInput) {
     return String(dateInput);
 }
 
-function makeXaiPanelAdjustable() {
-    const header = document.querySelector('.xai-header');
+let xaiWidgetInitialized = false;
+
+function openXaiPanel(tab = null) {
+    const panel = document.getElementById('xaiPanel');
+    const pulse = document.getElementById('xaiPulse');
+    if (!panel) return;
+    panel.style.display = 'flex';
+    if (pulse) pulse.style.display = 'none';
+    ensureXaiPanelInViewport();
+    if (tab) switchXaiTab(tab);
+}
+
+function closeXaiPanel() {
+    const panel = document.getElementById('xaiPanel');
+    if (!panel) return;
+    panel.style.display = 'none';
+}
+
+function toggleXaiPanel() {
+    const panel = document.getElementById('xaiPanel');
+    if (!panel) return;
+    const isVisible = panel.style.display === 'flex' || (!panel.hasAttribute('hidden') && window.getComputedStyle(panel).display === 'flex');
+    if (isVisible) {
+        closeXaiPanel();
+    } else {
+        openXaiPanel();
+    }
+}
+
+function ensureXaiPanelInViewport() {
+    const panel = document.getElementById('xaiPanel');
+    if (!panel || panel.classList.contains('maximized')) return;
+    
+    // If panel hasn't been custom positioned, it defaults to CSS bottom/right
+    if (!panel.style.top && !panel.style.left) {
+        return;
+    }
+    
+    const rect = panel.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    
+    let left = parseFloat(panel.style.left) || rect.left;
+    let top = parseFloat(panel.style.top) || rect.top;
+    let width = rect.width || 440;
+    let height = rect.height || 560;
+    
+    if (left + width > vw - 10) left = Math.max(10, vw - width - 10);
+    if (left < 10) left = 10;
+    if (top + height > vh - 10) top = Math.max(10, vh - height - 10);
+    if (top < 10) top = 10;
+    
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+}
+
+function resetXaiPanelPosition() {
+    const panel = document.getElementById('xaiPanel');
+    if (!panel) return;
+    panel.classList.remove('maximized');
+    panel.style.top = 'auto';
+    panel.style.left = 'auto';
+    panel.style.bottom = '86px';
+    panel.style.right = '24px';
+    panel.style.width = '440px';
+    panel.style.height = '560px';
+    const maxBtn = document.getElementById('xaiMaximize');
+    if (maxBtn) maxBtn.textContent = '🗖';
+}
+
+function toggleMaximizeXaiPanel() {
+    const panel = document.getElementById('xaiPanel');
+    const maxBtn = document.getElementById('xaiMaximize');
+    if (!panel) return;
+    
+    if (panel.classList.contains('maximized')) {
+        panel.classList.remove('maximized');
+        if (maxBtn) maxBtn.textContent = '🗖';
+        ensureXaiPanelInViewport();
+    } else {
+        panel.classList.add('maximized');
+        if (maxBtn) maxBtn.textContent = '🗗';
+    }
+}
+
+function switchXaiTab(tabName) {
+    const tabLogs = document.getElementById('tabLogs');
+    const tabChat = document.getElementById('tabChat');
+    const viewLogs = document.getElementById('viewLogs');
+    const viewChat = document.getElementById('viewChat');
+    const chatInput = document.getElementById('chatInput');
+
+    if (tabName === 'chat') {
+        if (tabLogs) tabLogs.classList.remove('active');
+        if (tabChat) tabChat.classList.add('active');
+        if (viewLogs) viewLogs.classList.remove('active');
+        if (viewChat) viewChat.classList.add('active');
+        if (chatInput) setTimeout(() => chatInput.focus(), 80);
+    } else {
+        if (tabLogs) tabLogs.classList.add('active');
+        if (tabChat) tabChat.classList.remove('active');
+        if (viewLogs) viewLogs.classList.add('active');
+        if (viewChat) viewChat.classList.remove('active');
+    }
+}
+
+function setupXaiDraggable() {
+    const header = document.getElementById('xaiHeader') || document.querySelector('.xai-header');
     const panel = document.getElementById('xaiPanel');
     if (!header || !panel) return;
 
     let isDragging = false;
     let startX = 0, startY = 0;
-    let initialLeft = 0, initialTop = 0;
+    let origLeft = 0, origTop = 0;
 
-    header.style.cursor = 'move';
+    header.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.xai-header-btn') || e.target.closest('button')) return;
+        if (panel.classList.contains('maximized')) return;
 
-    header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('#xaiClose')) return;
-        
-        isDragging = true;
+        const rect = panel.getBoundingClientRect();
+        origLeft = rect.left;
+        origTop = rect.top;
         startX = e.clientX;
         startY = e.clientY;
 
-        const rect = panel.getBoundingClientRect();
-        initialLeft = rect.left;
-        initialTop = rect.top;
-
         panel.style.bottom = 'auto';
         panel.style.right = 'auto';
-        panel.style.left = `${initialLeft}px`;
-        panel.style.top = `${initialTop}px`;
-        panel.style.transform = 'none';
+        panel.style.left = `${origLeft}px`;
+        panel.style.top = `${origTop}px`;
+        panel.style.width = `${rect.width}px`;
+        panel.style.height = `${rect.height}px`;
 
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+        isDragging = true;
+        try { header.setPointerCapture(e.pointerId); } catch (err) {}
+        e.preventDefault();
     });
 
-    function onMouseMove(e) {
+    header.addEventListener('pointermove', (e) => {
         if (!isDragging) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        panel.style.left = `${initialLeft + dx}px`;
-        panel.style.top = `${initialTop + dy}px`;
+
+        let newLeft = origLeft + dx;
+        let newTop = origTop + dy;
+
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const width = panel.offsetWidth;
+        const height = panel.offsetHeight;
+
+        newLeft = Math.max(0, Math.min(newLeft, vw - width));
+        newTop = Math.max(0, Math.min(newTop, vh - height));
+
+        panel.style.left = `${newLeft}px`;
+        panel.style.top = `${newTop}px`;
+    });
+
+    const stopDragging = (e) => {
+        if (isDragging) {
+            isDragging = false;
+            try { header.releasePointerCapture(e.pointerId); } catch (err) {}
+        }
+    };
+
+    header.addEventListener('pointerup', stopDragging);
+    header.addEventListener('pointercancel', stopDragging);
+
+    // Double-click header to toggle maximize/restore
+    header.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.xai-header-btn') || e.target.closest('button')) return;
+        toggleMaximizeXaiPanel();
+    });
+}
+
+function setupXaiResizing() {
+    const panel = document.getElementById('xaiPanel');
+    const resizerSe = document.getElementById('xaiResizerSe');
+    const resizerNw = document.getElementById('xaiResizerNw');
+    if (!panel) return;
+
+    // Bottom-Right Corner Resizer
+    if (resizerSe) {
+        let isResizingSe = false;
+        let startX = 0, startY = 0;
+        let startWidth = 0, startHeight = 0;
+
+        resizerSe.addEventListener('pointerdown', (e) => {
+            if (panel.classList.contains('maximized')) return;
+            const rect = panel.getBoundingClientRect();
+            
+            panel.style.bottom = 'auto';
+            panel.style.right = 'auto';
+            panel.style.left = `${rect.left}px`;
+            panel.style.top = `${rect.top}px`;
+
+            isResizingSe = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = rect.width;
+            startHeight = rect.height;
+
+            try { resizerSe.setPointerCapture(e.pointerId); } catch (err) {}
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        resizerSe.addEventListener('pointermove', (e) => {
+            if (!isResizingSe) return;
+            const newWidth = Math.max(320, Math.min(window.innerWidth - panel.offsetLeft - 10, startWidth + (e.clientX - startX)));
+            const newHeight = Math.max(360, Math.min(window.innerHeight - panel.offsetTop - 10, startHeight + (e.clientY - startY)));
+            panel.style.width = `${newWidth}px`;
+            panel.style.height = `${newHeight}px`;
+        });
+
+        const stopResizeSe = (e) => {
+            if (isResizingSe) {
+                isResizingSe = false;
+                try { resizerSe.releasePointerCapture(e.pointerId); } catch (err) {}
+            }
+        };
+        resizerSe.addEventListener('pointerup', stopResizeSe);
+        resizerSe.addEventListener('pointercancel', stopResizeSe);
     }
 
-    function onMouseUp() {
-        isDragging = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
+    // Top-Left Corner Resizer
+    if (resizerNw) {
+        let isResizingNw = false;
+        let startX = 0, startY = 0;
+        let startLeft = 0, startTop = 0, startWidth = 0, startHeight = 0;
+
+        resizerNw.addEventListener('pointerdown', (e) => {
+            if (panel.classList.contains('maximized')) return;
+            const rect = panel.getBoundingClientRect();
+            
+            panel.style.bottom = 'auto';
+            panel.style.right = 'auto';
+            panel.style.left = `${rect.left}px`;
+            panel.style.top = `${rect.top}px`;
+
+            isResizingNw = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = rect.left;
+            startTop = rect.top;
+            startWidth = rect.width;
+            startHeight = rect.height;
+
+            try { resizerNw.setPointerCapture(e.pointerId); } catch (err) {}
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        resizerNw.addEventListener('pointermove', (e) => {
+            if (!isResizingNw) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            const proposedWidth = startWidth - dx;
+            const proposedHeight = startHeight - dy;
+
+            if (proposedWidth >= 320 && startLeft + dx >= 10) {
+                panel.style.left = `${startLeft + dx}px`;
+                panel.style.width = `${proposedWidth}px`;
+            }
+            if (proposedHeight >= 360 && startTop + dy >= 10) {
+                panel.style.top = `${startTop + dy}px`;
+                panel.style.height = `${proposedHeight}px`;
+            }
+        });
+
+        const stopResizeNw = (e) => {
+            if (isResizingNw) {
+                isResizingNw = false;
+                try { resizerNw.releasePointerCapture(e.pointerId); } catch (err) {}
+            }
+        };
+        resizerNw.addEventListener('pointerup', stopResizeNw);
+        resizerNw.addEventListener('pointercancel', stopResizeNw);
     }
+}
+
+function initXaiWidget() {
+    if (xaiWidgetInitialized) return;
+    xaiWidgetInitialized = true;
+
+    const trigger = document.getElementById('xaiTrigger');
+    const closeBtn = document.getElementById('xaiClose');
+    const maxBtn = document.getElementById('xaiMaximize');
+    const resetBtn = document.getElementById('xaiResetPos');
+    const tabLogs = document.getElementById('tabLogs');
+    const tabChat = document.getElementById('tabChat');
+
+    if (trigger) trigger.addEventListener('click', toggleXaiPanel);
+    if (closeBtn) closeBtn.addEventListener('click', closeXaiPanel);
+    if (maxBtn) maxBtn.addEventListener('click', toggleMaximizeXaiPanel);
+    if (resetBtn) resetBtn.addEventListener('click', resetXaiPanelPosition);
+
+    if (tabLogs) tabLogs.addEventListener('click', () => switchXaiTab('logs'));
+    if (tabChat) tabChat.addEventListener('click', () => switchXaiTab('chat'));
+
+    setupXaiDraggable();
+    setupXaiResizing();
+
+    window.addEventListener('resize', ensureXaiPanelInViewport);
 }
 
 // Click backdrop (outside modal card/window) to dismiss
@@ -931,7 +1192,7 @@ function startAuthenticatedShell() {
         shellInitialized = true;
         initRouter();
         initFormSubmitListeners();
-        makeXaiPanelAdjustable();
+        initXaiWidget();
     }
 
     if (!sseInitialized) {
@@ -4502,28 +4763,7 @@ searchInput.addEventListener('input', () => {
 });
 
 /* --- FLOATING AI WIDGET --- */
-xaiTrigger.addEventListener('click', () => {
-    xaiPanel.style.display = 'flex';
-    xaiPulse.style.display = 'none';
-});
-
-xaiClose.addEventListener('click', () => {
-    xaiPanel.style.display = 'none';
-});
-
-tabLogs.addEventListener('click', () => {
-    tabLogs.classList.add('active');
-    tabChat.classList.remove('active');
-    viewLogs.classList.add('active');
-    viewChat.classList.remove('active');
-});
-
-tabChat.addEventListener('click', () => {
-    tabLogs.classList.remove('active');
-    tabChat.classList.add('active');
-    viewLogs.classList.remove('active');
-    viewChat.classList.add('active');
-});
+// (Event listeners and drag/resize handlers are managed by initXaiWidget)
 
 function appendChatMessage(sender, text) {
     const msg = document.createElement('div');
@@ -4677,6 +4917,7 @@ function init() {
     initCompleted = true;
 
     initAuthListeners();
+    initXaiWidget();
     currentUser = readStoredSession();
 
     if (currentUser) {

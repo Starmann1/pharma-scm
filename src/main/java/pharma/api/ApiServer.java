@@ -538,10 +538,6 @@ public class ApiServer {
                 ctx.status(400).json(new ErrorResponse("Invalid JSON payload for production order."));
                 return;
             }
-            if (order == null) {
-                ctx.status(400).json(new ErrorResponse("Request body cannot be null."));
-                return;
-            }
             if (order.getBomId() <= 0) {
                 ctx.status(400).json(new ErrorResponse("Valid bomId is required for production order."));
                 return;
