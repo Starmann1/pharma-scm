@@ -36,8 +36,8 @@ public class LlmToolRegistry {
     @SuppressWarnings("null")
     public LlmToolRegistry(ApplicationServices services) {
         this.toolObjects = Collections.unmodifiableList(List.of(
-                new InventoryLlmTools(services.getInventoryService()),
-                new SupplierLlmTools(services.getSupplierService()),
+                new InventoryLlmTools(services.getInventoryService(), services.getDatabaseService()),
+                new SupplierLlmTools(services.getSupplierService(), services.getDatabaseService()),
                 new ProductionLlmTools(services.getProductionService()),
                 new QALlmTools(services.getQaService()),
                 new ComplianceLlmTools(services.getComplianceService()),

@@ -105,6 +105,12 @@
             <artifactId>langchain4j-google-ai-gemini</artifactId>
         </dependency>
 
+        <!-- Groq / OpenAI LLM integration -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+        </dependency>
+
         <!-- Easy RAG (document loading, splitting, in-memory embedding store) -->
         <dependency>
             <groupId>dev.langchain4j</groupId>

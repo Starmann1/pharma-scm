@@ -45,24 +45,28 @@ public class AIReasoningAgent extends BasePharmaAgent {
     protected void setup() {
         super.setup();
 
-        // Read configuration from environment
-        String apiKey = System.getenv("GEMINI_API_KEY");
-        String modelName = System.getenv("GEMINI_MODEL");
-        String temperatureStr = System.getenv("GEMINI_TEMPERATURE");
+        // Read configuration from environment (.env fallback)
+        String groqKey = System.getenv("GROQ_API_KEY");
+        String groqModel = System.getenv("GROQ_MODEL");
+        String groqBaseUrl = System.getenv("GROQ_BASE_URL");
 
-        if (apiKey == null || apiKey.isBlank()) {
-            try {
-                io.github.cdimascio.dotenv.Dotenv dotenv = io.github.cdimascio.dotenv.Dotenv.configure().ignoreIfMissing().load();
-                apiKey = dotenv.get("GEMINI_API_KEY");
-                if (modelName == null || modelName.isBlank()) modelName = dotenv.get("GEMINI_MODEL");
-                if (temperatureStr == null || temperatureStr.isBlank()) temperatureStr = dotenv.get("GEMINI_TEMPERATURE");
-            } catch (Exception e) {
-                // Ignore .env loading errors silently
-            }
-        }
+        String geminiKey = System.getenv("GEMINI_API_KEY");
+        String geminiModel = System.getenv("GEMINI_MODEL");
+        String temperatureStr = System.getenv("AI_TEMPERATURE");
+        if (temperatureStr == null) temperatureStr = System.getenv("GEMINI_TEMPERATURE");
 
-        if (modelName == null || modelName.isBlank()) {
-            modelName = DEFAULT_MODEL;
+        try {
+            io.github.cdimascio.dotenv.Dotenv dotenv = io.github.cdimascio.dotenv.Dotenv.configure().ignoreIfMissing().load();
+            if (groqKey == null || groqKey.isBlank()) groqKey = dotenv.get("GROQ_API_KEY");
+            if (groqModel == null || groqModel.isBlank()) groqModel = dotenv.get("GROQ_MODEL");
+            if (groqBaseUrl == null || groqBaseUrl.isBlank()) groqBaseUrl = dotenv.get("GROQ_BASE_URL");
+
+            if (geminiKey == null || geminiKey.isBlank()) geminiKey = dotenv.get("GEMINI_API_KEY");
+            if (geminiModel == null || geminiModel.isBlank()) geminiModel = dotenv.get("GEMINI_MODEL");
+            if (temperatureStr == null || temperatureStr.isBlank()) temperatureStr = dotenv.get("AI_TEMPERATURE");
+            if (temperatureStr == null || temperatureStr.isBlank()) temperatureStr = dotenv.get("GEMINI_TEMPERATURE");
+        } catch (Exception e) {
+            // Ignore .env loading errors silently
         }
 
         double temperature = DEFAULT_TEMPERATURE;
@@ -70,35 +74,40 @@ public class AIReasoningAgent extends BasePharmaAgent {
             try {
                 temperature = Double.parseDouble(temperatureStr);
             } catch (NumberFormatException e) {
-                logger.warn("[AIReasoningAgent] Invalid GEMINI_TEMPERATURE '{}', using default {}",
+                logger.warn("[AIReasoningAgent] Invalid temperature '{}', using default {}",
                         temperatureStr, DEFAULT_TEMPERATURE);
             }
         }
 
-        // Validate API key
-        if (apiKey == null || apiKey.isBlank()) {
-            logger.warn("[AIReasoningAgent] GEMINI_API_KEY is not set — starting in DEGRADED MODE. " +
-                    "AI reasoning requests will fail until a valid API key is configured.");
-            degradedMode = true;
-        }
-
-        // Create LLM tool registry (always — it only wraps existing services)
+        // Initialize tool registry
         if (services != null) {
             toolRegistry = new LlmToolRegistry(services);
         } else {
             logger.warn("[AIReasoningAgent] ApplicationServices not available — tools will not be registered.");
         }
 
-        // Create Gemini service if API key is available
-        if (!degradedMode) {
+        // Determine LLM provider: Groq takes priority if GROQ_API_KEY is configured
+        if (groqKey != null && !groqKey.isBlank()) {
             try {
-                geminiService = new GeminiChatService(apiKey, modelName, temperature);
-                logger.info("[AIReasoningAgent] Gemini service initialized: model='{}' temperature={}",
-                        modelName, temperature);
+                String model = (groqModel != null && !groqModel.isBlank()) ? groqModel : "llama-3.3-70b-versatile";
+                geminiService = GeminiChatService.forGroq(groqKey, model, temperature, groqBaseUrl);
+                logger.info("[AIReasoningAgent] Groq service initialized: model='{}' temperature={}", model, temperature);
+            } catch (Exception e) {
+                logger.error("[AIReasoningAgent] Failed to initialize Groq service: {}", e.getMessage(), e);
+                degradedMode = true;
+            }
+        } else if (geminiKey != null && !geminiKey.isBlank()) {
+            try {
+                String model = (geminiModel != null && !geminiModel.isBlank()) ? geminiModel : DEFAULT_MODEL;
+                geminiService = new GeminiChatService(geminiKey, model, temperature);
+                logger.info("[AIReasoningAgent] Gemini service initialized: model='{}' temperature={}", model, temperature);
             } catch (Exception e) {
                 logger.error("[AIReasoningAgent] Failed to initialize Gemini service: {}", e.getMessage(), e);
                 degradedMode = true;
             }
+        } else {
+            logger.warn("[AIReasoningAgent] Neither GROQ_API_KEY nor GEMINI_API_KEY is set — starting in DEGRADED MODE.");
+            degradedMode = true;
         }
 
         // Register behaviour

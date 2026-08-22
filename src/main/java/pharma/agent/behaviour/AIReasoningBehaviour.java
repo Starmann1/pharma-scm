@@ -92,17 +92,24 @@ public class AIReasoningBehaviour extends RequestHandlerBehaviour {
                     "LLM call failed: " + e.getMessage());
         }
 
-        // Parse confidence score from the JSON response
-        double confidenceScore = extractConfidenceScore(llmResponse);
-        boolean requiresHumanReview = confidenceScore < 0.75;
+        // Determine extraction handling based on task type
+        double confidenceScore;
+        boolean requiresHumanReview;
+        Object extractedData;
 
-        if (requiresHumanReview) {
-            agent.getLogger().warn("[AIReasoningBehaviour] Low confidence ({}) — flagging for human review",
-                    confidenceScore);
+        if ("EXPLAINABILITY_CHAT".equalsIgnoreCase(taskType) || "CHAT".equalsIgnoreCase(taskType)) {
+            extractedData = llmResponse;
+            confidenceScore = 1.0;
+            requiresHumanReview = false;
+        } else {
+            confidenceScore = extractConfidenceScore(llmResponse);
+            requiresHumanReview = confidenceScore < 0.75;
+            if (requiresHumanReview) {
+                agent.getLogger().warn("[AIReasoningBehaviour] Low confidence ({}) — flagging for human review",
+                        confidenceScore);
+            }
+            extractedData = parseExtractedData(llmResponse);
         }
-
-        // Parse extracted data from response
-        Object extractedData = parseExtractedData(llmResponse);
 
         // Build the result DTO
         AIReasoningResultDTO result = new AIReasoningResultDTO();

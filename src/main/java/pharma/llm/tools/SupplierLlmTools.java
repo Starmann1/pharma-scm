@@ -1,6 +1,8 @@
 package pharma.llm.tools;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,27 +10,56 @@ import org.slf4j.LoggerFactory;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import pharma.dto.SupplierScoreDTO;
+import pharma.model.Supplier;
+import pharma.service.DatabaseService;
 import pharma.service.SupplierService;
 
 /**
- * LangChain4j tool wrapper that exposes {@link SupplierService} methods
+ * LangChain4j tool wrapper that exposes {@link SupplierService} and supplier registry methods
  * as LLM-callable tools.
- *
- * <p>Provides supplier ranking by material and individual supplier capacity queries.
  */
 public class SupplierLlmTools {
 
     private static final Logger log = LoggerFactory.getLogger(SupplierLlmTools.class);
 
     private final SupplierService supplierService;
+    private final DatabaseService databaseService;
 
     /**
-     * Constructs a new tool wrapper backed by the given service.
-     *
-     * @param supplierService the supplier service instance
+     * Constructs a new tool wrapper backed by the given services.
      */
-    public SupplierLlmTools(SupplierService supplierService) {
+    public SupplierLlmTools(SupplierService supplierService, DatabaseService databaseService) {
         this.supplierService = supplierService;
+        this.databaseService = databaseService;
+    }
+
+    public SupplierLlmTools(SupplierService supplierService) {
+        this(supplierService, DatabaseService.getInstance());
+    }
+
+    /**
+     * Lists all registered pharmaceutical suppliers with compliance statuses.
+     */
+    @Tool("List all registered vendors and suppliers in the pharma supply chain network, " +
+          "including supplier name, ID, status (APPROVED, PENDING, REJECTED), drug license number, phone, and email.")
+    public List<Map<String, Object>> getAllSuppliers() {
+        log.info("[SupplierLlmTools] getAllSuppliers");
+        try {
+            List<Supplier> sups = databaseService.getAllSuppliers();
+            return sups.stream().map(s -> {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("supplierId", s.getSupplierId());
+                map.put("supplierName", s.getSupplierName());
+                map.put("status", s.getSupplierStatus());
+                map.put("drugLicenseNo", s.getDrugLicenseNo());
+                map.put("phone", s.getPhone());
+                map.put("email", s.getEmail());
+                return map;
+            }).toList();
+        } catch (Exception e) {
+            log.error("[SupplierLlmTools] getAllSuppliers error: {}", e.getMessage(), e);
+            return List.of(Map.of("error", e.getMessage()));
+        }
     }
 
     /**

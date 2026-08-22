@@ -16,11 +16,12 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.tool.DefaultToolExecutor;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 
 /**
- * Service wrapper around Google Gemini via LangChain4j.
+ * Service wrapper around Google Gemini / Groq LLMs via LangChain4j.
  *
  * <p>Provides two interaction modes:
  * <ul>
@@ -56,7 +57,35 @@ public class GeminiChatService {
                 .maxRetries(3)
                 .logRequestsAndResponses(false)
                 .build();
-        log.info("[GeminiChatService] Initialized with model='{}' temperature={}", modelName, temperature);
+        log.info("[GeminiChatService] Initialized Gemini model='{}' temperature={}", modelName, temperature);
+    }
+
+    /**
+     * Internal constructor with custom ChatModel.
+     */
+    public GeminiChatService(ChatModel chatModel, String modelName) {
+        this.chatModel = chatModel;
+        this.modelName = modelName;
+    }
+
+    /**
+     * Constructs a Groq chat service using OpenAI-compatible endpoint.
+     */
+    public static GeminiChatService forGroq(String apiKey, String modelName, double temperature, String baseUrl) {
+        String base = (baseUrl != null && !baseUrl.isBlank()) ? baseUrl : "https://api.groq.com/openai/v1";
+        String model = (modelName != null && !modelName.isBlank()) ? modelName : "llama-3.3-70b-versatile";
+        ChatModel groqModel = OpenAiChatModel.builder()
+                .baseUrl(base)
+                .apiKey(apiKey)
+                .modelName(model)
+                .temperature(temperature)
+                .timeout(Duration.ofSeconds(30))
+                .maxRetries(3)
+                .logRequests(false)
+                .logResponses(false)
+                .build();
+        log.info("[GeminiChatService] Initialized Groq model='{}' endpoint='{}'", model, base);
+        return new GeminiChatService(groqModel, model);
     }
 
     /**
