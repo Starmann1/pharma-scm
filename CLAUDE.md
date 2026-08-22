@@ -1,6 +1,15 @@
 # Pharma IMS — Claude Code Instructions
 
+## Common Commands
+
+- **Build**: `./mvnw.cmd clean compile`
+- **Run Application**: `./mvnw.cmd exec:java`
+- **Run All Tests**: `./mvnw.cmd test`
+- **Run Single Test Class**: `./mvnw.cmd test -Dtest=ClassName`
+- **Run Single Test Method**: `./mvnw.cmd test -Dtest=ClassName#methodName`
+
 ## 1. Project Identity
+
 
 This repository is the **Agentic Pharmaceutical Supply Chain Management System (Pharma IMS), v1.1**.
 
@@ -492,6 +501,8 @@ Before completion, use the repository's supported Maven commands. On Windows Pow
 ```powershell
 ./mvnw.cmd clean compile
 ./mvnw.cmd test
+./mvnw.cmd test -Dtest=ClassName
+./mvnw.cmd test -Dtest=ClassName#methodName
 ```
 
 If the Maven wrapper is unavailable, inspect the repository and use the configured Maven installation instead.
